@@ -1,0 +1,37 @@
+I want to create an app called SpotTok.  TikTok for music.  But it does not have the same UI as TikTok.
+
+It will use the Spotify API.  It's a client.  The user will log in to spotify.
+
+To start, we play a song that about half of the people like, selected from the spotify catalog by an LLM.  It's like 20 questions -- we are trying to guess what you will like by splitting your cohort in two each time.
+
+There are two panels side-by-side.  The left one is the player and the right one has the user's history.
+
+The player is filled with the image for the song, which functions as a background.  On top of it, at the bottom, there is
+
+- the play time slider.  you can move it to change the player position in the song.  Push to the extreme right and it will go to the next song.
+
+- the rating slider and display.  Could be displayed vertically.   As you drag, the display that shows your current rating.  It starts at 50, goes down to 0 and up to 100.
+
+- next button.  gets the next song.  the ccurrent song keeps playing until the new one is loaded.  it would be nice to have a gentle transition.  Even better, a smooth DJ-style transition.
+
+The user's history on the right shows every song we have played for you.  You can click on a song to bring it up in the player.  The songs have checkboxes and you can delete a group of songs to clear them from memory.  
+
+My history is stored in local storage.  
+
+In addition to my history, the right column exposes the LLM's thoughts.  We will ask it to write a few sentences about me based on my ratings so far.  We can show several songs that are compatible with your ratings, one of which will be played next.
+
+After each rating, we upload all my ratings to the LLM.  We ask it to give two answers:   
+
+  - 3 songs that could be played next, compatible with all my ratings so far
+
+  - tell me what it thinks about my taste in music, if anything
+
+We ask for 3 songs because it takes time for the LLM to respond.  We do not want a gap between songs!  That is the prime directive.  
+
+It doesn't mean we have to play all three songs.  Here is a scenario where we do not.  We play the first one, and the user makes a rating.  At that moment, we submit the new rating (and old ones) to the LLM.  But the response is not immediate.  While we are waiting, we can follow the first song of the 3 returned with the second one.  When the user is done with the second, the new LLM call may be completed, so we move to the new set of 3 and abandon the original third song.  Hope you can follow that.
+
+It may make sense to load the user's local storage history as system prompt at the start of any session, and then submit only the new ratings on each call.  Otherwise, the delay will be longer on each run.
+
+Do not do "next" when I rate a song.  Just log the rating and start the LLM.  The user has to click Next or let the song play through to get the next song.
+
+
