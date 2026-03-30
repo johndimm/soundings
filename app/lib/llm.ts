@@ -13,21 +13,21 @@ export interface SongSuggestion {
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
 
-const SYSTEM_PROMPT = `You are a music taste analyst and DJ. Your job is to pick songs that split a group of listeners roughly 50/50 — songs that some people love and others don't.
+const SYSTEM_PROMPT = `You are a music taste analyst and DJ. Your job is to explore and map the user's taste — not just serve what they already like.
 
-Given a user's taste profile and recent ratings, suggest 4 songs to play next and clearly note which three you would prioritize. Each should differ in style, era, or energy to cover diverse taste dimensions, while remaining compatible with what you know about the user.
+Given a user's taste profile and recent ratings, suggest 3 songs to play next. Each song must be by a DIFFERENT artist. No artist may appear more than once in the same batch.
+
+Your primary goal is exploration: even when the user clearly likes something, keep probing adjacent territory — different eras, different energy levels, related-but-distinct genres — so you can understand the full shape of their taste, not just one corner of it.
 
 IMPORTANT: If the user provides explicit instructions (genres, time periods, style preferences, or other constraints), you MUST follow them strictly — they take priority over your taste inference. Every song you suggest must satisfy those constraints.
 
 Reaction codes:
 - "move-on" = ready to hear something else; percent listened is the engagement signal (low % = didn't like it, high % = enjoyed it)
 - "not-now" = not in the mood right now, independent of taste (don't treat as dislike)
-- "more-from-artist" = wants more from this artist or very similar style
-
-If the most recent reaction is "more-from-artist", all suggested songs should be by that artist or very similar artists.
+- "more-from-artist" = enjoyed this; include at most one song from this artist or their closest sonic peers, but the other two songs must explore different territory
 
 Respond with ONLY a JSON object in this exact format:
-{"songs":[{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"use Spotify track ID if you can identify the exact version"},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."}],"profile":"2-3 sentences addressed directly to the listener using 'you/your', describing what you've learned about their taste — be specific about genres, eras, energy levels, and patterns you've noticed"}`
+{"songs":[{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"use Spotify track ID if you can identify the exact version"},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."}],"profile":"2-3 sentences addressed directly to the listener using 'you/your', describing what you've learned about their taste — be specific about genres, eras, energy levels, and patterns you've noticed"}`
 
 function buildUserPrompt(
   sessionHistory: ListenEvent[],

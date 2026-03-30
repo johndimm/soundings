@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
-  const baseUrl = new URL('/', req.url).origin
+  const baseUrl = req.nextUrl.origin
 
   if (error || !code) {
     return Response.redirect(`${baseUrl}/?error=spotify_auth_failed`, 302)
@@ -43,11 +43,16 @@ export async function GET(req: NextRequest) {
   })
 
   const setCookieHeaders = buildSpotifyTokenSetCookieHeaders(tokens)
-  console.info('callback: setting cookies', setCookieHeaders.map(h => h.split('=')[0]))
+  console.info('callback: setting N cookies', setCookieHeaders.length)
 
-  const headers = new Headers({ Location: `${baseUrl}/player` })
+  // Use a 200 HTML response instead of 302 redirect so Vercel's edge
+  // does not strip Set-Cookie headers (which it may do on redirect responses).
+  const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' })
   for (const cookie of setCookieHeaders) {
     headers.append('Set-Cookie', cookie)
   }
-  return new Response(null, { status: 302, headers })
+  const html = `<!DOCTYPE html><html><head>
+<script>window.location.replace('/player')</script>
+</head><body>Redirecting...</body></html>`
+  return new Response(html, { status: 200, headers })
 }

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earprint Dev Diary</title>
+<style>
+  body { font-family: monospace; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #111; color: #ccc; line-height: 1.6; }
+  h1 { color: #1db954; }
+  h2 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 0.3rem; margin-top: 2rem; }
+  h3 { color: #aaa; }
+  code { background: #222; padding: 0.1em 0.3em; border-radius: 3px; color: #1db954; }
+  ul { padding-left: 1.5rem; }
+  li { margin: 0.3rem 0; }
+  .problem { color: #e55; }
+  .fix { color: #5e5; }
+  .pending { color: #fa0; }
+</style>
+</head>
+<body>
+<h1>Earprint Dev Diary</h1>
+
+<h2>2026-03-30</h2>
+
+<h3>Problem: 401 Unauthorized spam on Vercel</h3>
+<ul>
+  <li class="problem">On Vercel, <code>POST /api/next-song</code> immediately returned 401 (Unauthorized).</li>
+  <li class="problem">The client had no backoff for this error — the auto-fill effect loop retried immediately and endlessly (hundreds of requests per session).</li>
+  <li class="problem">User saw "Could not load songs. Try again." with the browser network tab flooding with 401s.</li>
+  <li class="problem">Root cause #1: Infinite retry loop — any non-rate-limited error from <code>fetchToBuffer</code> set <code>loadingQueue=false</code> in <code>.finally()</code>, which re-triggered the auto-fill <code>useEffect</code>, which called <code>fetchToBuffer()</code> again. No backoff for generic errors.</li>
+</ul>
+
+<h3 class="fix">Fix: Infinite retry loop</h3>
+<ul>
+  <li class="fix">Added <code>class AuthError extends Error</code> for 401 responses specifically.</li>
+  <li class="fix">In <code>fetchCards</code>: throw <code>AuthError</code> when <code>res.status === 401</code>.</li>
+  <li class="fix">In <code>fetchToBuffer</code> catch: on <code>AuthError</code>, redirect to <code>/</code> (re-auth). On generic errors, apply the same 30-second backoff used for rate limiting.</li>
+</ul>
+
+<h3 class="problem">Problem: Refresh token cookie missing on Vercel</h3>
+<ul>
+  <li class="problem">The 401 from <code>/api/next-song</code> was caused by missing cookies: access token and/or refresh token not found server-side.</li>
+  <li class="problem">Vercel log: <em>"refreshSpotifyAccessToken: no refresh token cookie found"</em>.</li>
+  <li class="problem">The user <em>was</em> on <code>/player</code> (SSR reads the access token cookie fine), but the API route couldn't find it.</li>
+  <li class="problem">Root cause #2: The OAuth callback (<code>app/callback/route.ts</code>) used <code>cookies().set()</code> from <code>next/headers</code> followed by <code>redirect()</code> from <code>next/navigation</code>. In Next.js 16, <code>redirect()</code> throws a special error — cookies set before the throw may not be flushed into the response headers. On Vercel this meant only the first cookie (access token) was reliably set; the expiry and refresh token cookies were dropped.</li>
+</ul>
+
+<h3 class="fix">Attempts to fix cookie setting</h3>
+<ul>
+  <li>Tried <code>NextResponse.redirect()</code> with <code>response.cookies.set()</code> — broke local login entirely.</li>
+  <li>Reverted; added logging to confirm Spotify returns a refresh token (it does).</li>
+  <li>Tried plain <code>new Response(null, { status: 302, headers })</code> with explicit <code>Set-Cookie</code> headers — worked locally, still failed on Vercel.</li>
+  <li class="pending">Current attempt: return a <strong>200 HTML response</strong> with <code>Set-Cookie</code> headers and <code>window.location.replace('/player')</code>. Avoids redirect entirely — Vercel's edge network may strip <code>Set-Cookie</code> from 3xx responses but should leave them on 200 responses.</li>
+</ul>
+
+<h3>Why it works locally but not on Vercel</h3>
+<ul>
+  <li>Locally (<code>http://localhost:3000</code>): <code>NODE_ENV=development</code>, cookies have no <code>Secure</code> flag, responses flow directly from Next.js dev server to browser with no proxy.</li>
+  <li>On Vercel: <code>NODE_ENV=production</code>, cookies have <code>Secure; SameSite=Lax</code>. All traffic goes through Vercel's edge network proxy. The proxy may strip <code>Set-Cookie</code> headers from 302 redirect responses (either for security, caching, or CDN normalisation reasons). The 200 HTML approach bypasses this.</li>
+</ul>
+
+<h3>Status</h3>
+<ul>
+  <li class="fix">Infinite retry loop: fixed (30-second backoff on all errors; immediate redirect to login on 401).</li>
+  <li class="pending">Cookie persistence on Vercel: in progress — testing 200 HTML response approach.</li>
+</ul>
+</body>
+</html>

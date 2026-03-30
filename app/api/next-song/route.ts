@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch } =
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard } =
     (await req.json()) as {
     sessionHistory: ListenEvent[]
     priorProfile?: string
@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
     artistConstraint?: string
     notes?: string
     forceTextSearch?: boolean
+    alreadyHeard?: string[]
   }
 
   let songs: { search: string; reason: string }[]
@@ -65,7 +66,8 @@ export async function POST(req: NextRequest) {
       provider,
       artistConstraint,
       notes,
-      priorProfile
+      priorProfile,
+      alreadyHeard
     )
     songs = result.songs
     profile = result.profile

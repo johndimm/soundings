@@ -345,6 +345,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       artistConstraint?: string,
       forceTextSearch?: boolean
     ): Promise<{ cards: CardState[]; profile?: string }> => {
+      const alreadyHeard = [
+        ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
+        ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
+        ...llmBufferRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
+      ]
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
@@ -356,6 +361,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           timePeriodRef.current,
           notesRef.current
         ),
+        alreadyHeard: alreadyHeard.length > 0 ? alreadyHeard : undefined,
       }
       if (forceTextSearch) {
         payload.forceTextSearch = true
@@ -461,6 +467,13 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           setError('Could not load songs. Try again.')
         }
         setStatusVersion(v => v + 1)
+
+        // Back off on generic errors to prevent hammering the API
+        const waitMs = RATE_LIMIT_DEFAULT_WAIT_MS
+        const until = Date.now() + waitMs
+        setBackoffUntil(until)
+        if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
+        backoffTimerRef.current = setTimeout(() => setBackoffUntil(null), waitMs)
       })
       .finally(() => {
         if (gen === fetchGenRef.current) setLoadingQueue(false)
@@ -674,15 +687,22 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const constraintInitRef = useRef(false)
   const handleConstraintResults = useCallback((cards: CardState[]) => {
     if (cards.length === 0) return
-    const [first, ...rest] = cards
-    currentCardRef.current = first
-    setCurrentCard(first)
-    setQueue(rest)
-    queueRef.current = rest
     setLlmBuffer([])
     llmBufferRef.current = []
-    setHasRated(false)
-    hasRatedRef.current = false
+    if (!currentCardRef.current) {
+      // Nothing playing — start immediately
+      const [first, ...rest] = cards
+      currentCardRef.current = first
+      setCurrentCard(first)
+      setQueue(rest)
+      queueRef.current = rest
+      setHasRated(false)
+      hasRatedRef.current = false
+    } else {
+      // Song in progress — only replace the upcoming queue, let current song finish
+      setQueue(cards)
+      queueRef.current = cards
+    }
   }, [])
 
   useEffect(() => {
