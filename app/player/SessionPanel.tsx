@@ -165,14 +165,16 @@ export default function SessionPanel({
             Up next{queue.length > 0 ? ` (${queue.length})` : ''}
           </label>
           {loadingNext && (
-            <span className="text-xs text-zinc-600">Finding…</span>
+            <div className="flex items-center gap-1.5 text-zinc-300">
+              <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
+              <span className="text-xs">Asking the DJ…</span>
+            </div>
           )}
         </div>
 
         {loadingNext && queue.length === 0 && (
-          <div className="flex items-center gap-2 text-zinc-600 text-xs py-2">
-            <div className="w-4 h-4 border border-zinc-600 border-t-zinc-400 rounded-full animate-spin" />
-            Asking the DJ…
+          <div className="flex items-center gap-2 text-zinc-500 text-xs py-2 italic">
+            Searching for songs…
           </div>
         )}
 
