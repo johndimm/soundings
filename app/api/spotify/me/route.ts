@@ -10,7 +10,12 @@ export async function GET() {
     return NextResponse.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  console.info('spotify/me: invoking Spotify Web API')
+  console.info('spotify/me: invoking Spotify Web API', {
+    tokenLength: accessToken.length,
+    tokenPrefix: accessToken.slice(0, 8),
+    tokenSuffix: accessToken.slice(-4),
+    hasWhitespace: /\s/.test(accessToken),
+  })
 
   const response = await fetch('https://api.spotify.com/v1/me', {
     headers: {

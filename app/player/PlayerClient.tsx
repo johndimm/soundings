@@ -460,11 +460,9 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         }
 
         if (err instanceof AuthError) {
-          // Set a long backoff so the auto-fill effect does not re-fire
-          // while the page is navigating away.
+          setError('Authentication error (401). Access token may be invalid or missing.')
           const far = Date.now() + 300_000
           setBackoffUntil(far)
-          window.location.href = '/'
           return
         }
 
