@@ -4,16 +4,19 @@ import { redirect } from 'next/navigation'
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; skipRedirect?: string }>
 }) {
   const cookieStore = await cookies()
   const hasToken = cookieStore.has('spotify_access_token')
 
-  if (hasToken) {
+  const params = await searchParams
+  const skipRedirect = params.skipRedirect === '1'
+
+  if (hasToken && !skipRedirect) {
     redirect('/player')
   }
 
-  const { error } = await searchParams
+  const { error } = params
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white">
