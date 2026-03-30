@@ -82,7 +82,7 @@ async function askAnthropic(
     },
     body: JSON.stringify({
       model: 'claude-opus-4-6',
-      max_tokens: 400,
+      max_tokens: 1024,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes) }],
     }),
@@ -106,7 +106,7 @@ async function askOpenAI(
     },
     body: JSON.stringify({
       model: 'gpt-4o',
-      max_tokens: 400,
+      max_tokens: 1024,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes) },
@@ -132,7 +132,7 @@ async function askDeepSeek(
     },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      max_tokens: 400,
+      max_tokens: 1024,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes) },
