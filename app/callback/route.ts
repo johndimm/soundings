@@ -1,5 +1,5 @@
-import { NextRequest } from 'next/server'
-import { buildSpotifyTokenSetCookieHeaders, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
+import { NextRequest, NextResponse } from 'next/server'
+import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -42,17 +42,16 @@ export async function GET(req: NextRequest) {
     expires_in: tokens.expires_in,
   })
 
-  const setCookieHeaders = buildSpotifyTokenSetCookieHeaders(tokens)
-  console.info('callback: setting N cookies', setCookieHeaders.length)
-
-  // Use a 200 HTML response instead of 302 redirect so Vercel's edge
-  // does not strip Set-Cookie headers (which it may do on redirect responses).
-  const headers = new Headers({ 'Content-Type': 'text/html; charset=utf-8' })
-  for (const cookie of setCookieHeaders) {
-    headers.append('Set-Cookie', cookie)
-  }
   const html = `<!DOCTYPE html><html><head>
 <script>window.location.replace('/player')</script>
 </head><body>Redirecting...</body></html>`
-  return new Response(html, { status: 200, headers })
+  const nextResponse = new NextResponse(html, {
+    status: 200,
+    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+  })
+  storeSpotifyTokensInResponse(nextResponse.cookies, tokens)
+  console.info('callback: cookies set via NextResponse', {
+    names: [nextResponse.cookies.get('spotify_access_token')?.name, nextResponse.cookies.get('spotify_refresh_token')?.name].filter(Boolean),
+  })
+  return nextResponse
 }
