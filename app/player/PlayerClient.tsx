@@ -371,7 +371,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, accessToken }),
       })
 
       if (res.status === 429) {

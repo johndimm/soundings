@@ -19,11 +19,29 @@ import {
 const DEFAULT_FORCE_TEXT_SEARCH = true
 
 export async function POST(req: NextRequest) {
-  const cookieStore = await cookies()
+  const [cookieStore, body] = await Promise.all([
+    cookies(),
+    req.json() as Promise<{
+      sessionHistory: ListenEvent[]
+      priorProfile?: string
+      provider?: LLMProvider
+      artistConstraint?: string
+      notes?: string
+      forceTextSearch?: boolean
+      alreadyHeard?: string[]
+      accessToken?: string
+    }>,
+  ])
+
   const allCookieNames = cookieStore.getAll().map(c => c.name)
   console.info('next-song: cookies present', allCookieNames)
   let accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE_NAME)?.value
-  console.info('next-song: access token present', Boolean(accessToken))
+  console.info('next-song: access token present from cookie', Boolean(accessToken))
+
+  if (!accessToken && body.accessToken) {
+    console.info('next-song: using accessToken from request body (cookie not present)')
+    accessToken = body.accessToken
+  }
 
   if (!isSpotifyAvailable()) {
     const waitMs = isSpotifyOffline() ? getSpotifyOfflineWaitMs() : getRateLimitRemainingMs()
@@ -50,16 +68,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard } =
-    (await req.json()) as {
-    sessionHistory: ListenEvent[]
-    priorProfile?: string
-    provider?: LLMProvider
-    artistConstraint?: string
-    notes?: string
-    forceTextSearch?: boolean
-    alreadyHeard?: string[]
-  }
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard } = body
 
   let songs: { search: string; reason: string }[]
   let profile: string | undefined

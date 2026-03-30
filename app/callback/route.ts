@@ -45,13 +45,13 @@ export async function GET(req: NextRequest) {
 
   const cookieStore = await cookies()
   storeSpotifyTokens(cookieStore, tokens)
-  console.info('callback: cookies set via next/headers cookies()')
+  console.info('callback: cookies set, redirecting to player')
 
   const html = `<!DOCTYPE html><html><head>
 <script>window.location.replace('/player')</script>
 </head><body>Redirecting...</body></html>`
   return new NextResponse(html, {
     status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
   })
 }
