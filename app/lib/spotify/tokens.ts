@@ -49,6 +49,7 @@ export async function refreshSpotifyAccessToken(
 ): Promise<string | null> {
   const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
   if (!refreshToken) {
+    console.warn('refreshSpotifyAccessToken: no refresh token cookie found')
     return null
   }
 

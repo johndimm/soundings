@@ -80,6 +80,12 @@ class RateLimitError extends Error {
   }
 }
 
+class AuthError extends Error {
+  constructor() {
+    super('not_authenticated')
+  }
+}
+
 export default function PlayerClient({ accessToken }: { accessToken: string }) {
   // ── React state ──────────────────────────────────────────────────────────
   const [deviceId, setDeviceId] = useState<string | null>(null)
@@ -367,6 +373,9 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           payload && typeof payload.retryAfterMs === 'number' ? payload.retryAfterMs : undefined
         throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
       }
+      if (res.status === 401) {
+        throw new AuthError()
+      }
       if (!res.ok) {
         const text = await res.text().catch(() => '')
         throw new Error(`fetch failed: ${res.status}${text ? ` ${text}` : ''}`)
@@ -440,6 +449,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           }
           backoffTimerRef.current = setTimeout(() => setBackoffUntil(null), waitMs)
           setError('Spotify is rate limiting requests. Retrying soon.')
+          return
+        }
+
+        if (err instanceof AuthError) {
+          window.location.href = '/'
           return
         }
 
