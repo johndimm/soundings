@@ -1,15 +1,15 @@
 import { NextRequest } from 'next/server'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { storeSpotifyTokens, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
+import { buildSpotifyTokenSetCookieHeaders, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
+  const baseUrl = new URL('/', req.url).origin
+
   if (error || !code) {
-    redirect('/?error=spotify_auth_failed')
+    return Response.redirect(`${baseUrl}/?error=spotify_auth_failed`, 302)
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID!
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
   })
 
   if (!response.ok) {
-    redirect('/?error=token_exchange_failed')
+    return Response.redirect(`${baseUrl}/?error=token_exchange_failed`, 302)
   }
 
   const tokens = (await response.json()) as SpotifyTokenResponse
@@ -42,8 +42,12 @@ export async function GET(req: NextRequest) {
     expires_in: tokens.expires_in,
   })
 
-  const cookieStore = await cookies()
-  storeSpotifyTokens(cookieStore, tokens)
+  const setCookieHeaders = buildSpotifyTokenSetCookieHeaders(tokens)
+  console.info('callback: setting cookies', setCookieHeaders.map(h => h.split('=')[0]))
 
-  redirect('/player')
+  const headers = new Headers({ Location: `${baseUrl}/player` })
+  for (const cookie of setCookieHeaders) {
+    headers.append('Set-Cookie', cookie)
+  }
+  return new Response(null, { status: 302, headers })
 }

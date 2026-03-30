@@ -112,6 +112,24 @@ export function storeSpotifyTokensInResponse(responseCookies: ResponseCookies, t
   }
 }
 
+function serializeCookie(name: string, value: string, maxAge: number): string {
+  const parts = [`${name}=${encodeURIComponent(value)}`, `Path=${COOKIE_PATH}`, `Max-Age=${maxAge}`, 'HttpOnly', 'SameSite=Lax']
+  if (SECURE) parts.push('Secure')
+  return parts.join('; ')
+}
+
+export function buildSpotifyTokenSetCookieHeaders(tokens: SpotifyTokenResponse): string[] {
+  const expiresAt = Date.now() + tokens.expires_in * 1000
+  const headers = [
+    serializeCookie(ACCESS_TOKEN_COOKIE, tokens.access_token, tokens.expires_in),
+    serializeCookie(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), tokens.expires_in),
+  ]
+  if (tokens.refresh_token) {
+    headers.push(serializeCookie(REFRESH_TOKEN_COOKIE, tokens.refresh_token, REFRESH_TOKEN_MAX_AGE))
+  }
+  return headers
+}
+
 export function clearSpotifyTokensFromResponse(responseCookies: ResponseCookies) {
   responseCookies.set(ACCESS_TOKEN_COOKIE, '', cookieOptions(0))
   responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, '', cookieOptions(0))
