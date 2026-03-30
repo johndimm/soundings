@@ -35,3 +35,8 @@ export function markSpotifyUnavailable(durationMs?: number) {
   const wait = durationMs ?? SPOTIFY_OFFLINE_WAIT_MS
   dynamicOfflineUntil = Math.max(dynamicOfflineUntil, Date.now() + wait)
 }
+
+export function resetSpotifyState() {
+  rateLimitUntil = 0
+  dynamicOfflineUntil = 0
+}

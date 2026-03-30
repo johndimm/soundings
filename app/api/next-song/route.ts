@@ -14,7 +14,6 @@ import {
   isSpotifyAvailable,
   isSpotifyOffline,
   markRateLimited,
-  markSpotifyUnavailable,
 } from '@/app/lib/spotify/status'
 
 const DEFAULT_FORCE_TEXT_SEARCH = true
@@ -45,7 +44,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (!accessToken) {
-    markSpotifyUnavailable()
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 

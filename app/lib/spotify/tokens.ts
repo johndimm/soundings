@@ -74,7 +74,12 @@ export async function refreshSpotifyAccessToken(
   })
 
   if (!response.ok) {
-    console.error('Spotify refresh failed', response.status, await response.text().catch(() => ''))
+    const responseBody = await response.text().catch(() => '')
+    console.error('Spotify refresh failed', {
+      status: response.status,
+      body: responseBody,
+      request: { refreshToken: Boolean(refreshToken), clientId: Boolean(clientId), clientSecret: Boolean(clientSecret) },
+    })
     return null
   }
 
