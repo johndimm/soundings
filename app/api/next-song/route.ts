@@ -20,7 +20,10 @@ const DEFAULT_FORCE_TEXT_SEARCH = true
 
 export async function POST(req: NextRequest) {
   const cookieStore = await cookies()
+  const allCookieNames = cookieStore.getAll().map(c => c.name)
+  console.info('next-song: cookies present', allCookieNames)
   let accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE_NAME)?.value
+  console.info('next-song: access token present', Boolean(accessToken))
 
   if (!isSpotifyAvailable()) {
     const waitMs = isSpotifyOffline() ? getSpotifyOfflineWaitMs() : getRateLimitRemainingMs()

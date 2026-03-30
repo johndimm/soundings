@@ -113,7 +113,8 @@ export function storeSpotifyTokensInResponse(responseCookies: ResponseCookies, t
 }
 
 function serializeCookie(name: string, value: string, maxAge: number): string {
-  const parts = [`${name}=${value}`, `Path=${COOKIE_PATH}`, `Max-Age=${maxAge}`, 'HttpOnly', 'SameSite=Lax']
+  // Wrap value in quotes so characters like = or + in tokens don't break parsers
+  const parts = [`${name}="${value}"`, `Path=${COOKIE_PATH}`, `Max-Age=${maxAge}`, 'HttpOnly', 'SameSite=Lax']
   if (SECURE) parts.push('Secure')
   return parts.join('; ')
 }

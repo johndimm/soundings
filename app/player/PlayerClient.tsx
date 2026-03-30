@@ -459,6 +459,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         }
 
         if (err instanceof AuthError) {
+          // Set a long backoff so the auto-fill effect does not re-fire
+          // while the page is navigating away.
+          const far = Date.now() + 300_000
+          setBackoffUntil(far)
           window.location.href = '/'
           return
         }
@@ -715,7 +719,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       handleConstraintResults(cards)
       setLoadingQueue(false)
     })
-  }, [genres, genreText, timePeriod, notes, fetchToBuffer, handleConstraintResults])
+    // Only the three user-facing constraint values should trigger a queue replacement.
+    // fetchToBuffer and handleConstraintResults are stable callbacks and must NOT be
+    // listed here — doing so would cause spurious queue replacements on re-renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genres, genreText, timePeriod, notes])
 
   // ── Grade handler — log rating, start LLM, but stay on current song ──────
   const handleGradeSubmit = useCallback((value: number) => {
