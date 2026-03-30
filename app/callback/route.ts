@@ -1,7 +1,5 @@
-import { NextRequest } from 'next/server'
-import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
-import { storeSpotifyTokens, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
+import { NextRequest, NextResponse } from 'next/server'
+import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -9,7 +7,7 @@ export async function GET(req: NextRequest) {
   const error = searchParams.get('error')
 
   if (error || !code) {
-    redirect('/?error=spotify_auth_failed')
+    return NextResponse.redirect(new URL('/?error=spotify_auth_failed', req.url))
   }
 
   const clientId = process.env.SPOTIFY_CLIENT_ID!
@@ -32,13 +30,11 @@ export async function GET(req: NextRequest) {
   })
 
   if (!response.ok) {
-    redirect('/?error=token_exchange_failed')
+    return NextResponse.redirect(new URL('/?error=token_exchange_failed', req.url))
   }
 
   const tokens = (await response.json()) as SpotifyTokenResponse
-  const cookieStore = await cookies()
-
-  storeSpotifyTokens(cookieStore, tokens)
-
-  redirect('/player')
+  const redirectResponse = NextResponse.redirect(new URL('/player', req.url))
+  storeSpotifyTokensInResponse(redirectResponse.cookies, tokens)
+  return redirectResponse
 }

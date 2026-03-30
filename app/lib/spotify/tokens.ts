@@ -93,6 +93,15 @@ export function storeSpotifyTokens(cookieStore: CookieStore, tokens: SpotifyToke
   setAccessTokenCookies(cookieStore, tokens)
 }
 
+export function storeSpotifyTokensInResponse(responseCookies: ResponseCookies, tokens: SpotifyTokenResponse) {
+  responseCookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
+  const expiresAt = Date.now() + tokens.expires_in * 1000
+  responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), cookieOptions(tokens.expires_in))
+  if (tokens.refresh_token) {
+    responseCookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_TOKEN_MAX_AGE))
+  }
+}
+
 export function clearSpotifyTokensFromResponse(responseCookies: ResponseCookies) {
   responseCookies.set(ACCESS_TOKEN_COOKIE, '', cookieOptions(0))
   responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, '', cookieOptions(0))
