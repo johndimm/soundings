@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
+import { cookies } from 'next/headers'
+import { storeSpotifyTokens, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -42,16 +43,15 @@ export async function GET(req: NextRequest) {
     expires_in: tokens.expires_in,
   })
 
+  const cookieStore = await cookies()
+  storeSpotifyTokens(cookieStore, tokens)
+  console.info('callback: cookies set via next/headers cookies()')
+
   const html = `<!DOCTYPE html><html><head>
 <script>window.location.replace('/player')</script>
 </head><body>Redirecting...</body></html>`
-  const nextResponse = new NextResponse(html, {
+  return new NextResponse(html, {
     status: 200,
     headers: { 'Content-Type': 'text/html; charset=utf-8' },
   })
-  storeSpotifyTokensInResponse(nextResponse.cookies, tokens)
-  console.info('callback: cookies set via NextResponse', {
-    names: [nextResponse.cookies.get('spotify_access_token')?.name, nextResponse.cookies.get('spotify_refresh_token')?.name].filter(Boolean),
-  })
-  return nextResponse
 }
