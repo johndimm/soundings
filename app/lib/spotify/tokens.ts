@@ -27,13 +27,23 @@ function cookieOptions(maxAge: number) {
 }
 
 function setAccessTokenCookies(cookieStore: CookieStore, tokens: SpotifyTokenResponse) {
+  console.info('setAccessTokenCookies: setting cookies', {
+    has_access_token: Boolean(tokens.access_token),
+    has_refresh_token: Boolean(tokens.refresh_token),
+    expires_in: tokens.expires_in,
+  })
   cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
+  console.info('setAccessTokenCookies: access token set')
 
   const expiresAt = Date.now() + tokens.expires_in * 1000
   cookieStore.set(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), cookieOptions(tokens.expires_in))
+  console.info('setAccessTokenCookies: expiry set')
 
   if (tokens.refresh_token) {
     cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_TOKEN_MAX_AGE))
+    console.info('setAccessTokenCookies: refresh token set')
+  } else {
+    console.warn('setAccessTokenCookies: NO refresh token in response')
   }
 }
 
