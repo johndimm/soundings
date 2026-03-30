@@ -369,6 +369,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
 
       const res = await fetch('/api/next-song', {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
