@@ -232,9 +232,9 @@ function findJsonObject(text: string): { payload: string; start: number; end: nu
 function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: string } {
   const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
   const { payload, start, end } = findJsonObject(cleaned)
-  let parsed: unknown
+  let parsed: Record<string, unknown>
   try {
-    parsed = JSON.parse(payload)
+    parsed = JSON.parse(payload) as Record<string, unknown>
   } catch (err) {
     console.warn('LLM JSON parse failed', {
       error: (err as Error).message,
