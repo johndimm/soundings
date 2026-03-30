@@ -1,22 +1,13 @@
 import { cookies } from 'next/headers'
-import { redirect } from 'next/navigation'
 
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; skipRedirect?: string }>
+  searchParams: Promise<{ error?: string }>
 }) {
   const cookieStore = await cookies()
   const hasToken = cookieStore.has('spotify_access_token')
-
-  const params = await searchParams
-  const skipRedirect = params.skipRedirect === '1'
-
-  if (hasToken && !skipRedirect) {
-    redirect('/player')
-  }
-
-  const { error } = params
+  const { error } = await searchParams
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white">
@@ -36,6 +27,11 @@ export default async function Home({
             {error === 'spotify_auth_failed'
               ? 'Spotify login was cancelled.'
               : 'Something went wrong. Please try again.'}
+          </p>
+        )}
+        {hasToken && (
+          <p className="text-emerald-400 text-sm">
+            You already have a Spotify session. Visit <a className="underline" href="/player">/player</a> when ready.
           </p>
         )}
 
