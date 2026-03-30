@@ -6,6 +6,7 @@ import { SpotifyTrack } from '@/app/lib/spotify'
 
 export interface HistoryEntry extends ListenEvent {
   albumArt: string | null
+  uri: string | null
 }
 
 interface CardState {
@@ -45,6 +46,7 @@ interface Props {
   onTimePeriodChange: (v: string) => void
   onRemoveMultiple: (indices: number[]) => void
   onPlayQueueItem: (index: number) => void
+  onPlayHistoryItem: (uri: string | null) => void
 }
 
 export default function SessionPanel({
@@ -62,6 +64,7 @@ export default function SessionPanel({
   onTimePeriodChange,
   onRemoveMultiple,
   onPlayQueueItem,
+  onPlayHistoryItem,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -251,22 +254,27 @@ export default function SessionPanel({
                   onChange={() => toggleSelect(realIndex)}
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
-                {entry.albumArt ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={entry.albumArt}
-                    alt=""
-                    className="w-9 h-9 rounded-md object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-9 h-9 rounded-md bg-zinc-800 flex-shrink-0" />
-                )}
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-xs font-medium truncate">{entry.track}</p>
-                  <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
-                </div>
-
+                <button
+                  onClick={() => onPlayHistoryItem(entry.uri)}
+                  disabled={!entry.uri}
+                  className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl px-2 py-1 text-left transition-colors disabled:opacity-50"
+                  style={{ cursor: entry.uri ? 'pointer' : 'not-allowed' }}
+                >
+                  {entry.albumArt ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={entry.albumArt}
+                      alt=""
+                      className="w-9 h-9 rounded-md object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-md bg-zinc-800 flex-shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-xs font-medium truncate">{entry.track}</p>
+                    <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
+                  </div>
+                </button>
                 <div className={`flex flex-col items-center flex-shrink-0 w-10 ${gradeColor(entry)}`}>
                   <span className="text-xs font-bold">{gradeLabel(entry)}</span>
                   <span className="text-xs opacity-60">{Math.round(entry.percentListened)}%</span>

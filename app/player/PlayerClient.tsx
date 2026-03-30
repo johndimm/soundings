@@ -7,6 +7,7 @@ import { ListenEvent, LLMProvider } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
+const RATE_LIMIT_DEFAULT_WAIT_MS = 30_000
 
 declare global {
   interface Window {
@@ -65,6 +66,20 @@ function determineReaction(percent: number): ListenEvent['reaction'] {
   return 'move-on'
 }
 
+const formatRetryTime = (ms: number) => {
+  const until = new Date(Date.now() + ms)
+  return until.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+}
+
+class RateLimitError extends Error {
+  retryAfterMs?: number
+
+  constructor(retryAfterMs?: number) {
+    super('rate_limited')
+    this.retryAfterMs = retryAfterMs
+  }
+}
+
 export default function PlayerClient({ accessToken }: { accessToken: string }) {
   // ── React state ──────────────────────────────────────────────────────────
   const [deviceId, setDeviceId] = useState<string | null>(null)
@@ -77,16 +92,31 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const [llmBuffer, setLlmBuffer] = useState<CardState[]>([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [backoffUntil, setBackoffUntil] = useState<number | null>(null)
+  const [spotifyStatus, setSpotifyStatus] = useState<{
+    available: boolean
+    retryAfterMs: number
+    offline: boolean
+  } | null>(null)
+  const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
+  const [playResponse, setPlayResponse] = useState<string | null>(null)
+  const [statusVersion, setStatusVersion] = useState(0)
   const [notes, setNotes] = useState('')
   const [genres, setGenres] = useState<string[]>([])
   const [genreText, setGenreText] = useState('')
   const [timePeriod, setTimePeriod] = useState('')
-  const [provider, setProvider] = useState<LLMProvider>('anthropic')
+  const [provider, setProvider] = useState<LLMProvider>('deepseek')
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [gradePercent, setGradePercent] = useState(50)
   const [hasRated, setHasRated] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
+
+  const dedupeHistory = useCallback((entries: HistoryEntry[]) => {
+    const map = new Map<string, HistoryEntry>()
+    entries.forEach(entry => map.set(`${entry.track}|${entry.artist}`, entry))
+    return Array.from(map.values())
+  }, [])
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const playerRef = useRef<SpotifyPlayer | null>(null)
@@ -101,7 +131,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const genresRef = useRef<string[]>([])
   const genreTextRef = useRef('')
   const timePeriodRef = useRef('')
-  const providerRef = useRef<LLMProvider>('anthropic')
+  const providerRef = useRef<LLMProvider>('deepseek')
   const sliderRef = useRef(0)
   const durationRef = useRef(0)
   const deviceIdRef = useRef<string | null>(null)
@@ -112,35 +142,69 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const gradeRef = useRef(50)
   const hasRatedRef = useRef(false)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
+  const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    providerRef.current = provider
+  }, [provider])
+
+  useEffect(() => {
+    genresRef.current = genres
+  }, [genres])
+
+  useEffect(() => {
+    genreTextRef.current = genreText
+  }, [genreText])
+
+  useEffect(() => {
+    timePeriodRef.current = timePeriod
+  }, [timePeriod])
+
+  useEffect(() => {
+    notesRef.current = notes
+  }, [notes])
 
   // Keep refs in sync with state
-  useEffect(() => { currentCardRef.current = currentCard }, [currentCard])
-  useEffect(() => { queueRef.current = queue }, [queue])
-  useEffect(() => { sessionHistoryRef.current = sessionHistory }, [sessionHistory])
-  useEffect(() => { priorProfileRef.current = priorProfile }, [priorProfile])
-  useEffect(() => { notesRef.current = notes }, [notes])
-  useEffect(() => { genresRef.current = genres }, [genres])
-  useEffect(() => { genreTextRef.current = genreText }, [genreText])
-  useEffect(() => { timePeriodRef.current = timePeriod }, [timePeriod])
-  useEffect(() => { providerRef.current = provider }, [provider])
-  useEffect(() => { gradeRef.current = gradePercent }, [gradePercent])
-  useEffect(() => { cardHistoryRef.current = cardHistory }, [cardHistory])
   useEffect(() => {
-    if (playbackState) {
-      durationRef.current = playbackState.duration
-      if (!isSeekingRef.current) {
-        setSliderPosition(playbackState.position)
-        sliderRef.current = playbackState.position
+    let canceled = false
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/spotify/status')
+        if (!res.ok) throw new Error(`status check failed ${res.status}`)
+        const data = await res.json()
+        if (!canceled) {
+          setSpotifyStatus(data)
+        }
+      } catch (err) {
+        if (!canceled) {
+          console.error('failed to fetch Spotify status', err)
+        }
       }
     }
-  }, [playbackState])
 
-  // ── Dedup helper ─────────────────────────────────────────────────────────
-  const dedupeHistory = useCallback((entries: HistoryEntry[]) => {
-    const map = new Map<string, HistoryEntry>()
-    entries.forEach(entry => map.set(`${entry.track}|${entry.artist}`, entry))
-    return Array.from(map.values())
-  }, [])
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/spotify/me')
+        if (!res.ok) throw new Error(`me failed ${res.status}`)
+        const data = await res.json()
+        if (!canceled && data.ok) {
+          setSpotifyUser(data.user)
+        }
+      } catch (err) {
+        if (!canceled) {
+          console.error('failed to fetch Spotify user', err)
+        }
+      }
+    }
+
+    fetchStatus()
+    fetchUser()
+    const interval = setInterval(fetchStatus, 30_000)
+    return () => {
+      canceled = true
+      clearInterval(interval)
+    }
+  }, [statusVersion])
 
   // ── Load history from localStorage ───────────────────────────────────────
   useEffect(() => {
@@ -219,6 +283,21 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [deviceId])
 
+  useEffect(() => {
+    if (!playbackState || isSeekingRef.current) return
+    durationRef.current = playbackState.duration
+    setSliderPosition(playbackState.position)
+    sliderRef.current = playbackState.position
+  }, [playbackState])
+
+  useEffect(() => {
+    return () => {
+      if (backoffTimerRef.current) {
+        clearTimeout(backoffTimerRef.current)
+      }
+    }
+  }, [])
+
   // ── Play a track ──────────────────────────────────────────────────────────
   const playTrack = useCallback(async (uri: string) => {
     const dId = deviceIdRef.current
@@ -253,38 +332,68 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   }, [currentCard?.track.uri])
 
   // ── Fetch 3 cards from API ────────────────────────────────────────────────
-  const fetchCards = useCallback(async (
-    sessionHist: ListenEvent[],
-    profile: string,
-    artistConstraint?: string
-  ): Promise<{ cards: CardState[]; profile?: string }> => {
-    const res = await fetch('/api/next-song', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  const fetchCards = useCallback(
+    async (
+      sessionHist: ListenEvent[],
+      profile: string,
+      artistConstraint?: string,
+      forceTextSearch?: boolean
+    ): Promise<{ cards: CardState[]; profile?: string }> => {
+      const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
         provider: providerRef.current,
         artistConstraint,
-        notes: buildCombinedNotes(genresRef.current, genreTextRef.current, timePeriodRef.current, notesRef.current),
-      }),
-    })
-    if (!res.ok) throw new Error(`fetch failed: ${res.status}`)
-    const data = await res.json()
+        notes: buildCombinedNotes(
+          genresRef.current,
+          genreTextRef.current,
+          timePeriodRef.current,
+          notesRef.current
+        ),
+      }
+      if (forceTextSearch) {
+        payload.forceTextSearch = true
+      }
+
+      const res = await fetch('/api/next-song', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (res.status === 429) {
+        const payload = await res.json().catch(() => null)
+        const payloadRetry =
+          payload && typeof payload.retryAfterMs === 'number' ? payload.retryAfterMs : undefined
+        throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
+      }
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`fetch failed: ${res.status}${text ? ` ${text}` : ''}`)
+      }
+
+      const data = await res.json()
     const cards: CardState[] = (data.songs ?? []).map(
       (s: { track: SpotifyTrack; reason: string }) => ({ track: s.track, reason: s.reason })
     )
-    return { cards, profile: data.profile }
-  }, [])
+    console.info('fetchCards returned N songs', cards.length, cards.map(c => c.track.name))
+      return { cards, profile: data.profile }
+    },
+    []
+  )
 
   // ── Fetch from LLM → append to buffer (last-write-wins via generation counter) ──
-  const fetchToBuffer = useCallback((artistConstraint?: string) => {
+  const fetchToBuffer = useCallback(
+    (
+      artistConstraint?: string,
+      forceTextSearch?: boolean,
+      onCards?: (cards: CardState[]) => void
+    ) => {
     const gen = ++fetchGenRef.current
     const sentHistory = [...sessionHistoryRef.current]
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
-
-    fetchCards(sentHistory, sentProfile, artistConstraint)
+    fetchCards(sentHistory, sentProfile, artistConstraint, forceTextSearch)
       .then(({ cards, profile: newProfile }) => {
         if (gen !== fetchGenRef.current) return
 
@@ -302,8 +411,12 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           return true
         })
 
+        if (onCards && fresh.length > 0) {
+          onCards(fresh)
+        }
         // Append fresh results to the buffer
         const newBuffer = [...llmBufferRef.current, ...fresh]
+        console.info('fetchToBuffer appended', fresh.length, 'new cards; buffer length now', newBuffer.length)
         setLlmBuffer(newBuffer)
         llmBufferRef.current = newBuffer
 
@@ -317,10 +430,23 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           setProfile(newProfile)
         }
       })
-      .catch(() => {
+      .catch(err => {
+        if (err instanceof RateLimitError) {
+          const waitMs = err.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS
+          const until = Date.now() + waitMs
+          setBackoffUntil(until)
+          if (backoffTimerRef.current) {
+            clearTimeout(backoffTimerRef.current)
+          }
+          backoffTimerRef.current = setTimeout(() => setBackoffUntil(null), waitMs)
+          setError('Spotify is rate limiting requests. Retrying soon.')
+          return
+        }
+
         if (gen === fetchGenRef.current && !currentCardRef.current && llmBufferRef.current.length === 0) {
           setError('Could not load songs. Try again.')
         }
+        setStatusVersion(v => v + 1)
       })
       .finally(() => {
         if (gen === fetchGenRef.current) setLoadingQueue(false)
@@ -335,7 +461,28 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     if (needed <= 0 || buf.length === 0) return
     const toAdd = buf.slice(0, needed)
     const remaining = buf.slice(needed)
-    const newQueue = [...q, ...toAdd]
+    const seen = new Set<string>()
+    if (currentCardRef.current) {
+      seen.add(currentCardRef.current.track.uri)
+    }
+    q.forEach(card => seen.add(card.track.uri))
+
+    const uniqueToAdd = toAdd.filter(card => {
+      if (seen.has(card.track.uri)) return false
+      seen.add(card.track.uri)
+      return true
+    })
+
+    const newQueue = [...q, ...uniqueToAdd]
+    console.info(
+      'fillQueueFromBuffer adding',
+      uniqueToAdd.length,
+      'cards from buffer; queue length before',
+      q.length,
+      'after',
+      newQueue.length
+    )
+
     setQueue(newQueue)
     queueRef.current = newQueue
     setLlmBuffer(remaining)
@@ -345,6 +492,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   // ── Auto-fill: start playing, fill queue from buffer, fetch when buffer empty ──
   useEffect(() => {
     if (!deviceId || !historyReady) return
+
+    if (backoffUntil && backoffUntil > Date.now()) {
+      return
+    }
 
     // Nothing playing but buffer has songs → start immediately
     if (!currentCard && llmBuffer.length > 0) {
@@ -366,7 +517,17 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     if (!loadingQueue && llmBuffer.length === 0 && (!currentCard || queue.length < 3)) {
       fetchToBuffer()
     }
-  }, [currentCard, queue.length, llmBuffer.length, loadingQueue, deviceId, historyReady, fetchToBuffer, fillQueueFromBuffer])
+  }, [
+    currentCard,
+    queue.length,
+    llmBuffer.length,
+    loadingQueue,
+    deviceId,
+    historyReady,
+    fetchToBuffer,
+    fillQueueFromBuffer,
+    backoffUntil,
+  ])
 
   // ── Record a rating (log it + fire LLM prefetch, but do NOT advance) ─────
   const recordRating = useCallback((value: number) => {
@@ -380,6 +541,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       percentListened: value,
       reaction,
     }
+    const historyEntry: HistoryEntry = {
+      ...event,
+      albumArt: cur.track.albumArt,
+      uri: cur.track.uri,
+    }
 
     // If already rated this song, replace the previous entry
     const base = cardHistoryRef.current
@@ -387,14 +553,12 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     let newCardHistory: HistoryEntry[]
     let newSession: ListenEvent[]
     if (existingIdx !== -1) {
-      newCardHistory = base.map((e, i) =>
-        i === existingIdx ? { ...event, albumArt: cur.track.albumArt } : e
-      )
+      newCardHistory = base.map((e, i) => (i === existingIdx ? historyEntry : e))
       newSession = sessionHistoryRef.current.map(e =>
         e.track === cur.track.name && e.artist === cur.track.artist ? event : e
       )
     } else {
-      newCardHistory = dedupeHistory([...base, { ...event, albumArt: cur.track.albumArt }])
+      newCardHistory = dedupeHistory([...base, historyEntry])
       newSession = [...sessionHistoryRef.current, event]
     }
 
@@ -406,7 +570,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     setHasRated(true)
     hasRatedRef.current = true
 
-    fetchToBuffer()
+    if (queueRef.current.length < 3) {
+      fetchToBuffer()
+    } else {
+      console.info('recordRating deferred fetch; queue already full', queueRef.current.length)
+    }
   }, [dedupeHistory, fetchToBuffer])
 
   // ── Advance to next song (called by Next button or play-slider-end) ───────
@@ -423,10 +591,12 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         percentListened: pct,
         reaction: 'move-on',
       }
-      const newCardHistory = dedupeHistory([
-        ...cardHistoryRef.current,
-        { ...event, albumArt: cur.track.albumArt },
-      ])
+      const historyEntry: HistoryEntry = {
+        ...event,
+        albumArt: cur.track.albumArt,
+        uri: cur.track.uri,
+      }
+      const newCardHistory = dedupeHistory([...cardHistoryRef.current, historyEntry])
       setCardHistory(newCardHistory)
       cardHistoryRef.current = newCardHistory
       const newSession = [...sessionHistoryRef.current, event]
@@ -448,6 +618,21 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       setCurrentCard(null)
     }
   }, [dedupeHistory, fetchToBuffer])
+
+  const autoAdvanceRef = useRef(false)
+  useEffect(() => {
+    if (!playbackState || !currentCardRef.current) return
+    const endThreshold = Math.max(1000, playbackState.duration * 0.98)
+    const nearEnd = playbackState.position >= endThreshold
+    if (nearEnd && !playbackState.paused && !isSeekingRef.current) {
+      if (!autoAdvanceRef.current) {
+        autoAdvanceRef.current = true
+        advance()
+      }
+    } else if (playbackState.position < endThreshold - 1000) {
+      autoAdvanceRef.current = false
+    }
+  }, [advance, playbackState])
 
   // ── Remove history entries ────────────────────────────────────────────────
   const handleRemoveMultiple = useCallback((indices: number[]) => {
@@ -473,29 +658,30 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
 
   // ── Genre/time period change → wipe queue+buffer and replace ─────────────
   const constraintInitRef = useRef(false)
-  useEffect(() => {
-    if (!constraintInitRef.current) { constraintInitRef.current = true; return }
-    const timer = setTimeout(() => {
-      setQueue([])
-      queueRef.current = []
-      setLlmBuffer([])
-      llmBufferRef.current = []
-      fetchToBuffer()
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [genres, genreText, timePeriod, fetchToBuffer])
+  const handleConstraintResults = useCallback((cards: CardState[]) => {
+    if (cards.length === 0) return
+    const [first, ...rest] = cards
+    currentCardRef.current = first
+    setCurrentCard(first)
+    setQueue(rest)
+    queueRef.current = rest
+    setLlmBuffer([])
+    llmBufferRef.current = []
+    setHasRated(false)
+    hasRatedRef.current = false
+  }, [])
 
-  // ── Notes change → wipe buffer so next fill uses fresh results ────────────
-  const notesInitRef = useRef(false)
   useEffect(() => {
-    if (!notesInitRef.current) { notesInitRef.current = true; return }
-    const timer = setTimeout(() => {
-      setLlmBuffer([])
-      llmBufferRef.current = []
-      fetchToBuffer()
-    }, 500)
-    return () => clearTimeout(timer)
-  }, [notes, fetchToBuffer])
+    if (!constraintInitRef.current) {
+      constraintInitRef.current = true
+      return
+    }
+    setLoadingQueue(true)
+    fetchToBuffer(undefined, undefined, cards => {
+      handleConstraintResults(cards)
+      setLoadingQueue(false)
+    })
+  }, [genres, genreText, timePeriod, notes, fetchToBuffer, handleConstraintResults])
 
   // ── Grade handler — log rating, start LLM, but stay on current song ──────
   const handleGradeSubmit = useCallback((value: number) => {
@@ -505,10 +691,99 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   // ── Retry ────────────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     setError(null)
-    fetchToBuffer()
+    fetchToBuffer(undefined, true)
   }, [fetchToBuffer])
 
+  const playUri = useCallback(async (uri: string | null, label: string) => {
+    if (!deviceIdRef.current) {
+      setPlayResponse('No Spotify device registered yet.')
+      return
+    }
+    if (!uri) {
+      setPlayResponse(`No URI available for ${label}.`)
+      return
+    }
+
+    setPlayResponse(`Requesting playback for ${label}…`)
+
+    try {
+      const res = await fetch('/api/play-track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uri,
+          deviceId: deviceIdRef.current,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setPlayResponse(`Playback failed: ${data.error} ${data.status ?? ''}`)
+        return
+      }
+      setPlayResponse('Playback request accepted.')
+    } catch (err) {
+      setPlayResponse(`Playback error: ${(err as Error).message}`)
+    }
+  }, [])
+
+  const handlePlayHistoryItem = useCallback(
+    (uri: string | null) => playUri(uri, 'history entry'),
+    [playUri]
+  )
+  const handleSwitchAccount = useCallback(async () => {
+    await fetch('/api/auth/logout')
+    window.location.href = '/api/auth/login'
+  }, [])
+
+  useEffect(() => {
+    let canceled = false
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch('/api/spotify/status')
+        if (!res.ok) throw new Error(`status check failed ${res.status}`)
+        const data = await res.json()
+        if (!canceled) {
+          setSpotifyStatus(data)
+        }
+      } catch (err) {
+        if (!canceled) {
+          console.error('failed to fetch Spotify status', err)
+        }
+      }
+    }
+
+    fetchStatus()
+    const fetchUser = async () => {
+      try {
+        const res = await fetch('/api/spotify/me')
+        if (!res.ok) throw new Error(`me failed ${res.status}`)
+        const data = await res.json()
+        if (!canceled && data.ok) {
+          setSpotifyUser(data.user)
+        }
+      } catch (err) {
+        if (!canceled) {
+          console.error('failed to fetch Spotify user', err)
+        }
+      }
+    }
+
+    fetchUser()
+    const interval = setInterval(fetchStatus, 30_000)
+    return () => {
+      canceled = true
+      clearInterval(interval)
+    }
+  }, [])
+
   const duration = playbackState?.duration ?? 0
+
+  const spotifyStatusMessage =
+    spotifyStatus && !spotifyStatus.available
+      ? spotifyStatus.offline
+        ? `Spotify offline until ${formatRetryTime(spotifyStatus.retryAfterMs)}`
+        : `Spotify rate-limited until ${formatRetryTime(spotifyStatus.retryAfterMs)}`
+      : null
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col">
@@ -528,8 +803,32 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
             <option value="gemini">Gemini</option>
           </select>
         </div>
-        <Link href="/" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
+        {spotifyUser && (
+          <div className="text-xs text-zinc-400">
+            Logged in as {spotifyUser.display_name ?? spotifyUser.id}
+            {spotifyUser.product ? ` (${spotifyUser.product})` : ''}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={handleSwitchAccount}
+            className="text-xs text-zinc-300 hover:text-white transition-colors"
+          >
+            Switch Spotify account
+          </button>
+          <Link href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
+        </div>
       </div>
+      {spotifyStatusMessage && (
+        <div className="px-6 py-2 bg-yellow-900 text-yellow-50 text-sm text-center">
+          {spotifyStatusMessage}
+        </div>
+      )}
+      {playResponse && (
+        <div className="px-6 py-3 border-b border-zinc-900">
+          <p className="text-xs text-zinc-400 truncate">{playResponse}</p>
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex flex-row gap-4 p-4 items-start overflow-y-auto flex-1">
@@ -537,7 +836,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         {/* Player panel — full-bleed album art */}
         <div
           className="relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] bg-zinc-900"
-          style={{ height: 580 }}
+          style={{ height: 580, cursor: currentCard ? 'pointer' : 'default' }}
           onClick={currentCard ? togglePlayback : undefined}
         >
           {/* Album art background */}
@@ -710,10 +1009,17 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
               if (cur && !hasRatedRef.current) {
                 const pct = durationRef.current > 0 ? (sliderRef.current / durationRef.current) * 100 : 0
                 const event: ListenEvent = {
-                  track: cur.track.name, artist: cur.track.artist,
-                  percentListened: pct, reaction: 'move-on',
+                  track: cur.track.name,
+                  artist: cur.track.artist,
+                  percentListened: pct,
+                  reaction: 'move-on',
                 }
-                const newCardHistory = dedupeHistory([...cardHistoryRef.current, { ...event, albumArt: cur.track.albumArt }])
+                const historyEntry: HistoryEntry = {
+                  ...event,
+                  albumArt: cur.track.albumArt,
+                  uri: cur.track.uri,
+                }
+                const newCardHistory = dedupeHistory([...cardHistoryRef.current, historyEntry])
                 setCardHistory(newCardHistory)
                 cardHistoryRef.current = newCardHistory
                 const newSession = [...sessionHistoryRef.current, event]
@@ -729,6 +1035,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
               setHasRated(false)
               hasRatedRef.current = false
             }}
+            onPlayHistoryItem={(uri) => handlePlayHistoryItem(uri)}
           />
         </div>
       </div>

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { storeSpotifyTokens, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -34,24 +35,10 @@ export async function GET(req: NextRequest) {
     redirect('/?error=token_exchange_failed')
   }
 
-  const tokens = await response.json()
+  const tokens = (await response.json()) as SpotifyTokenResponse
   const cookieStore = await cookies()
 
-  cookieStore.set('spotify_access_token', tokens.access_token, {
-    httpOnly: true,
-    secure: false, // localhost only
-    maxAge: tokens.expires_in,
-    path: '/',
-  })
-
-  if (tokens.refresh_token) {
-    cookieStore.set('spotify_refresh_token', tokens.refresh_token, {
-      httpOnly: true,
-      secure: false,
-      maxAge: 60 * 60 * 24 * 30, // 30 days
-      path: '/',
-    })
-  }
+  storeSpotifyTokens(cookieStore, tokens)
 
   redirect('/player')
 }

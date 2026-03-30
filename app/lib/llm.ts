@@ -8,13 +8,14 @@ export interface ListenEvent {
 export interface SongSuggestion {
   search: string
   reason: string
+  spotifyId?: string
 }
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
 
 const SYSTEM_PROMPT = `You are a music taste analyst and DJ. Your job is to pick songs that split a group of listeners roughly 50/50 — songs that some people love and others don't.
 
-Given a user's taste profile and recent ratings, suggest 3 songs to play next. Each should differ in style, era, or energy to cover diverse taste dimensions, while remaining compatible with what you know about the user.
+Given a user's taste profile and recent ratings, suggest 4 songs to play next and clearly note which three you would prioritize. Each should differ in style, era, or energy to cover diverse taste dimensions, while remaining compatible with what you know about the user.
 
 IMPORTANT: If the user provides explicit instructions (genres, time periods, style preferences, or other constraints), you MUST follow them strictly — they take priority over your taste inference. Every song you suggest must satisfy those constraints.
 
@@ -23,10 +24,10 @@ Reaction codes:
 - "not-now" = not in the mood right now, independent of taste (don't treat as dislike)
 - "more-from-artist" = wants more from this artist or very similar style
 
-If the most recent reaction is "more-from-artist", all 3 songs should be by that artist or very similar artists.
+If the most recent reaction is "more-from-artist", all suggested songs should be by that artist or very similar artists.
 
 Respond with ONLY a JSON object in this exact format:
-{"songs":[{"search":"track name artist name","reason":"one sentence explanation"},{"search":"track name artist name","reason":"one sentence explanation"},{"search":"track name artist name","reason":"one sentence explanation"}],"profile":"2-3 sentences addressed directly to the listener using 'you/your', describing what you've learned about their taste — be specific about genres, eras, energy levels, and patterns you've noticed"}`
+{"songs":[{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"use Spotify track ID if you can identify the exact version"},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."}],"profile":"2-3 sentences addressed directly to the listener using 'you/your', describing what you've learned about their taste — be specific about genres, eras, energy levels, and patterns you've noticed"}`
 
 function buildUserPrompt(
   sessionHistory: ListenEvent[],
@@ -171,7 +172,7 @@ const MAX_LLM_ATTEMPTS = 2
 
 export async function getNextSongQuery(
   sessionHistory: ListenEvent[],
-  provider: LLMProvider = 'anthropic',
+  provider: LLMProvider = 'deepseek',
   artistConstraint?: string,
   notes?: string,
   priorProfile?: string
@@ -205,31 +206,88 @@ export async function getNextSongQuery(
   throw lastError ?? new Error('LLM query failed after all attempts')
 }
 
+function findJsonObject(text: string): { payload: string; start: number; end: number } {
+  const start = text.indexOf('{')
+  if (start === -1) {
+    throw new Error('No JSON object found')
+  }
+  let depth = 0
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '{') depth++
+    else if (ch === '}') {
+      depth--
+      if (depth === 0) {
+        return {
+          payload: text.slice(start, i + 1),
+          start,
+          end: i,
+        }
+      }
+    }
+  }
+  throw new Error('JSON object not terminated')
+}
+
 function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: string } {
   const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
-  const jsonStart = cleaned.indexOf('{')
-  const jsonEnd = cleaned.lastIndexOf('}')
-  if (jsonStart === -1 || jsonEnd === -1 || jsonEnd <= jsonStart) {
-    throw new Error('LLM response missing JSON payload')
+  const { payload, start, end } = findJsonObject(cleaned)
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(payload)
+  } catch (err) {
+    console.warn('LLM JSON parse failed', {
+      error: (err as Error).message,
+      snippet: cleaned.slice(Math.max(0, start - 40), Math.min(cleaned.length, end + 40)),
+    })
+    throw err
   }
-  const parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1))
 
   // New format: {songs: [{search, reason}, ...], profile}
   if (Array.isArray(parsed.songs)) {
+    type LLMRow = { search: string; reason: string; spotify_id?: string; spotifyId?: string }
     const songs = parsed.songs
-      .filter((s: unknown) => s && typeof s === 'object' &&
-        typeof (s as Record<string, unknown>).search === 'string' &&
-        typeof (s as Record<string, unknown>).reason === 'string')
-      .map((s: { search: string; reason: string }) => ({ search: s.search, reason: s.reason }))
+      .filter((s: unknown): s is LLMRow => {
+        const candidate = s as Record<string, unknown>
+        return Boolean(
+          s &&
+            typeof s === 'object' &&
+            typeof candidate.search === 'string' &&
+            typeof candidate.reason === 'string'
+        )
+      })
+      .map((s: LLMRow) => ({
+        search: s.search,
+        reason: s.reason,
+        spotifyId: typeof s.spotifyId === 'string'
+          ? s.spotifyId.trim()
+          : typeof s.spotify_id === 'string'
+            ? s.spotify_id.trim()
+            : undefined,
+      }))
+      .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
+    const chosen = songs.slice(0, 3)
     if (songs.length > 0) {
-      return { songs, profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }
+      console.log(
+        'LLM songs with IDs',
+        chosen.map((song: SongSuggestion) => ({ search: song.search, spotifyId: song.spotifyId ?? 'none' }))
+      )
+      return { songs: chosen, profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }
     }
   }
 
   // Old format fallback: {search, reason, profile}
   if (typeof parsed.search === 'string' && typeof parsed.reason === 'string') {
+    const spotifyId =
+      typeof parsed.spotifyId === 'string'
+        ? parsed.spotifyId.trim()
+        : typeof parsed.spotify_id === 'string'
+          ? parsed.spotify_id.trim()
+          : undefined
+    const single = { search: parsed.search, reason: parsed.reason, spotifyId }
+    console.log('LLM fallback song', { ...single, spotifyId: spotifyId ?? 'none' })
     return {
-      songs: [{ search: parsed.search, reason: parsed.reason }],
+      songs: [single],
       profile: typeof parsed.profile === 'string' ? parsed.profile : undefined,
     }
   }
