@@ -145,6 +145,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const playedUrisRef = useRef<Set<string>>(new Set())
   const llmBufferRef = useRef<CardState[]>([])
   const fetchGenRef = useRef(0)
+  const fetchingRef = useRef(false)
   const gradeRef = useRef(50)
   const hasRatedRef = useRef(false)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
@@ -403,8 +404,16 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     (
       artistConstraint?: string,
       forceTextSearch?: boolean,
-      onCards?: (cards: CardState[]) => void
+      onCards?: (cards: CardState[]) => void,
+      force = false
     ) => {
+    // Synchronous guard: prevent concurrent fetches unless explicitly forced
+    // (force is used for constraint changes, retry, and start-fresh)
+    if (!force && fetchingRef.current) {
+      console.info('fetchToBuffer: skipping, fetch already in flight')
+      return
+    }
+    fetchingRef.current = true
     const gen = ++fetchGenRef.current
     const sentHistory = [...sessionHistoryRef.current]
     const sentProfile = priorProfileRef.current
@@ -479,6 +488,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         backoffTimerRef.current = setTimeout(() => setBackoffUntil(null), waitMs)
       })
       .finally(() => {
+        fetchingRef.current = false
         if (gen === fetchGenRef.current) setLoadingQueue(false)
       })
   }, [fetchCards])
@@ -608,13 +618,13 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   }, [dedupeHistory, fetchToBuffer])
 
   // ── Advance to next song (called by Next button or play-slider-end) ───────
-  const advance = useCallback(() => {
+  const advance = useCallback((playedToEnd = false) => {
     const cur = currentCardRef.current
     if (!cur) return
 
     // If user never rated, log as move-on and fire LLM
     if (!hasRatedRef.current) {
-      const pct = durationRef.current > 0 ? (sliderRef.current / durationRef.current) * 100 : 0
+      const pct = playedToEnd ? 100 : (durationRef.current > 0 ? (sliderRef.current / durationRef.current) * 100 : 0)
       const event: ListenEvent = {
         track: cur.track.name,
         artist: cur.track.artist,
@@ -657,7 +667,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     if (nearEnd && !playbackState.paused && !isSeekingRef.current) {
       if (!autoAdvanceRef.current) {
         autoAdvanceRef.current = true
-        advance()
+        advance(true)
       }
     } else if (playbackState.position < endThreshold - 1000) {
       autoAdvanceRef.current = false
@@ -683,7 +693,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     queueRef.current = []
     setLlmBuffer([])
     llmBufferRef.current = []
-    fetchToBuffer()
+    fetchToBuffer(undefined, undefined, undefined, true)
   }, [fetchToBuffer])
 
   // ── Genre/time period change → wipe queue+buffer and replace ─────────────
@@ -717,7 +727,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     fetchToBuffer(undefined, undefined, cards => {
       handleConstraintResults(cards)
       setLoadingQueue(false)
-    })
+    }, true)
     // Only the three user-facing constraint values should trigger a queue replacement.
     // fetchToBuffer and handleConstraintResults are stable callbacks and must NOT be
     // listed here — doing so would cause spurious queue replacements on re-renders.
@@ -732,7 +742,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   // ── Retry ────────────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
     setError(null)
-    fetchToBuffer(undefined, true)
+    fetchToBuffer(undefined, true, undefined, true)
   }, [fetchToBuffer])
 
   const playUri = useCallback(async (uri: string | null, label: string) => {
@@ -959,7 +969,18 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
                 <p className="text-white font-bold text-lg truncate leading-tight">
                   {currentCard.track.name}
                 </p>
-                <p className="text-zinc-300 text-sm truncate">{currentCard.track.artist}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-zinc-300 text-sm truncate">{currentCard.track.artist}</p>
+                  <a
+                    href={`https://open.spotify.com/track/${currentCard.track.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-zinc-500 hover:text-green-400 transition-colors flex-shrink-0 text-xs"
+                    title="Open in Spotify"
+                  >
+                    ↗
+                  </a>
+                </div>
                 <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed line-clamp-2">
                   {currentCard.reason}
                 </p>
@@ -1042,6 +1063,13 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
             timePeriod={timePeriod}
             onTimePeriodChange={setTimePeriod}
             onRemoveMultiple={handleRemoveMultiple}
+            onRemoveQueueItem={(index) => {
+              const q = queueRef.current
+              if (index < 0 || index >= q.length) return
+              const remaining = q.filter((_, i) => i !== index)
+              setQueue(remaining)
+              queueRef.current = remaining
+            }}
             onPlayQueueItem={(index) => {
               const cur = currentCardRef.current
               const q = queueRef.current

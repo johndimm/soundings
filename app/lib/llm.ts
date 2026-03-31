@@ -8,26 +8,32 @@ export interface ListenEvent {
 export interface SongSuggestion {
   search: string
   reason: string
+  category?: string
   spotifyId?: string
 }
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
 
-const SYSTEM_PROMPT = `You are a music taste analyst and DJ. Your job is to explore and map the user's taste — not just serve what they already like.
+const SYSTEM_PROMPT = `You are a DJ mapping a listener's taste. Imagine all music printed on a giant map where similar-sounding songs are neighbors — like a geographic map of sound. Your job is to efficiently figure out which regions of that map the listener finds interesting.
 
-Given a user's taste profile and recent ratings, suggest 3 songs to play next. Each song must be by a DIFFERENT artist. No artist may appear more than once in the same batch.
+HOW TO EXPLORE:
+- Think of each rating as a data point on the map. High % listened = attractor (this region is interesting). Low % = repulsor (move away from this point).
+- After a LIKE: the region around that song is promising. Explore nearby — similar genre, era, mood, energy — to discover how wide the liked region is and where its edges are.
+- After a DISLIKE: move away from that specific point, but don't write off the whole neighborhood. A disliked uptempo pop song doesn't mean all pop is bad — maybe just that corner. Explore the edges of disliked areas, not just distant lands.
+- Balance EXPLOITATION (probe the shape and edges of liked regions) with EXPLORATION (sample uncharted areas to find new attractors).
+- When everything so far is disliked, take samples from distant, unvisited parts of the map to find any attractor at all — but vary the distance and direction each time.
 
-Your primary goal is exploration: even when the user clearly likes something, keep probing adjacent territory — different eras, different energy levels, related-but-distinct genres — so you can understand the full shape of their taste, not just one corner of it.
+Each batch of 3 songs should answer: "is this region interesting?" Choose songs that, regardless of outcome, reveal something new about the shape of this listener's taste.
 
-IMPORTANT: If the user provides explicit instructions (genres, time periods, style preferences, or other constraints), you MUST follow them strictly — they take priority over your taste inference. Every song you suggest must satisfy those constraints.
+IMPORTANT: If the user provides explicit instructions (genres, time periods, style preferences, or other constraints), follow them strictly — they override your inference.
 
 Reaction codes:
-- "move-on" = ready to hear something else; percent listened is the engagement signal (low % = didn't like it, high % = enjoyed it)
-- "not-now" = not in the mood right now, independent of taste (don't treat as dislike)
-- "more-from-artist" = enjoyed this; include at most one song from this artist or their closest sonic peers, but the other two songs must explore different territory
+- "move-on" = ready to move on; percent listened is the signal (high % = liked, low % = disliked)
+- "not-now" = not in the mood, not a taste signal
+- "more-from-artist" = enjoyed this; one song may be from this artist or close peers, the other two must explore different territory
 
 Respond with ONLY a JSON object in this exact format:
-{"songs":[{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"use Spotify track ID if you can identify the exact version"},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","spotify_id":"..."}],"profile":"2-3 sentences addressed directly to the listener using 'you/your', describing what you've learned about their taste — be specific about genres, eras, energy levels, and patterns you've noticed"}`
+{"songs":[{"search":"track name artist name","reason":"one sentence explanation","category":"broad > subcategory (e.g. Classical > Baroque, Electronic > Ambient, Jazz > Modal Jazz)","spotify_id":"use Spotify track ID if you can identify the exact version"},{"search":"track name artist name","reason":"one sentence explanation","category":"...","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","category":"...","spotify_id":"..."}],"profile":"LIKES: [specific songs/genres/moods that landed, with notes on region shape] | DISLIKES: [specific points sampled and rejected, noting which parts of each region were tried] | NEXT: [where to sample next — exploitation of a known liked region, edge of a disliked one, or uncharted territory — and why]"}`
 
 function buildUserPrompt(
   sessionHistory: ListenEvent[],
@@ -52,11 +58,11 @@ function buildUserPrompt(
   }
 
   if (priorProfile) {
-    prompt += `Taste profile from prior sessions: ${priorProfile}\n\n`
+    prompt += `Taste profile so far:\n${priorProfile}\n\n`
   }
 
   if (sessionHistory.length === 0 && !priorProfile) {
-    prompt += 'This is the first song for this user. Pick a widely known song that splits pop music listeners. Return 3 songs as specified.'
+    prompt += 'This is the first turn. Pick 3 well-known songs from very different regions of taste-space — e.g. one energetic/mainstream, one mellow/indie, one classic/timeless — so the reaction immediately splits the possibility space in half no matter which way it goes.'
     return prompt
   }
 
@@ -67,7 +73,7 @@ function buildUserPrompt(
     prompt += `New ratings this session:\n${lines}\n\n`
   }
 
-  prompt += 'Based on this, pick 3 songs to play next.'
+  prompt += 'Using the NEXT field from the profile as your guide: pick 3 songs that sample different parts of the map — some exploiting liked regions to find their edges, some probing uncharted areas. Do not repeat territory already sampled unless you are deliberately testing a neighboring subregion.'
 
   return prompt
 }
@@ -255,7 +261,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
 
   // New format: {songs: [{search, reason}, ...], profile}
   if (Array.isArray(parsed.songs)) {
-    type LLMRow = { search: string; reason: string; spotify_id?: string; spotifyId?: string }
+    type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string }
     const songs = parsed.songs
       .filter((s: unknown): s is LLMRow => {
         const candidate = s as Record<string, unknown>
@@ -269,6 +275,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
       .map((s: LLMRow) => ({
         search: s.search,
         reason: s.reason,
+        category: typeof s.category === 'string' ? s.category : undefined,
         spotifyId: typeof s.spotifyId === 'string'
           ? s.spotifyId.trim()
           : typeof s.spotify_id === 'string'

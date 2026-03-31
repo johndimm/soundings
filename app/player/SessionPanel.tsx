@@ -46,6 +46,7 @@ interface Props {
   onTimePeriodChange: (v: string) => void
   onRemoveMultiple: (indices: number[]) => void
   onPlayQueueItem: (index: number) => void
+  onRemoveQueueItem: (index: number) => void
   onPlayHistoryItem: (uri: string | null) => void
 }
 
@@ -64,6 +65,7 @@ export default function SessionPanel({
   onTimePeriodChange,
   onRemoveMultiple,
   onPlayQueueItem,
+  onRemoveQueueItem,
   onPlayHistoryItem,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -184,29 +186,37 @@ export default function SessionPanel({
 
         <div className="flex flex-col gap-1">
           {queue.map((card, i) => (
-            <button
-              key={card.track.uri}
-              onClick={() => onPlayQueueItem(i)}
-              className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors w-full"
-            >
-              <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
-              {card.track.albumArt ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={card.track.albumArt}
-                  alt={card.track.album}
-                  className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                  <span className="text-lg">♪</span>
+            <div key={card.track.uri} className="flex items-center gap-1">
+              <button
+                onClick={() => onPlayQueueItem(i)}
+                className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
+              >
+                <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
+                {card.track.albumArt ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={card.track.albumArt}
+                    alt={card.track.album}
+                    className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                    <span className="text-lg">♪</span>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
+                  <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
                 </div>
-              )}
-              <div className="flex-1 min-w-0">
-                <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
-                <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
-              </div>
-            </button>
+              </button>
+              <button
+                onClick={() => onRemoveQueueItem(i)}
+                className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
+                title="Remove from queue"
+              >
+                ×
+              </button>
+            </div>
           ))}
         </div>
       </div>

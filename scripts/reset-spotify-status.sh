@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+SPOTIFY_RESET_ENDPOINT=http://127.0.0.1:8000/api/spotify/reset-status
 ENDPOINT="${SPOTIFY_RESET_ENDPOINT:-https://earprint-six.vercel.app/api/spotify/reset-status}"
 RESET_KEY="${SPOTIFY_RESET_KEY:-secret}"
 
