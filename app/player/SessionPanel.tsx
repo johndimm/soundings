@@ -44,6 +44,8 @@ interface Props {
   onGenreTextChange: (v: string) => void
   timePeriod: string
   onTimePeriodChange: (v: string) => void
+  popularity: number
+  onPopularityChange: (v: number) => void
   onRemoveMultiple: (indices: number[]) => void
   onPlayQueueItem: (index: number) => void
   onRemoveQueueItem: (index: number) => void
@@ -63,6 +65,8 @@ export default function SessionPanel({
   onGenreTextChange,
   timePeriod,
   onTimePeriodChange,
+  popularity,
+  onPopularityChange,
   onRemoveMultiple,
   onPlayQueueItem,
   onRemoveQueueItem,
@@ -146,6 +150,28 @@ export default function SessionPanel({
           placeholder="e.g. 1970s, after 2020, baroque era…"
           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
         />
+      </div>
+
+      {/* Popularity */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-zinc-500 uppercase tracking-wide">Popularity</label>
+          <span className="text-xs text-zinc-400">
+            {popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-600">Obscure</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={popularity}
+            onChange={e => onPopularityChange(Number(e.target.value))}
+            className="flex-1 accent-zinc-400"
+          />
+          <span className="text-xs text-zinc-600">Mainstream</span>
+        </div>
       </div>
 
       {/* Notes */}

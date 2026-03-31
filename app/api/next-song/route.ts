@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
-import { getNextSongQuery, LLMProvider, ListenEvent } from '@/app/lib/llm'
+import { getNextSongQuery, LLMProvider, ListenEvent, ExploreMode } from '@/app/lib/llm'
 import { getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       forceTextSearch?: boolean
       alreadyHeard?: string[]
       accessToken?: string
+      mode?: ExploreMode
     }>,
   ])
 
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard } = body
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode } = body
 
   let songs: { search: string; reason: string }[]
   let profile: string | undefined
@@ -79,7 +80,8 @@ export async function POST(req: NextRequest) {
       artistConstraint,
       notes,
       priorProfile,
-      alreadyHeard
+      alreadyHeard,
+      mode
     )
     songs = result.songs
     profile = result.profile

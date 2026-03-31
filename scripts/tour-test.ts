@@ -14,7 +14,7 @@ import { resolve } from 'path'
 
 config({ path: resolve(process.cwd(), '.env.local') })
 
-import { getNextSongQuery, type ListenEvent, type LLMProvider } from '../app/lib/llm'
+import { getNextSongQuery, type ListenEvent, type LLMProvider, type ExploreMode } from '../app/lib/llm'
 
 const ROUNDS = 20
 const PROVIDER = (process.argv[2] as LLMProvider) ?? 'deepseek'
@@ -26,9 +26,10 @@ async function run() {
   const sessionHistory: ListenEvent[] = []
   let priorProfile: string | undefined
   const played: string[] = []
+  let mode: ExploreMode = 'explore'
 
   for (let round = 1; round <= ROUNDS; round++) {
-    process.stdout.write(`Round ${round}/${ROUNDS}... `)
+    process.stdout.write(`Round ${round}/${ROUNDS} [${mode}]... `)
 
     let result
     try {
@@ -38,7 +39,8 @@ async function run() {
         undefined,
         undefined,
         priorProfile,
-        played.map(raw => JSON.parse(raw).search)
+        played.map(raw => JSON.parse(raw).search),
+        mode
       )
     } catch (err) {
       console.error(`\nFailed on round ${round}:`, err)
@@ -47,6 +49,7 @@ async function run() {
 
     const { songs, profile } = result
     if (profile) priorProfile = profile
+    mode = mode === 'explore' ? 'exploit' : 'explore'
     if (!songs.length) { console.log('no songs returned, stopping.'); break }
 
     const picked = songs[0]

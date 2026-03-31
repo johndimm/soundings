@@ -35,12 +35,15 @@ Reaction codes:
 Respond with ONLY a JSON object in this exact format:
 {"songs":[{"search":"track name artist name","reason":"one sentence explanation","category":"broad > subcategory (e.g. Classical > Baroque, Electronic > Ambient, Jazz > Modal Jazz)","spotify_id":"use Spotify track ID if you can identify the exact version"},{"search":"track name artist name","reason":"one sentence explanation","category":"...","spotify_id":"..."},{"search":"track name artist name","reason":"one sentence explanation","category":"...","spotify_id":"..."}],"profile":"LIKES: [specific songs/genres/moods that landed, with notes on region shape] | DISLIKES: [specific points sampled and rejected, noting which parts of each region were tried] | NEXT: [where to sample next — exploitation of a known liked region, edge of a disliked one, or uncharted territory — and why]"}`
 
+export type ExploreMode = 'exploit' | 'explore'
+
 function buildUserPrompt(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
   artistConstraint?: string,
   notes?: string,
-  alreadyHeard?: string[]
+  alreadyHeard?: string[],
+  mode: ExploreMode = 'explore'
 ): string {
   let prompt = ''
 
@@ -62,7 +65,7 @@ function buildUserPrompt(
   }
 
   if (sessionHistory.length === 0 && !priorProfile) {
-    prompt += 'This is the first turn. Pick 3 well-known songs from very different regions of taste-space — e.g. one energetic/mainstream, one mellow/indie, one classic/timeless — so the reaction immediately splits the possibility space in half no matter which way it goes.'
+    prompt += 'This is the first turn. Pick 3 songs from very different regions of taste-space — e.g. one energetic, one mellow, one acoustic or classical — so the reaction immediately splits the possibility space in half no matter which way it goes. Match the popularity level specified in any constraints above.'
     return prompt
   }
 
@@ -73,7 +76,16 @@ function buildUserPrompt(
     prompt += `New ratings this session:\n${lines}\n\n`
   }
 
-  prompt += 'Using the NEXT field from the profile as your guide: pick 3 songs that sample different parts of the map — some exploiting liked regions to find their edges, some probing uncharted areas. Do not repeat territory already sampled unless you are deliberately testing a neighboring subregion.'
+  const hasLikes = sessionHistory.some(e => e.percentListened >= 50) ||
+    (priorProfile ? /LIKES:\s*(?!\[none|\[no confirmed|\[nothing)/i.test(priorProfile) : false)
+
+  const effectiveMode = mode === 'exploit' && !hasLikes ? 'explore' : mode
+
+  if (effectiveMode === 'exploit') {
+    prompt += 'MODE: EXPLOIT. Focus on the LIKES in the profile. Pick 3 songs that are close neighbors of what was liked — same or adjacent genre, era, mood, energy — to map the shape and edges of that region.'
+  } else {
+    prompt += 'MODE: EXPLORE. Pick 3 songs from parts of the map NOT yet sampled — far from anything already heard or disliked. Do not revisit territory in DISLIKES. If nothing has been heard yet, sample 3 distant, contrasting regions to split the space.'
+  }
 
   return prompt
 }
@@ -83,7 +95,8 @@ async function askAnthropic(
   priorProfile?: string,
   artistConstraint?: string,
   notes?: string,
-  alreadyHeard?: string[]
+  alreadyHeard?: string[],
+  mode?: ExploreMode
 ): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -96,7 +109,7 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard) }],
+      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -109,7 +122,8 @@ async function askOpenAI(
   priorProfile?: string,
   artistConstraint?: string,
   notes?: string,
-  alreadyHeard?: string[]
+  alreadyHeard?: string[],
+  mode?: ExploreMode
 ): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -122,7 +136,7 @@ async function askOpenAI(
       max_tokens: 1024,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
       ],
     }),
   })
@@ -136,7 +150,8 @@ async function askDeepSeek(
   priorProfile?: string,
   artistConstraint?: string,
   notes?: string,
-  alreadyHeard?: string[]
+  alreadyHeard?: string[],
+  mode?: ExploreMode
 ): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -149,7 +164,7 @@ async function askDeepSeek(
       max_tokens: 1024,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
       ],
     }),
   })
@@ -163,7 +178,8 @@ async function askGemini(
   priorProfile?: string,
   artistConstraint?: string,
   notes?: string,
-  alreadyHeard?: string[]
+  alreadyHeard?: string[],
+  mode?: ExploreMode
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
@@ -173,7 +189,7 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard) }] }],
+        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }] }],
         generationConfig: { maxOutputTokens: 400 },
       }),
     }
@@ -191,14 +207,15 @@ export async function getNextSongQuery(
   artistConstraint?: string,
   notes?: string,
   priorProfile?: string,
-  alreadyHeard?: string[]
+  alreadyHeard?: string[],
+  mode?: ExploreMode
 ): Promise<{ songs: SongSuggestion[]; profile?: string }> {
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard)
-      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
     }
   }
 

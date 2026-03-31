@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
+import { recordFetch } from '@/app/lib/callTracker'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const RATE_LIMIT_DEFAULT_WAIT_MS = 30_000
@@ -51,12 +52,17 @@ function formatMs(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-function buildCombinedNotes(genres: string[], genreText: string, timePeriod: string, notes: string): string {
+function buildCombinedNotes(genres: string[], genreText: string, timePeriod: string, notes: string, popularity: number): string {
   const parts: string[] = []
   if (genres.length > 0) parts.push(`Genres: ${genres.join(', ')}`)
   if (genreText.trim()) parts.push(`Style: ${genreText.trim()}`)
   if (timePeriod.trim()) parts.push(`Time period: ${timePeriod.trim()}`)
   if (notes.trim()) parts.push(notes.trim())
+  if (popularity <= 20) parts.push('Popularity: obscure hidden gems only — avoid anything well-known or mainstream')
+  else if (popularity <= 40) parts.push('Popularity: lean toward lesser-known tracks, avoid obvious hits')
+  else if (popularity >= 80) parts.push('Popularity: well-known popular songs preferred')
+  else if (popularity >= 60) parts.push('Popularity: lean toward recognizable songs')
+  // 41–59 = no constraint (default middle)
   return parts.join('. ')
 }
 
@@ -98,19 +104,23 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const [llmBuffer, setLlmBuffer] = useState<CardState[]>([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [backoffUntil, setBackoffUntil] = useState<number | null>(null)
-  const [spotifyStatus, setSpotifyStatus] = useState<{
-    available: boolean
-    retryAfterMs: number
-    offline: boolean
-  } | null>(null)
+  const [backoffUntil, setBackoffUntil] = useState<number | null>(() => {
+    try {
+      const stored = localStorage.getItem('spotifyRateLimitUntil')
+      if (stored) {
+        const until = Number(stored)
+        if (until > Date.now()) return until
+      }
+    } catch {}
+    return null
+  })
   const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
   const [playResponse, setPlayResponse] = useState<string | null>(null)
-  const [statusVersion, setStatusVersion] = useState(0)
   const [notes, setNotes] = useState('')
   const [genres, setGenres] = useState<string[]>([])
   const [genreText, setGenreText] = useState('')
   const [timePeriod, setTimePeriod] = useState('')
+  const [popularity, setPopularity] = useState(50)
   const [provider, setProvider] = useState<LLMProvider>('deepseek')
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
@@ -137,6 +147,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const genresRef = useRef<string[]>([])
   const genreTextRef = useRef('')
   const timePeriodRef = useRef('')
+  const popularityRef = useRef(50)
   const providerRef = useRef<LLMProvider>('deepseek')
   const sliderRef = useRef(0)
   const durationRef = useRef(0)
@@ -146,10 +157,24 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const llmBufferRef = useRef<CardState[]>([])
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
+  const exploreModeRef = useRef<'exploit' | 'explore'>('explore')
   const gradeRef = useRef(50)
   const hasRatedRef = useRef(false)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Restore backoff timer from localStorage on mount
+  useEffect(() => {
+    if (backoffUntil && backoffUntil > Date.now()) {
+      const remaining = backoffUntil - Date.now()
+      backoffTimerRef.current = setTimeout(() => {
+        setBackoffUntil(null)
+        setError(null)
+        try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
+      }, remaining)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(() => {
     providerRef.current = provider
@@ -171,24 +196,13 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     notesRef.current = notes
   }, [notes])
 
-  // Keep refs in sync with state
+  useEffect(() => {
+    popularityRef.current = popularity
+  }, [popularity])
+
+  // Fetch Spotify user info once on mount
   useEffect(() => {
     let canceled = false
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch('/api/spotify/status')
-        if (!res.ok) throw new Error(`status check failed ${res.status}`)
-        const data = await res.json()
-        if (!canceled) {
-          setSpotifyStatus(data)
-        }
-      } catch (err) {
-        if (!canceled) {
-          console.error('failed to fetch Spotify status', err)
-        }
-      }
-    }
-
     const fetchUser = async () => {
       try {
         const res = await fetch('/api/spotify/me')
@@ -203,15 +217,9 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         }
       }
     }
-
-    fetchStatus()
     fetchUser()
-    const interval = setInterval(fetchStatus, 30_000)
-    return () => {
-      canceled = true
-      clearInterval(interval)
-    }
-  }, [statusVersion])
+    return () => { canceled = true }
+  }, [])
 
   // ── Load history from localStorage ───────────────────────────────────────
   useEffect(() => {
@@ -360,9 +368,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           genresRef.current,
           genreTextRef.current,
           timePeriodRef.current,
-          notesRef.current
+          notesRef.current,
+          popularityRef.current
         ),
         alreadyHeard: alreadyHeard.length > 0 ? alreadyHeard : undefined,
+        mode: exploreModeRef.current,
       }
       if (forceTextSearch) {
         payload.forceTextSearch = true
@@ -379,6 +389,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         const payload = await res.json().catch(() => null)
         const payloadRetry =
           payload && typeof payload.retryAfterMs === 'number' ? payload.retryAfterMs : undefined
+        recordFetch(3) // pessimistic: assume all 3 Spotify searches fired
         throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
       }
       if (res.status === 401) {
@@ -390,10 +401,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       }
 
       const data = await res.json()
-    const cards: CardState[] = (data.songs ?? []).map(
-      (s: { track: SpotifyTrack; reason: string }) => ({ track: s.track, reason: s.reason })
-    )
-    console.info('fetchCards returned N songs', cards.length, cards.map(c => c.track.name))
+      const cards: CardState[] = (data.songs ?? []).map(
+        (s: { track: SpotifyTrack; reason: string }) => ({ track: s.track, reason: s.reason })
+      )
+      recordFetch(cards.length || 1)
+      console.info('fetchCards returned N songs', cards.length, cards.map(c => c.track.name))
       return { cards, profile: data.profile }
     },
     []
@@ -439,6 +451,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         if (onCards && fresh.length > 0) {
           onCards(fresh)
         }
+        // Flip explore/exploit mode for next fetch
+        exploreModeRef.current = exploreModeRef.current === 'explore' ? 'exploit' : 'explore'
+        console.info('fetchToBuffer mode next round:', exploreModeRef.current)
+
         // Append fresh results to the buffer
         const newBuffer = [...llmBufferRef.current, ...fresh]
         console.info('fetchToBuffer appended', fresh.length, 'new cards; buffer length now', newBuffer.length)
@@ -460,11 +476,16 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           const waitMs = err.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS
           const until = Date.now() + waitMs
           setBackoffUntil(until)
+          try { localStorage.setItem('spotifyRateLimitUntil', String(until)) } catch {}
           if (backoffTimerRef.current) {
             clearTimeout(backoffTimerRef.current)
           }
-          backoffTimerRef.current = setTimeout(() => setBackoffUntil(null), waitMs)
-          setError('Spotify is rate limiting requests. Retrying soon.')
+          backoffTimerRef.current = setTimeout(() => {
+            setBackoffUntil(null)
+            setError(null)
+            try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
+          }, waitMs)
+          setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           return
         }
 
@@ -478,8 +499,6 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         if (gen === fetchGenRef.current && !currentCardRef.current && llmBufferRef.current.length === 0) {
           setError('Could not load songs. Try again.')
         }
-        setStatusVersion(v => v + 1)
-
         // Back off on generic errors to prevent hammering the API
         const waitMs = RATE_LIMIT_DEFAULT_WAIT_MS
         const until = Date.now() + waitMs
@@ -786,54 +805,12 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     window.location.href = '/api/auth/login'
   }, [])
 
-  useEffect(() => {
-    let canceled = false
-    const fetchStatus = async () => {
-      try {
-        const res = await fetch('/api/spotify/status')
-        if (!res.ok) throw new Error(`status check failed ${res.status}`)
-        const data = await res.json()
-        if (!canceled) {
-          setSpotifyStatus(data)
-        }
-      } catch (err) {
-        if (!canceled) {
-          console.error('failed to fetch Spotify status', err)
-        }
-      }
-    }
-
-    fetchStatus()
-    const fetchUser = async () => {
-      try {
-        const res = await fetch('/api/spotify/me')
-        if (!res.ok) throw new Error(`me failed ${res.status}`)
-        const data = await res.json()
-        if (!canceled && data.ok) {
-          setSpotifyUser(data.user)
-        }
-      } catch (err) {
-        if (!canceled) {
-          console.error('failed to fetch Spotify user', err)
-        }
-      }
-    }
-
-    fetchUser()
-    const interval = setInterval(fetchStatus, 30_000)
-    return () => {
-      canceled = true
-      clearInterval(interval)
-    }
-  }, [])
 
   const duration = playbackState?.duration ?? 0
 
   const spotifyStatusMessage =
-    spotifyStatus && !spotifyStatus.available
-      ? spotifyStatus.offline
-        ? `Spotify offline until ${formatRetryTime(spotifyStatus.retryAfterMs)}`
-        : `Spotify rate-limited until ${formatRetryTime(spotifyStatus.retryAfterMs)}`
+    backoffUntil && backoffUntil > Date.now()
+      ? `Spotify rate-limited until ${new Date(backoffUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : null
 
   return (
@@ -872,7 +849,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       </div>
       {spotifyStatusMessage && (
         <div className="px-6 py-2 bg-yellow-900 text-yellow-50 text-sm text-center">
-          {spotifyStatusMessage}
+          {spotifyStatusMessage} — <a href="/status" className="underline text-yellow-300 text-xs">view call stats</a>
         </div>
       )}
       {playResponse && (
@@ -1062,6 +1039,8 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
             onGenreTextChange={setGenreText}
             timePeriod={timePeriod}
             onTimePeriodChange={setTimePeriod}
+            popularity={popularity}
+            onPopularityChange={setPopularity}
             onRemoveMultiple={handleRemoveMultiple}
             onRemoveQueueItem={(index) => {
               const q = queueRef.current

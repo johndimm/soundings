@@ -35,6 +35,11 @@ export default async function Home({
           </p>
         )}
 
+        <div className="flex gap-4">
+          <a href="/status" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Call diary</a>
+          <a href="/docs" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Docs</a>
+        </div>
+
         <a
           href="/api/auth/login"
           className="flex items-center gap-3 bg-[#1DB954] hover:bg-[#1ed760] text-black font-semibold px-8 py-4 rounded-full transition-colors text-base"

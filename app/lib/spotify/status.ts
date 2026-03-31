@@ -5,6 +5,7 @@ const SPOTIFY_OFFLINE_WAIT_MS = Number(process.env.SPOTIFY_OFFLINE_WAIT_MS ?? 4 
 let rateLimitUntil = 0
 let dynamicOfflineUntil = 0
 
+
 export function isSpotifyOffline(): boolean {
   return SPOTIFY_OFFLINE || Date.now() < dynamicOfflineUntil
 }
@@ -29,6 +30,7 @@ export function markRateLimited(retryAfterMs?: number) {
   const now = Date.now()
   const wait = Math.max(retryAfterMs ?? 0, RATE_LIMIT_MIN_WAIT_MS)
   rateLimitUntil = Math.max(rateLimitUntil, now + wait)
+  console.warn(`[spotify/status] rate limited, retryAfterMs=${wait}, until=${new Date(rateLimitUntil).toISOString()}`)
 }
 
 export function markSpotifyUnavailable(durationMs?: number) {
