@@ -1030,7 +1030,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
                 {/* Next button */}
                 <div className="flex items-center gap-3 mt-3">
                   <button
-                    onClick={advance}
+                    onClick={() => advance()}
                     className="text-sm bg-white/20 hover:bg-white/30 text-white px-4 py-1.5 rounded-full transition-colors"
                   >
                     Next
