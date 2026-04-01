@@ -7,6 +7,8 @@ import { SpotifyTrack } from '@/app/lib/spotify'
 export interface HistoryEntry extends ListenEvent {
   albumArt: string | null
   uri: string | null
+  category?: string
+  // coords is inherited from ListenEvent (coords?: {x,y})
 }
 
 interface CardState {
@@ -17,6 +19,14 @@ interface CardState {
 const GENRE_OPTIONS = [
   'Pop', 'Rock', 'Hip-Hop', 'R&B', 'Electronic', 'Jazz', 'Classical',
   'Country', 'Folk', 'Metal', 'Soul', 'Blues', 'Reggae', 'Latin', 'Punk',
+]
+
+// Broad musical regions — meaningful traditions without listing every country
+const REGION_OPTIONS = [
+  'US & Canada', 'UK & Ireland', 'Latin America', 'Brazil',
+  'West Africa', 'East Africa', 'North Africa & Middle East',
+  'India', 'East Asia', 'Southeast Asia',
+  'Caribbean', 'Scandinavia', 'Eastern Europe',
 ]
 
 function gradeColor(entry: HistoryEntry): string {
@@ -44,12 +54,64 @@ interface Props {
   onGenreTextChange: (v: string) => void
   timePeriod: string
   onTimePeriodChange: (v: string) => void
+  regions: string[]
+  onRegionsChange: (v: string[]) => void
   popularity: number
   onPopularityChange: (v: number) => void
   onRemoveMultiple: (indices: number[]) => void
   onPlayQueueItem: (index: number) => void
   onRemoveQueueItem: (index: number) => void
   onPlayHistoryItem: (uri: string | null) => void
+}
+
+const SECTION_STYLES: Record<string, { label: string; labelColor: string; textColor: string; border: string }> = {
+  LIKED:    { label: 'Likes',    labelColor: 'text-green-400',  textColor: 'text-green-200',  border: 'border-green-900' },
+  DISLIKED: { label: 'Dislikes', labelColor: 'text-red-400',    textColor: 'text-red-200',    border: 'border-red-900' },
+  EXPLORED: { label: 'Explored', labelColor: 'text-blue-400',   textColor: 'text-blue-200',   border: 'border-blue-900' },
+  NEXT:     { label: 'Next move',labelColor: 'text-amber-400',  textColor: 'text-amber-200',  border: 'border-amber-900' },
+}
+
+function ProfileView({ profile }: { profile: string }) {
+  // Split on ' | ' or '\n' separators the LLM might use
+  const parts = profile.split(/\s*\|\s*|\n/).map(s => s.trim()).filter(Boolean)
+
+  const sections = parts.map(part => {
+    const colon = part.indexOf(':')
+    if (colon === -1) return { key: '', value: part }
+    return { key: part.slice(0, colon).trim().toUpperCase(), value: part.slice(colon + 1).trim() }
+  })
+
+  // If we couldn't parse any known keys, fall back to plain text
+  const hasKnownKeys = sections.some(s => s.key in SECTION_STYLES)
+
+  if (!hasKnownKeys) {
+    return (
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide">What I know about you</label>
+        <p className="text-xs text-zinc-300 leading-relaxed">{profile}</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-xs text-zinc-500 uppercase tracking-wide">What I know about you</label>
+      <div className="flex flex-col gap-1.5">
+        {sections.map((s, i) => {
+          const style = SECTION_STYLES[s.key]
+          if (!style) return null
+          return (
+            <div key={i} className={`rounded-lg border ${style.border} bg-black/30 px-3 py-2`}>
+              <span className={`text-[10px] font-semibold uppercase tracking-widest ${style.labelColor} mr-2`}>
+                {style.label}
+              </span>
+              <span className={`text-xs ${style.textColor} leading-relaxed`}>{s.value}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 export default function SessionPanel({
@@ -65,6 +127,8 @@ export default function SessionPanel({
   onGenreTextChange,
   timePeriod,
   onTimePeriodChange,
+  regions,
+  onRegionsChange,
   popularity,
   onPopularityChange,
   onRemoveMultiple,
@@ -104,87 +168,16 @@ export default function SessionPanel({
     }
   }
 
+  const toggleRegion = (r: string) => {
+    if (regions.includes(r)) {
+      onRegionsChange(regions.filter(x => x !== r))
+    } else {
+      onRegionsChange([...regions, r])
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4 text-white w-full">
-
-      {/* Taste profile */}
-      {profile && (
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">What I know about you</label>
-          <p className="text-sm text-zinc-300 leading-relaxed">{profile}</p>
-        </div>
-      )}
-
-      {/* Genre selector */}
-      <div className="flex flex-col gap-2">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Genres</label>
-        <div className="flex flex-wrap gap-1.5">
-          {GENRE_OPTIONS.map(g => (
-            <button
-              key={g}
-              onClick={() => toggleGenre(g)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                genres.includes(g)
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-              }`}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
-        <input
-          value={genreText}
-          onChange={e => onGenreTextChange(e.target.value)}
-          placeholder="e.g. dreamy shoegaze, dark ambient…"
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-        />
-      </div>
-
-      {/* Time period */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Time period</label>
-        <input
-          value={timePeriod}
-          onChange={e => onTimePeriodChange(e.target.value)}
-          placeholder="e.g. 1970s, after 2020, baroque era…"
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-        />
-      </div>
-
-      {/* Popularity */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">Popularity</label>
-          <span className="text-xs text-zinc-400">
-            {popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-600">Obscure</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={popularity}
-            onChange={e => onPopularityChange(Number(e.target.value))}
-            className="flex-1 accent-zinc-400"
-          />
-          <span className="text-xs text-zinc-600">Mainstream</span>
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Tell the DJ</label>
-        <textarea
-          value={notes}
-          onChange={e => onNotesChange(e.target.value)}
-          placeholder="e.g. more 80s, no country, upbeat only…"
-          rows={2}
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-500"
-        />
-      </div>
 
       {/* Up next */}
       <div className="flex flex-col gap-1">
@@ -245,6 +238,100 @@ export default function SessionPanel({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Taste profile */}
+      {profile && <ProfileView profile={profile} />}
+
+      {/* Genre selector */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide">Genres</label>
+        <div className="flex flex-wrap gap-1.5">
+          {GENRE_OPTIONS.map(g => (
+            <button
+              key={g}
+              onClick={() => toggleGenre(g)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                genres.includes(g)
+                  ? 'bg-white text-black border-white'
+                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
+              }`}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+        <input
+          value={genreText}
+          onChange={e => onGenreTextChange(e.target.value)}
+          placeholder="e.g. dreamy shoegaze, dark ambient…"
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+        />
+      </div>
+
+      {/* World region */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide">Region</label>
+        <div className="flex flex-wrap gap-1.5">
+          {REGION_OPTIONS.map(r => (
+            <button
+              key={r}
+              onClick={() => toggleRegion(r)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                regions.includes(r)
+                  ? 'bg-white text-black border-white'
+                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Time period */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide">Time period</label>
+        <input
+          value={timePeriod}
+          onChange={e => onTimePeriodChange(e.target.value)}
+          placeholder="e.g. 1970s, after 2020, baroque era…"
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+        />
+      </div>
+
+      {/* Popularity */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-zinc-500 uppercase tracking-wide">Popularity</label>
+          <span className="text-xs text-zinc-400">
+            {popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-600">Obscure</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={popularity}
+            onChange={e => onPopularityChange(Number(e.target.value))}
+            className="flex-1 accent-zinc-400"
+          />
+          <span className="text-xs text-zinc-600">Mainstream</span>
+        </div>
+      </div>
+
+      {/* Notes */}
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide">Tell the DJ</label>
+        <textarea
+          value={notes}
+          onChange={e => onNotesChange(e.target.value)}
+          placeholder="e.g. more 80s, no country, upbeat only…"
+          rows={2}
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-500"
+        />
       </div>
 
       {/* History */}

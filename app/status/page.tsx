@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { readStats, clearStats, type CallStats } from '@/app/lib/callTracker'
 
+type PingResult = { ok: boolean; status: number; latencyMs: number; message: string; retryAfterMs?: number }
+
 const WINDOW_MS = 30_000
 const SPOTIFY_SAFE_LIMIT = 90
 const VIEW_DURATION_MS = 10 * 60_000  // show last 10 minutes on x-axis
@@ -132,12 +134,38 @@ function RateChart({ log, safeLimit }: ChartProps) {
 
 export default function StatusPage() {
   const [stats, setStats] = useState<CallStats | null>(null)
+  const [pinging, setPinging] = useState(false)
+  const [pingResult, setPingResult] = useState<PingResult | null>(null)
 
   useEffect(() => {
     setStats(readStats())
     const interval = setInterval(() => setStats(readStats()), 2000)
     return () => clearInterval(interval)
   }, [])
+
+  const ping = async () => {
+    setPinging(true)
+    setPingResult(null)
+    try {
+      const res = await fetch('/api/spotify/ping')
+      const data: PingResult = await res.json()
+      setPingResult(data)
+      if (data.ok) {
+        // Spotify is responding — clear the stored ban
+        try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
+        setStats(readStats())
+      } else if (data.retryAfterMs) {
+        // Update ban expiry with fresh value from Spotify
+        const until = Date.now() + data.retryAfterMs
+        try { localStorage.setItem('spotifyRateLimitUntil', String(until)) } catch {}
+        setStats(readStats())
+      }
+    } catch {
+      setPingResult({ ok: false, status: 0, latencyMs: 0, message: 'Request failed (network error)' })
+    } finally {
+      setPinging(false)
+    }
+  }
 
   if (!stats) return null
 
@@ -163,6 +191,38 @@ export default function StatusPage() {
         {stats.log.length === 0 && (
           <p className="text-zinc-600 text-xs mt-2">No data yet — use the player to generate calls.</p>
         )}
+      </section>
+
+      {/* Ping */}
+      <section className="mb-8">
+        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Live Spotify check</h2>
+        <div className="flex items-center gap-4 flex-wrap">
+          <button
+            onClick={ping}
+            disabled={pinging}
+            className="text-xs bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 border border-zinc-700 rounded px-4 py-2 transition-colors"
+          >
+            {pinging ? 'Testing…' : 'Test /v1/search now'}
+          </button>
+          {pingResult && (
+            <div className={`text-xs px-3 py-2 rounded border ${pingResult.ok ? 'border-green-800 bg-green-950 text-green-300' : 'border-red-900 bg-red-950 text-red-300'}`}>
+              <span className="font-bold">{pingResult.ok ? '✓' : '✗'} HTTP {pingResult.status}</span>
+              {' · '}
+              {pingResult.latencyMs}ms
+              {' · '}
+              {pingResult.retryAfterMs
+                ? `Rate limited until ${new Date(Date.now() + pingResult.retryAfterMs).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                : pingResult.message}
+              {pingResult.ok && (
+                <span className="text-green-500 ml-2">— ban cleared from storage</span>
+              )}
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-zinc-600 mt-2">
+          Sends a real <code className="text-zinc-500">GET /v1/search?q=test&amp;limit=1</code> to Spotify.
+          If it returns 200, the stored ban is cleared and the player can resume.
+        </p>
       </section>
 
       {/* Stats row */}

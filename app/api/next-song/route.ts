@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       notes?: string
       forceTextSearch?: boolean
       alreadyHeard?: string[]
+      recentArtists?: string[]
       accessToken?: string
       mode?: ExploreMode
     }>,
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode } = body
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, recentArtists, mode } = body
 
   let songs: { search: string; reason: string }[]
   let profile: string | undefined
@@ -81,7 +82,8 @@ export async function POST(req: NextRequest) {
       notes,
       priorProfile,
       alreadyHeard,
-      mode
+      mode,
+      recentArtists
     )
     songs = result.songs
     profile = result.profile
@@ -107,7 +109,8 @@ export async function POST(req: NextRequest) {
     songs,
     accessToken,
     forceTextSearch,
-    sessionHistory ?? []
+    sessionHistory ?? [],
+    recentArtists
   )
 
   if (unauthorized) {
@@ -138,26 +141,40 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-type FoundSong = { track: SpotifyTrack; reason: string }
+type FoundSong = { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number } }
 
 function buildTrackKey(track: SpotifyTrack) {
   return `${track.name.toLowerCase()}|${track.artist.toLowerCase()}`
 }
 
-function trackIsDuplicate(track: SpotifyTrack, seen: Set<string>, produced: Set<string>) {
+function normaliseArtist(artist: string) {
+  return artist.toLowerCase().replace(/^the\s+/, '').trim()
+}
+
+function trackIsDuplicate(
+  track: SpotifyTrack,
+  seen: Set<string>,
+  produced: Set<string>,
+  producedArtists: Set<string>
+) {
   const key = buildTrackKey(track)
-  if (seen.has(key) || produced.has(key)) {
+  if (seen.has(key) || produced.has(key)) return true
+  const artistKey = normaliseArtist(track.artist)
+  if (producedArtists.has(artistKey)) {
+    console.info('next-song: skipping duplicate artist in batch', track.artist)
     return true
   }
   produced.add(key)
+  producedArtists.add(artistKey)
   return false
 }
 
 async function resolveSongs(
-  songs: { search: string; reason: string; spotifyId?: string }[],
+  songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number } }[],
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
-  sessionHistory: ListenEvent[]
+  sessionHistory: ListenEvent[],
+  recentArtists?: string[]
 ): Promise<{ foundSongs: FoundSong[]; rateLimitedRetryMs: number | null; unauthorized: boolean }> {
   const results: FoundSong[] = []
   let rateLimitedRetryMs: number | null = null
@@ -170,7 +187,11 @@ async function resolveSongs(
   )
 
   const produced = new Set<string>()
-  const skipTrack = (track: SpotifyTrack) => trackIsDuplicate(track, seenHistory, produced)
+  // Pre-seed with every artist the user has already heard or has queued
+  const producedArtists = new Set<string>(
+    (recentArtists ?? []).map(normaliseArtist)
+  )
+  const skipTrack = (track: SpotifyTrack) => trackIsDuplicate(track, seenHistory, produced, producedArtists)
 
   console.info('resolveSongs mode', {
     forceTextSearch,
@@ -178,6 +199,8 @@ async function resolveSongs(
   })
 
   const idToReason = new Map<string, string>()
+  const idToCategory = new Map<string, string>()
+  const idToCoords = new Map<string, { x: number; y: number }>()
   const ids: string[] = []
   const idlessSongs = songs.filter(song => !(song.spotifyId?.trim()))
   for (const song of songs) {
@@ -185,6 +208,8 @@ async function resolveSongs(
     if (!id) continue
     if (!idToReason.has(id)) {
       idToReason.set(id, song.reason)
+      if (song.category) idToCategory.set(id, song.category)
+      if (song.coords) idToCoords.set(id, song.coords)
       ids.push(id)
     }
   }
@@ -205,7 +230,9 @@ async function resolveSongs(
         if (!track) return
         if (skipTrack(track)) return
         const reason = idToReason.get(track.id) ?? 'Spotify batch match'
-        results.push({ track, reason })
+        const category = idToCategory.get(track.id)
+        const coords = idToCoords.get(track.id)
+        results.push({ track, reason, category, coords })
       })
         fallbackSongs = idlessSongs.slice()
       } else {
@@ -220,7 +247,8 @@ async function resolveSongs(
       fallbackSongs,
       accessToken,
       seenHistory,
-      produced
+      produced,
+      producedArtists
     )
     results.push(...sequentialResult.foundSongs)
     if (sequentialResult.rateLimitedRetryMs) {
@@ -235,10 +263,11 @@ async function resolveSongs(
 }
 
 async function searchSongsSequential(
-  songs: { search: string; reason: string }[],
+  songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number } }[],
   accessToken: string,
   seenHistory: Set<string>,
-  produced: Set<string>
+  produced: Set<string>,
+  producedArtists: Set<string>
 ): Promise<{ foundSongs: FoundSong[]; rateLimitedRetryMs: number | null; unauthorized: boolean }> {
   console.info('searchSongsSequential list', songs.map(song => song.search))
   const results: FoundSong[] = []
@@ -259,10 +288,10 @@ async function searchSongsSequential(
     }
 
     if (response.status === 'ok') {
-      if (trackIsDuplicate(response.track, seenHistory, produced)) {
+      if (trackIsDuplicate(response.track, seenHistory, produced, producedArtists)) {
         continue
       }
-      results.push({ track: response.track, reason: song.reason })
+      results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords })
     }
 
     await sleep(SEARCH_DELAY_MS)
