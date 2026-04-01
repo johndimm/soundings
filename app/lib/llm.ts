@@ -85,8 +85,7 @@ function buildUserPrompt(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode: ExploreMode = 'explore',
-  recentArtists?: string[]
+  mode: ExploreMode = 'explore'
 ): string {
   let prompt = ''
 
@@ -102,9 +101,6 @@ function buildUserPrompt(
     prompt += `DO NOT suggest any of these songs (already heard or queued):\n${alreadyHeard.map(s => `- ${s}`).join('\n')}\n\n`
   }
 
-  if (recentArtists && recentArtists.length > 0) {
-    prompt += `DO NOT suggest any song by these artists — the user has already heard them and needs variety:\n${recentArtists.map(a => `- ${a}`).join('\n')}\n\n`
-  }
 
   if (priorProfile) {
     prompt += `Taste profile so far:\n${priorProfile}\n\n`
@@ -141,8 +137,7 @@ async function askAnthropic(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode,
-  recentArtists?: string[]
+  mode?: ExploreMode
 ): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -155,7 +150,7 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 1024,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists) }],
+      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -169,8 +164,7 @@ async function askOpenAI(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode,
-  recentArtists?: string[]
+  mode?: ExploreMode
 ): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -183,7 +177,7 @@ async function askOpenAI(
       max_tokens: 1024,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
       ],
     }),
   })
@@ -198,8 +192,7 @@ async function askDeepSeek(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode,
-  recentArtists?: string[]
+  mode?: ExploreMode
 ): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -212,7 +205,7 @@ async function askDeepSeek(
       max_tokens: 1024,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
       ],
     }),
   })
@@ -227,8 +220,7 @@ async function askGemini(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode,
-  recentArtists?: string[]
+  mode?: ExploreMode
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
@@ -238,7 +230,7 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists) }] }],
+        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }] }],
         generationConfig: { maxOutputTokens: 512 },
       }),
     }
@@ -257,15 +249,14 @@ export async function getNextSongQuery(
   notes?: string,
   priorProfile?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode,
-  recentArtists?: string[]
+  mode?: ExploreMode
 ): Promise<{ songs: SongSuggestion[]; profile?: string }> {
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists)
-      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, recentArtists)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
     }
   }
 

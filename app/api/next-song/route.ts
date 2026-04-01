@@ -29,7 +29,6 @@ export async function POST(req: NextRequest) {
       notes?: string
       forceTextSearch?: boolean
       alreadyHeard?: string[]
-      recentArtists?: string[]
       accessToken?: string
       mode?: ExploreMode
     }>,
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, recentArtists, mode } = body
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode } = body
 
   let songs: { search: string; reason: string }[]
   let profile: string | undefined
@@ -82,8 +81,7 @@ export async function POST(req: NextRequest) {
       notes,
       priorProfile,
       alreadyHeard,
-      mode,
-      recentArtists
+      mode
     )
     songs = result.songs
     profile = result.profile
@@ -109,8 +107,7 @@ export async function POST(req: NextRequest) {
     songs,
     accessToken,
     forceTextSearch,
-    sessionHistory ?? [],
-    recentArtists
+    sessionHistory ?? []
   )
 
   if (unauthorized) {
@@ -173,8 +170,7 @@ async function resolveSongs(
   songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number } }[],
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
-  sessionHistory: ListenEvent[],
-  recentArtists?: string[]
+  sessionHistory: ListenEvent[]
 ): Promise<{ foundSongs: FoundSong[]; rateLimitedRetryMs: number | null; unauthorized: boolean }> {
   const results: FoundSong[] = []
   let rateLimitedRetryMs: number | null = null
@@ -187,10 +183,7 @@ async function resolveSongs(
   )
 
   const produced = new Set<string>()
-  // Pre-seed with every artist the user has already heard or has queued
-  const producedArtists = new Set<string>(
-    (recentArtists ?? []).map(normaliseArtist)
-  )
+  const producedArtists = new Set<string>()
   const skipTrack = (track: SpotifyTrack) => trackIsDuplicate(track, seenHistory, produced, producedArtists)
 
   console.info('resolveSongs mode', {

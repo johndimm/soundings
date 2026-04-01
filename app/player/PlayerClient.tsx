@@ -394,14 +394,6 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
         ...llmBufferRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
       ]
-      // All artists the user has heard or has queued — used to prevent repeats
-      const recentArtists = [
-        ...new Set([
-          ...cardHistoryRef.current.map(e => e.artist),
-          ...queueRef.current.map(c => c.track.artist),
-          ...llmBufferRef.current.map(c => c.track.artist),
-        ])
-      ]
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
@@ -416,7 +408,6 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
           regionsRef.current
         ),
         alreadyHeard: alreadyHeard.length > 0 ? alreadyHeard : undefined,
-        recentArtists: recentArtists.length > 0 ? recentArtists : undefined,
         mode: exploreModeRef.current,
       }
       if (forceTextSearch) {
