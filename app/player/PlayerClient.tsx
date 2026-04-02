@@ -405,31 +405,31 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   // Reclaim playback device when Spotify steals it (e.g. user opened a Spotify tab)
   const lastReclaimRef = useRef(0)
   const wasPlayingRef = useRef(false)
+  const openedSpotifyRef = useRef(false)
   useEffect(() => {
     const handleVisibility = () => {
       if (document.hidden) {
-        // Record whether we were playing when leaving
         wasPlayingRef.current = !isPausedRef.current
         return
       }
-      // Only reclaim if we were playing before leaving AND are now paused —
-      // that's the signature of Spotify stealing the device.
-      if (!wasPlayingRef.current) return
       const dId = deviceIdRef.current
       if (!dId) return
+      // If user clicked the Spotify track link, force reclaim regardless of throttle/pause state
+      const forceReclaim = openedSpotifyRef.current
+      openedSpotifyRef.current = false
+      if (!wasPlayingRef.current && !forceReclaim) return
       const now = Date.now()
-      if (now - lastReclaimRef.current < 10_000) return
-      // Small delay so the SDK state settles before we check
+      if (!forceReclaim && now - lastReclaimRef.current < 10_000) return
       setTimeout(() => {
-        if (!isPausedRef.current) return // still playing, nothing was stolen
+        if (!isPausedRef.current && !forceReclaim) return
         lastReclaimRef.current = Date.now()
-        console.info('visibilitychange: device was stolen, reclaiming', dId)
+        console.info('visibilitychange: reclaiming device', dId, { forceReclaim })
         fetch('https://api.spotify.com/v1/me/player', {
           method: 'PUT',
           headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ device_ids: [dId], play: true }),
         }).catch(() => {})
-      }, 500)
+      }, 800)
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
@@ -1181,6 +1181,15 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
             />
           )}
 
+          {/* Play/pause hover overlay */}
+          {currentCard && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200 bg-black/30 z-10 pointer-events-none">
+              <span className="text-white text-2xl font-semibold tracking-wide select-none">
+                {playbackState?.paused ? 'play' : 'pause'}
+              </span>
+            </div>
+          )}
+
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent" />
 
@@ -1251,12 +1260,13 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
                   target="_blank"
                   rel="noopener noreferrer"
                   title="Open in Spotify"
+                  onClick={() => { openedSpotifyRef.current = true }}
                   className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors block"
                 >
                   {currentCard.track.name}
                 </a>
                 <p className="text-zinc-300 text-sm truncate">{currentCard.track.artist}</p>
-                <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed line-clamp-2">
+                <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
                   {currentCard.reason}
                 </p>
 
