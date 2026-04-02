@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
   return Response.json({ songs: foundSongs, profile })
 }
 
-const SEARCH_DELAY_MS = 250
+const SEARCH_DELAY_MS = 400
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))

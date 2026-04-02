@@ -46,6 +46,7 @@ interface Props {
   queue: CardState[]
   loadingNext: boolean
   profile: string
+  onProfileChange: (v: string) => void
   notes: string
   onNotesChange: (v: string) => void
   genres: string[]
@@ -58,7 +59,10 @@ interface Props {
   onRegionsChange: (v: string[]) => void
   popularity: number
   onPopularityChange: (v: number) => void
+  discovery: number
+  onDiscoveryChange: (v: number) => void
   onRemoveMultiple: (indices: number[]) => void
+  onRateHistoryItem: (index: number, percent: number) => void
   onPlayQueueItem: (index: number) => void
   onRemoveQueueItem: (index: number) => void
   onPlayHistoryItem: (uri: string | null) => void
@@ -71,45 +75,52 @@ const SECTION_STYLES: Record<string, { label: string; labelColor: string; textCo
   NEXT:     { label: 'Next move',labelColor: 'text-amber-400',  textColor: 'text-amber-200',  border: 'border-amber-900' },
 }
 
-function ProfileView({ profile }: { profile: string }) {
-  // Split on ' | ' or '\n' separators the LLM might use
+function ProfileView({ profile, onEdit }: { profile: string; onEdit: (v: string) => void }) {
+  const [editing, setEditing] = useState(false)
   const parts = profile.split(/\s*\|\s*|\n/).map(s => s.trim()).filter(Boolean)
-
   const sections = parts.map(part => {
     const colon = part.indexOf(':')
     if (colon === -1) return { key: '', value: part }
     return { key: part.slice(0, colon).trim().toUpperCase(), value: part.slice(colon + 1).trim() }
   })
-
-  // If we couldn't parse any known keys, fall back to plain text
   const hasKnownKeys = sections.some(s => s.key in SECTION_STYLES)
-
-  if (!hasKnownKeys) {
-    return (
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">What I know about you</label>
-        <p className="text-xs text-zinc-300 leading-relaxed">{profile}</p>
-      </div>
-    )
-  }
 
   return (
     <div className="flex flex-col gap-1">
-      <label className="text-xs text-zinc-500 uppercase tracking-wide">What I know about you</label>
-      <div className="flex flex-col gap-1.5">
-        {sections.map((s, i) => {
-          const style = SECTION_STYLES[s.key]
-          if (!style) return null
-          return (
-            <div key={i} className={`rounded-lg border ${style.border} bg-black/30 px-3 py-2`}>
-              <span className={`text-[10px] font-semibold uppercase tracking-widest ${style.labelColor} mr-2`}>
-                {style.label}
-              </span>
-              <span className={`text-xs ${style.textColor} leading-relaxed`}>{s.value}</span>
-            </div>
-          )
-        })}
+      <div className="flex items-center justify-between">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide">What I know about you</label>
+        <button
+          onClick={() => setEditing(e => !e)}
+          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+        >
+          {editing ? 'done' : 'edit'}
+        </button>
       </div>
+      {editing ? (
+        <textarea
+          value={profile}
+          onChange={e => onEdit(e.target.value)}
+          rows={5}
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-300 placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-500 leading-relaxed"
+        />
+      ) : hasKnownKeys ? (
+        <div className="flex flex-col gap-1.5">
+          {sections.map((s, i) => {
+            const style = SECTION_STYLES[s.key]
+            if (!style) return null
+            return (
+              <div key={i} className={`rounded-lg border ${style.border} bg-black/30 px-3 py-2`}>
+                <span className={`text-[10px] font-semibold uppercase tracking-widest ${style.labelColor} mr-2`}>
+                  {style.label}
+                </span>
+                <span className={`text-xs ${style.textColor} leading-relaxed`}>{s.value}</span>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="text-xs text-zinc-300 leading-relaxed">{profile}</p>
+      )}
     </div>
   )
 }
@@ -119,6 +130,7 @@ export default function SessionPanel({
   queue,
   loadingNext,
   profile,
+  onProfileChange,
   notes,
   onNotesChange,
   genres,
@@ -132,9 +144,12 @@ export default function SessionPanel({
   popularity,
   onPopularityChange,
   onRemoveMultiple,
+  onRateHistoryItem,
   onPlayQueueItem,
   onRemoveQueueItem,
   onPlayHistoryItem,
+  discovery,
+  onDiscoveryChange,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -241,7 +256,29 @@ export default function SessionPanel({
       </div>
 
       {/* Taste profile */}
-      {profile && <ProfileView profile={profile} />}
+      {profile && <ProfileView profile={profile} onEdit={onProfileChange} />}
+
+      {/* Discovery slider */}
+      <div className="flex flex-col gap-1">
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-zinc-500 uppercase tracking-wide">Discovery</label>
+          <span className="text-xs text-zinc-400">
+            {discovery <= 20 ? 'Familiar' : discovery <= 40 ? 'Mostly familiar' : discovery <= 60 ? 'Balanced' : discovery <= 80 ? 'Mostly new' : 'Adventurous'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-zinc-600">Familiar</span>
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={discovery}
+            onChange={e => onDiscoveryChange(Number(e.target.value))}
+            className="flex-1 accent-zinc-400"
+          />
+          <span className="text-xs text-zinc-600">New</span>
+        </div>
+      </div>
 
       {/* Genre selector */}
       <div className="flex flex-col gap-2">
@@ -400,9 +437,18 @@ export default function SessionPanel({
                     <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
                   </div>
                 </button>
-                <div className={`flex flex-col items-center flex-shrink-0 w-10 ${gradeColor(entry)}`}>
-                  <span className="text-xs font-bold">{gradeLabel(entry)}</span>
-                  <span className="text-xs opacity-60">{Math.round(entry.percentListened)}%</span>
+                <div className="flex flex-col items-center flex-shrink-0 gap-0.5" style={{ width: 56 }}>
+                  <span className={`text-[10px] font-bold ${gradeColor(entry)}`}>{gradeLabel(entry)}</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    value={Math.round(entry.percentListened)}
+                    onChange={e => onRateHistoryItem(realIndex, Number(e.target.value))}
+                    className="w-full accent-zinc-400"
+                    style={{ height: 14 }}
+                    title={`${Math.round(entry.percentListened)}%`}
+                  />
                 </div>
               </div>
             )

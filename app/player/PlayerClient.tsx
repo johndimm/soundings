@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
-import { recordFetch } from '@/app/lib/callTracker'
+import { recordFetch, readStats } from '@/app/lib/callTracker'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
@@ -17,6 +17,8 @@ interface SavedSettings {
   notes?: string
   regions?: string[]
   popularity?: number
+  provider?: LLMProvider
+  discovery?: number
 }
 
 function loadSettings(): SavedSettings {
@@ -49,6 +51,19 @@ interface SpotifyPlayer {
   pause(): Promise<void>
   resume(): Promise<void>
   seek(positionMs: number): Promise<void>
+  setVolume(volume: number): Promise<void>
+}
+
+const FADE_DURATION_MS = 700
+const FADE_STEPS = 20
+
+async function fadeVolume(player: SpotifyPlayer, from: number, to: number) {
+  const stepMs = FADE_DURATION_MS / FADE_STEPS
+  for (let i = 1; i <= FADE_STEPS; i++) {
+    const v = from + (to - from) * (i / FADE_STEPS)
+    await player.setVolume(Math.max(0, Math.min(1, v)))
+    await new Promise(r => setTimeout(r, stepMs))
+  }
 }
 
 interface SpotifyPlaybackState {
@@ -113,7 +128,7 @@ class AuthError extends Error {
   }
 }
 
-export default function PlayerClient({ accessToken }: { accessToken: string }) {
+export default function PlayerClient({ accessToken: initialAccessToken }: { accessToken: string }) {
   // ── React state ──────────────────────────────────────────────────────────
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [currentCard, setCurrentCard] = useState<CardState | null>(null)
@@ -143,7 +158,8 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const [regions, setRegions] = useState<string[]>(() => loadSettings().regions ?? [])
   const [timePeriod, setTimePeriod] = useState(() => loadSettings().timePeriod ?? '')
   const [popularity, setPopularity] = useState(() => loadSettings().popularity ?? 50)
-  const [provider, setProvider] = useState<LLMProvider>('deepseek')
+  const [discovery, setDiscovery] = useState(() => loadSettings().discovery ?? 50)
+  const [provider, setProvider] = useState<LLMProvider>(() => loadSettings().provider ?? 'deepseek')
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [gradePercent, setGradePercent] = useState(50)
@@ -157,6 +173,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   }, [])
 
   // ── Refs ─────────────────────────────────────────────────────────────────
+  const accessTokenRef = useRef(initialAccessToken)
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sdkReadyRef = useRef(false)
@@ -174,13 +191,16 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   const providerRef = useRef<LLMProvider>('deepseek')
   const sliderRef = useRef(0)
   const durationRef = useRef(0)
+  const isPausedRef = useRef(true)
+  const advanceRef = useRef<((playedToEnd?: boolean) => void) | null>(null)
+  const pendingFadeInRef = useRef(false)
   const deviceIdRef = useRef<string | null>(null)
   const lastPlayedUriRef = useRef<string | null>(null)
   const playedUrisRef = useRef<Set<string>>(new Set())
   const llmBufferRef = useRef<CardState[]>([])
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
-  const exploreModeRef = useRef<'exploit' | 'explore'>('explore')
+  const exploreModeRef = useRef<number>(50)
   const gradeRef = useRef(50)
   const hasRatedRef = useRef(false)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
@@ -227,13 +247,17 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     popularityRef.current = popularity
   }, [popularity])
 
+  useEffect(() => {
+    exploreModeRef.current = discovery
+  }, [discovery])
+
   // Persist settings to localStorage whenever they change
   useEffect(() => {
     try {
-      const s: SavedSettings = { genres, genreText, timePeriod, notes, regions, popularity }
+      const s: SavedSettings = { genres, genreText, timePeriod, notes, regions, popularity, provider, discovery }
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
     } catch {}
-  }, [genres, genreText, timePeriod, notes, regions, popularity])
+  }, [genres, genreText, timePeriod, notes, regions, popularity, provider, discovery])
 
   // Fetch Spotify user info once on mount
   useEffect(() => {
@@ -297,7 +321,19 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     window.onSpotifyWebPlaybackSDKReady = () => {
       const p = new window.Spotify.Player({
         name: 'Earprint',
-        getOAuthToken: cb => cb(accessToken),
+        getOAuthToken: cb => {
+          fetch('/api/spotify/token')
+            .then(r => r.json())
+            .then(d => {
+              if (d.accessToken) {
+                accessTokenRef.current = d.accessToken
+                cb(d.accessToken)
+              } else {
+                cb(accessTokenRef.current)
+              }
+            })
+            .catch(() => cb(accessTokenRef.current))
+        },
         volume: 0.8,
       })
       playerRef.current = p
@@ -309,8 +345,15 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       p.addListener('player_state_changed', (s: unknown) => {
         if (s) setPlaybackState(s as SpotifyPlaybackState)
       })
-      p.addListener('initialization_error', () => setError('Spotify player failed to initialize.'))
-      p.addListener('authentication_error', () => setError('Spotify authentication failed.'))
+      p.addListener('initialization_error', () => {
+        console.error('Spotify SDK: initialization_error')
+        setError('Spotify player failed to initialize.')
+      })
+      p.addListener('authentication_error', () => {
+        console.error('Spotify SDK: authentication_error — disconnecting to stop retry loop')
+        playerRef.current?.disconnect()
+        setError('Spotify authentication failed. Please reload the page.')
+      })
 
       p.connect()
     }
@@ -321,24 +364,62 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       script.src = 'https://sdk.scdn.co/spotify-player.js'
       document.body.appendChild(script)
     }
-  }, [accessToken])
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Polling ───────────────────────────────────────────────────────────────
+  // ── Local progress animation (no Spotify API calls) ──────────────────────
+  const autoAdvanceRef = useRef(false)
   useEffect(() => {
     if (!deviceId) return
-    pollRef.current = setInterval(async () => {
-      const s = await playerRef.current?.getCurrentState()
-      if (s) setPlaybackState(s)
-    }, 1000)
+    const TICK = 250
+    pollRef.current = setInterval(() => {
+      if (isPausedRef.current || isSeekingRef.current || !currentCardRef.current) return
+      const next = Math.min(sliderRef.current + TICK, durationRef.current)
+      sliderRef.current = next
+      setSliderPosition(next)
+      const endThreshold = Math.max(1000, durationRef.current * 0.98)
+      if (next >= endThreshold) {
+        if (!autoAdvanceRef.current) {
+          autoAdvanceRef.current = true
+          advanceRef.current?.(true)
+        }
+      } else if (next < endThreshold - 1000) {
+        autoAdvanceRef.current = false
+      }
+    }, TICK)
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [deviceId])
 
   useEffect(() => {
     if (!playbackState || isSeekingRef.current) return
     durationRef.current = playbackState.duration
+    isPausedRef.current = playbackState.paused
     setSliderPosition(playbackState.position)
     sliderRef.current = playbackState.position
   }, [playbackState])
+
+  // Reclaim playback device when tab becomes visible again (e.g. after opening Spotify)
+  const lastReclaimRef = useRef(0)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.hidden) return
+      const dId = deviceIdRef.current
+      if (!dId) return
+      const now = Date.now()
+      if (now - lastReclaimRef.current < 10_000) {
+        console.info('visibilitychange: skipping reclaim (throttled)')
+        return
+      }
+      lastReclaimRef.current = now
+      console.info('visibilitychange: reclaiming device', dId)
+      fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_ids: [dId], play: false }),
+      }).catch(() => {})
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -354,10 +435,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     if (!dId) return
     await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${dId}`, {
       method: 'PUT',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ uris: [uri] }),
     })
-  }, [accessToken])
+  }, [])
 
   const togglePlayback = useCallback(() => {
     if (playbackState?.paused) playerRef.current?.resume()
@@ -370,7 +451,18 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     if (currentCard.track.uri === lastPlayedUriRef.current) return
     lastPlayedUriRef.current = currentCard.track.uri
     playedUrisRef.current.add(currentCard.track.uri)
-    playTrack(currentCard.track.uri)
+    const doPlay = async () => {
+      const player = playerRef.current
+      if (pendingFadeInRef.current && player) {
+        pendingFadeInRef.current = false
+        await player.setVolume(0)
+        await playTrack(currentCard.track.uri)
+        await fadeVolume(player, 0, 1)
+      } else {
+        await playTrack(currentCard.track.uri)
+      }
+    }
+    doPlay()
   }, [currentCard?.track.uri]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset grade slider and rated flag when song changes
@@ -418,7 +510,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, accessToken }),
+        body: JSON.stringify({ ...payload, accessToken: accessTokenRef.current }),
       })
 
       if (res.status === 429) {
@@ -447,6 +539,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       )
       recordFetch(cards.length || 1)
       console.info('fetchCards returned N songs', cards.length, cards.map(c => c.track.name))
+      console.info('fetchCards profile field:', data.profile ? data.profile.slice(0, 80) + '…' : '(none)')
       return { cards, profile: data.profile }
     },
     []
@@ -458,7 +551,8 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       artistConstraint?: string,
       forceTextSearch?: boolean,
       onCards?: (cards: CardState[]) => void,
-      force = false
+      force = false,
+      replaceBuffer = false
     ) => {
     // Synchronous guard: prevent concurrent fetches unless explicitly forced
     // (force is used for constraint changes, retry, and start-fresh)
@@ -466,13 +560,37 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       console.info('fetchToBuffer: skipping, fetch already in flight')
       return
     }
+
+    // Client-side pre-flight rate limit check: each fetch costs ~3 Spotify calls.
+    // Background fetches skip at 60/30s (2/3 of limit).
+    // Forced fetches (constraint changes, retries) skip at 75/30s (5/6 of limit).
+    {
+      const { log } = readStats()
+      const now = Date.now()
+      const recent = log.filter(e => e.t >= now - 30_000).reduce((s, e) => s + e.n, 0)
+      const threshold = force ? 75 : 60
+      if (recent >= threshold) {
+        console.info('fetchToBuffer: skipping, approaching Spotify rate limit', recent, '/30s', force ? '(forced)' : '')
+        return
+      }
+    }
     fetchingRef.current = true
     const gen = ++fetchGenRef.current
+    console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, bufferLen: llmBufferRef.current.length })
     const sentHistory = [...sessionHistoryRef.current]
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
     fetchCards(sentHistory, sentProfile, artistConstraint, forceTextSearch)
       .then(({ cards, profile: newProfile }) => {
+        // Update profile from every completed fetch — not gated by gen,
+        // since a newer fetch superseding song cards still produces a valid profile.
+        console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
+        if (newProfile) {
+          setPriorProfile(newProfile)
+          priorProfileRef.current = newProfile
+          setProfile(newProfile)
+        }
+
         if (gen !== fetchGenRef.current) return
 
         // Exclude already-played, current card, queued, and already-buffered URIs
@@ -492,13 +610,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         if (onCards && fresh.length > 0) {
           onCards(fresh)
         }
-        // Flip explore/exploit mode for next fetch
-        exploreModeRef.current = exploreModeRef.current === 'explore' ? 'exploit' : 'explore'
-        console.info('fetchToBuffer mode next round:', exploreModeRef.current)
 
-        // Append fresh results to the buffer
-        const newBuffer = [...llmBufferRef.current, ...fresh]
-        console.info('fetchToBuffer appended', fresh.length, 'new cards; buffer length now', newBuffer.length)
+        // Replace or append buffer depending on caller intent
+        const newBuffer = replaceBuffer ? fresh : [...llmBufferRef.current, ...fresh]
+        console.info('fetchToBuffer', replaceBuffer ? 'replaced' : 'appended', fresh.length, 'new cards; buffer length now', newBuffer.length)
         setLlmBuffer(newBuffer)
         llmBufferRef.current = newBuffer
 
@@ -506,11 +621,6 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         setSessionHistory(prev => prev.slice(sentHistory.length))
         sessionHistoryRef.current = sessionHistoryRef.current.slice(sentHistory.length)
 
-        if (newProfile) {
-          setPriorProfile(newProfile)
-          priorProfileRef.current = newProfile
-          setProfile(newProfile)
-        }
       })
       .catch(err => {
         if (err instanceof RateLimitError) {
@@ -679,11 +789,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     setHasRated(true)
     hasRatedRef.current = true
 
-    if (queueRef.current.length < 3) {
-      fetchToBuffer()
-    } else {
-      console.info('recordRating deferred fetch; queue already full', queueRef.current.length)
-    }
+    // Refresh on rating: new results replace buffer + update profile.
+    // force=false so concurrent ratings don't stack up parallel Spotify requests.
+    // If a fetch is already in flight it completes first; the next call will use the updated history.
+    fetchToBuffer(undefined, undefined, undefined, false, true)
   }, [dedupeHistory, fetchToBuffer])
 
   // ── Advance to next song (called by Next button or play-slider-end) ───────
@@ -730,21 +839,16 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
       setCurrentCard(null)
     }
   }, [dedupeHistory, fetchToBuffer])
-
-  const autoAdvanceRef = useRef(false)
-  useEffect(() => {
-    if (!playbackState || !currentCardRef.current) return
-    const endThreshold = Math.max(1000, playbackState.duration * 0.98)
-    const nearEnd = playbackState.position >= endThreshold
-    if (nearEnd && !playbackState.paused && !isSeekingRef.current) {
-      if (!autoAdvanceRef.current) {
-        autoAdvanceRef.current = true
-        advance(true)
-      }
-    } else if (playbackState.position < endThreshold - 1000) {
-      autoAdvanceRef.current = false
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const advanceWithFade = useCallback(async (playedToEnd = false) => {
+    const player = playerRef.current
+    if (player) {
+      pendingFadeInRef.current = true
+      await fadeVolume(player, 1, 0)
     }
-  }, [advance, playbackState])
+    advance(playedToEnd)
+  }, [advance])
+  advanceRef.current = advanceWithFade
 
   // ── Remove history entries ────────────────────────────────────────────────
   const handleRemoveMultiple = useCallback((indices: number[]) => {
@@ -761,12 +865,28 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
     sessionHistoryRef.current = newSession
     setPriorProfile('')
     priorProfileRef.current = ''
+    setProfile('')
     setQueue([])
     queueRef.current = []
     setLlmBuffer([])
     llmBufferRef.current = []
     fetchToBuffer(undefined, undefined, undefined, true)
   }, [fetchToBuffer])
+
+  const handleRateHistoryItem = useCallback((index: number, percent: number) => {
+    const reaction = determineReaction(percent)
+    const newCardHistory = cardHistoryRef.current.map((e, i) =>
+      i === index ? { ...e, percentListened: percent, reaction } : e
+    )
+    // Update display + localStorage via state, but do NOT call setSessionHistory —
+    // that triggers a re-render which can fire the fill effect and kick off an LLM call.
+    // Update the ref directly so the next natural LLM call gets the corrected ratings.
+    setCardHistory(newCardHistory)
+    cardHistoryRef.current = newCardHistory
+    sessionHistoryRef.current = newCardHistory.map(({ track, artist, percentListened, reaction, coords }) => ({
+      track, artist, percentListened, reaction, coords,
+    }))
+  }, [])
 
   // ── Genre/time period change → wipe queue+buffer and replace ─────────────
   const constraintInitRef = useRef(false)
@@ -794,22 +914,25 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
   // (mount → unmount → remount) doesn't fire a spurious fetch on the second mount.
   useEffect(() => () => { constraintInitRef.current = false }, [])
 
+  const constraintDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   useEffect(() => {
     if (!constraintInitRef.current) {
       constraintInitRef.current = true
       return
     }
-    // Don't replace the queue before the Spotify device is connected — the player
-    // isn't ready yet and the fetch would be wasted.
-    if (!deviceIdRef.current) return
-    setLoadingQueue(true)
-    fetchToBuffer(undefined, undefined, cards => {
-      handleConstraintResults(cards)
-      setLoadingQueue(false)
-    }, true)
-    // Only the three user-facing constraint values should trigger a queue replacement.
-    // fetchToBuffer and handleConstraintResults are stable callbacks and must NOT be
-    // listed here — doing so would cause spurious queue replacements on re-renders.
+    // Debounce: sliders and text fields fire on every tick/keystroke.
+    // Wait 600ms of silence before actually fetching.
+    if (constraintDebounceRef.current) clearTimeout(constraintDebounceRef.current)
+    constraintDebounceRef.current = setTimeout(() => {
+      constraintDebounceRef.current = null
+      if (!deviceIdRef.current) return
+      setLoadingQueue(true)
+      fetchToBuffer(undefined, undefined, cards => {
+        handleConstraintResults(cards)
+        setLoadingQueue(false)
+      }, true)
+    }, 600)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genres, genreText, timePeriod, notes, popularity, regions])
 
@@ -900,17 +1023,6 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
         <div className="flex gap-3 items-center">
           <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Map ↗</Link>
           <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Status</a>
-          {currentCard && (
-            <a
-              href={`https://open.spotify.com/track/${currentCard.track.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-green-600 hover:text-green-400 transition-colors"
-              title="Open in Spotify"
-            >
-              Spotify ↗
-            </a>
-          )}
           <button
             onClick={handleSwitchAccount}
             className="text-xs text-zinc-300 hover:text-white transition-colors"
@@ -1016,21 +1128,16 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
                 onClick={e => e.stopPropagation()}
               >
                 {/* Track info */}
-                <p className="text-white font-bold text-lg truncate leading-tight">
+                <a
+                  href={`https://open.spotify.com/track/${currentCard.track.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Open in Spotify"
+                  className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors block"
+                >
                   {currentCard.track.name}
-                </p>
-                <div className="flex items-center gap-2">
-                  <p className="text-zinc-300 text-sm truncate">{currentCard.track.artist}</p>
-                  <a
-                    href={`https://open.spotify.com/track/${currentCard.track.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-zinc-500 hover:text-green-400 transition-colors flex-shrink-0 text-xs"
-                    title="Open in Spotify"
-                  >
-                    ↗
-                  </a>
-                </div>
+                </a>
+                <p className="text-zinc-300 text-sm truncate">{currentCard.track.artist}</p>
                 <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed line-clamp-2">
                   {currentCard.reason}
                 </p>
@@ -1056,7 +1163,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
                       if (duration > 0 && v >= duration * 0.98) {
-                        advance()
+                        advanceWithFade()
                       } else {
                         playerRef.current?.seek(v)
                       }
@@ -1065,7 +1172,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
                       if (duration > 0 && v >= duration * 0.98) {
-                        advance()
+                        advanceWithFade()
                       } else {
                         playerRef.current?.seek(v)
                       }
@@ -1080,7 +1187,7 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
                 {/* Next button */}
                 <div className="flex items-center gap-3 mt-3">
                   <button
-                    onClick={() => advance()}
+                    onClick={() => advanceWithFade()}
                     className="text-sm bg-white/20 hover:bg-white/30 text-white px-4 py-1.5 rounded-full transition-colors"
                   >
                     Next
@@ -1104,6 +1211,11 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
             queue={queue}
             loadingNext={loadingQueue}
             profile={profile}
+            onProfileChange={v => {
+              setProfile(v)
+              setPriorProfile(v)
+              priorProfileRef.current = v
+            }}
             notes={notes}
             onNotesChange={setNotes}
             genres={genres}
@@ -1116,7 +1228,10 @@ export default function PlayerClient({ accessToken }: { accessToken: string }) {
             onRegionsChange={setRegions}
             popularity={popularity}
             onPopularityChange={setPopularity}
+            discovery={discovery}
+            onDiscoveryChange={setDiscovery}
             onRemoveMultiple={handleRemoveMultiple}
+            onRateHistoryItem={handleRateHistoryItem}
             onRemoveQueueItem={(index) => {
               const q = queueRef.current
               if (index < 0 || index >= q.length) return

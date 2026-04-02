@@ -26,7 +26,7 @@ async function run() {
   const sessionHistory: ListenEvent[] = []
   let priorProfile: string | undefined
   const played: string[] = []
-  let mode: ExploreMode = 'explore'
+  let mode: ExploreMode = 50
 
   for (let round = 1; round <= ROUNDS; round++) {
     process.stdout.write(`Round ${round}/${ROUNDS} [${mode}]... `)
@@ -49,7 +49,7 @@ async function run() {
 
     const { songs, profile } = result
     if (profile) priorProfile = profile
-    mode = mode === 'explore' ? 'exploit' : 'explore'
+    mode = mode < 50 ? 75 : 25
     if (!songs.length) { console.log('no songs returned, stopping.'); break }
 
     const picked = songs[0]

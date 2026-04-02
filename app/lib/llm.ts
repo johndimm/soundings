@@ -77,7 +77,27 @@ If the user provides explicit constraints (genres, eras, styles), follow them st
 Respond with ONLY a JSON object:
 {"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"LIKED: [positions + musical notes e.g. (42,28) warm soul, brass-heavy] | DISLIKED: [positions + notes to avoid] | EXPLORED: [quadrant coverage notes] | NEXT: [spatial plan — which region and why]"}`
 
-export type ExploreMode = 'exploit' | 'explore'
+// 0 = pure familiar (exploit liked regions), 100 = pure adventurous (all unexplored)
+export type ExploreMode = number
+
+function slotInstructions(mode: ExploreMode, hasLikes: boolean): string {
+  if (!hasLikes) {
+    return 'No confirmed likes yet. All 3 slots should explore different unmapped regions — spread across the space.'
+  }
+  if (mode <= 20) {
+    return 'FAMILIAR MODE: All 3 slots should be near liked positions (within ~15 coordinate units). Deepen what already works — different songs but same musical neighborhood.'
+  }
+  if (mode <= 40) {
+    return 'MOSTLY FAMILIAR: Slot 1 and Slot 2 near liked positions. Slot 3 moderately new territory (20–40 units from nearest liked song).'
+  }
+  if (mode <= 60) {
+    return 'BALANCED: Apply the 3-slot rule — Slot 1 near a liked region, Slot 2 from unmapped territory (≥40 units from all heard), Slot 3 a genuine wild card surprise.'
+  }
+  if (mode <= 80) {
+    return 'MOSTLY ADVENTUROUS: Slot 1 at the edge of liked territory (15–30 units out). Slots 2 and 3 in unexplored regions (≥40 units from all heard songs).'
+  }
+  return 'ADVENTURE MODE: All 3 slots in maximally unexplored territory (≥40 units from everything heard). Ignore proximity to liked songs entirely.'
+}
 
 function buildUserPrompt(
   sessionHistory: ListenEvent[],
@@ -85,7 +105,7 @@ function buildUserPrompt(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode: ExploreMode = 'explore'
+  mode: ExploreMode = 50
 ): string {
   let prompt = ''
 
@@ -122,11 +142,7 @@ function buildUserPrompt(
   const hasLikes = sessionHistory.some(e => e.percentListened >= 50) ||
     (priorProfile ? /LIKED:\s*(?!\[none|\[no confirmed|\[nothing)/i.test(priorProfile) : false)
 
-  if (!hasLikes) {
-    prompt += 'No confirmed likes yet. Prioritize Slot 2 (FAR) and Slot 3 (WILD CARD) — cover unmapped territory. Slot 1 may probe a different corner of a disliked area only if it has fewer than 2 strikes.'
-  } else {
-    prompt += 'Apply the 3-slot rule: Slot 1 near a liked musical region, Slot 2 from unmapped territory, Slot 3 a genuine surprise.'
-  }
+  prompt += slotInstructions(mode, hasLikes)
 
   return prompt
 }
@@ -148,7 +164,7 @@ async function askAnthropic(
     },
     body: JSON.stringify({
       model: 'claude-opus-4-6',
-      max_tokens: 1024,
+      max_tokens: 2048,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }],
     }),
@@ -174,7 +190,7 @@ async function askOpenAI(
     },
     body: JSON.stringify({
       model: 'gpt-4o',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
@@ -202,7 +218,7 @@ async function askDeepSeek(
     },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      max_tokens: 1024,
+      max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
@@ -265,6 +281,7 @@ export async function getNextSongQuery(
     let raw: string
     try {
       raw = await ask()
+      console.log('LLM raw response', raw)
     } catch (err) {
       lastError = err as Error
       if (attempt === MAX_LLM_ATTEMPTS - 1) throw err
