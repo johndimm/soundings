@@ -209,6 +209,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingSuggestionsRef = useRef<{ search: string; reason: string }[]>([])
   const resolvingRef = useRef(false)
+  const profileGenRef = useRef(0)
 
   // Restore backoff timer from localStorage on mount
   useEffect(() => {
@@ -562,7 +563,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   // Used on each rating: updates profile + populates pendingSuggestions.
   // Spotify resolution happens lazily in resolvePending when songs are needed.
   const fetchProfileOnly = useCallback(() => {
-    if (fetchingRef.current) return // don't stack on top of a full fetch
+    const gen = ++profileGenRef.current
     const payload: Record<string, unknown> = {
       sessionHistory: sessionHistoryRef.current,
       priorProfile: priorProfileRef.current || undefined,
@@ -593,7 +594,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (!data) return
+        if (!data || gen !== profileGenRef.current) return
         if (data.profile) {
           setPriorProfile(data.profile)
           priorProfileRef.current = data.profile
@@ -1302,10 +1303,10 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
                 </div>
 
                 {/* Next button */}
-                <div className="flex items-center gap-3 mt-3">
+                <div className="flex items-center gap-4 mt-4">
                   <button
                     onClick={() => advanceWithFade()}
-                    className="text-sm bg-white/20 hover:bg-white/30 text-white px-4 py-1.5 rounded-full transition-colors"
+                    className="flex-1 py-4 text-xl font-bold bg-white/20 hover:bg-white/30 active:bg-white/40 text-white rounded-2xl transition-colors"
                   >
                     Next
                   </button>
