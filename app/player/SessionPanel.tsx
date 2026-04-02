@@ -66,6 +66,8 @@ interface Props {
   onPlayQueueItem: (index: number) => void
   onRemoveQueueItem: (index: number) => void
   onPlayHistoryItem: (uri: string | null) => void
+  submittedUris: Set<string>
+  pendingSuggestions: { search: string; reason: string }[]
 }
 
 const SECTION_STYLES: Record<string, { label: string; labelColor: string; textColor: string; border: string }> = {
@@ -150,6 +152,8 @@ export default function SessionPanel({
   onPlayHistoryItem,
   discovery,
   onDiscoveryChange,
+  submittedUris,
+  pendingSuggestions,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -253,6 +257,21 @@ export default function SessionPanel({
             </div>
           ))}
         </div>
+
+        {/* DJ's pending suggestions — feed into Up Next from below */}
+        {pendingSuggestions.length > 0 && (
+          <div className="mt-2 border-t border-zinc-800 pt-2">
+            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">DJ is thinking…</div>
+            <div className="flex flex-col gap-2">
+              {pendingSuggestions.map((s, i) => (
+                <div key={i} className="text-xs px-1">
+                  <div className="text-zinc-300 font-medium">{s.search}</div>
+                  <div className="text-zinc-500 leading-relaxed">{s.reason}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Taste profile */}
@@ -405,10 +424,11 @@ export default function SessionPanel({
           {[...history].reverse().map((entry, i) => {
             const realIndex = history.length - 1 - i
             const isSelected = selected.has(realIndex)
+            const isPending = !submittedUris.has(entry.uri ?? '')
             return (
               <div
                 key={realIndex}
-                className={`flex items-center gap-2 py-1 rounded-lg px-1 transition-colors ${isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-900/50'}`}
+                className={`flex items-center gap-2 py-1 rounded-lg px-1 transition-colors ${isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-900/50'} ${isPending ? 'opacity-50' : ''}`}
               >
                 <input
                   type="checkbox"

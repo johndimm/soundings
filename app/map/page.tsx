@@ -141,7 +141,10 @@ export default function MapPage() {
   return (
     <div className="min-h-screen bg-black text-white p-6 font-mono">
       <div className="flex items-center gap-4 mb-4">
-        <a href="/player" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">← Player</a>
+        <button
+          onClick={() => { if (window.opener) window.close(); else window.location.href = '/player' }}
+          className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
+        >← Player</button>
         <h1 className="text-base font-bold">Music Map</h1>
         <span className="text-zinc-600 text-xs">{history.length} songs heard</span>
         {estimatedCount > 0 && (

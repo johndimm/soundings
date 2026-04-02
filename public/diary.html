@@ -20,6 +20,58 @@
 <body>
 <h1>Earprint Dev Diary</h1>
 
+<h2>2026-04-01</h2>
+
+<h3>Problem: Spotify rate limiting — stats show nothing</h3>
+<ul>
+  <li class="problem">Hitting Spotify's 30-request/30s rate limit repeatedly. But the in-app call tracker showed zero calls at the time of the 429.</li>
+  <li class="problem">Root cause: the call tracker only measures calls through <code>/api/next-song</code>. All browser-side Spotify calls — SDK internal retries, polling, device reclaim — are invisible to it.</li>
+  <li class="problem">Three sources identified:
+    <ol>
+      <li>SDK auth retry loop: on <code>authentication_error</code> the SDK kept retrying <code>_refreshToken → GET /v1/melody/v1/check_scope</code> in a tight loop.</li>
+      <li>Polling: <code>getCurrentState()</code> every 1 second — 60 calls/minute direct to Spotify.</li>
+      <li><code>visibilitychange</code> reclaim: fired <code>PUT /v1/me/player</code> on every tab switch with no throttle.</li>
+    </ol>
+  </li>
+</ul>
+
+<h3 class="fix">Fix: Stop SDK retry loop</h3>
+<ul>
+  <li class="fix">In <code>authentication_error</code> listener: call <code>player.disconnect()</code> before setting error state. This stops the SDK from spinning on failed token refresh.</li>
+</ul>
+
+<h3 class="fix">Fix: Replace Spotify polling with local animation</h3>
+<ul>
+  <li class="fix">Removed <code>getCurrentState()</code> polling entirely — was the largest source of invisible Spotify calls.</li>
+  <li class="fix">Replaced with a 250ms local <code>setInterval</code> that increments <code>sliderRef</code> by 250ms when not paused and not seeking. Zero Spotify API calls.</li>
+  <li class="fix">Auto-advance (fire at 98% of duration) moved into the local timer. Progress bar is smooth; <code>player_state_changed</code> events resync position on real state changes.</li>
+  <li class="fix"><code>visibilitychange</code> handler throttled to at most one reclaim every 10 seconds.</li>
+</ul>
+
+<h3 class="fix">Fix: Crossfade between tracks</h3>
+<ul>
+  <li class="fix">Added <code>fadeVolume(player, from, to)</code>: 20 steps over 700ms using <code>player.setVolume()</code> (SDK-local call, not a Spotify Web API call — no rate limit concern).</li>
+  <li class="fix"><code>advanceWithFade()</code>: fades out current track, sets <code>pendingFadeInRef</code>, calls <code>advance()</code>.</li>
+  <li class="fix">Play effect: when <code>pendingFadeInRef</code> is set, starts new track at volume 0 then fades in.</li>
+</ul>
+
+<h3 class="fix">Fix: Rating hammering Spotify</h3>
+<ul>
+  <li class="problem">Every rating triggered a full LLM + Spotify lookup cycle, hammering the rate limit on rapid slider adjustments.</li>
+  <li class="fix">Split into two phases:
+    <ol>
+      <li><strong>On rating</strong>: <code>fetchProfileOnly()</code> — calls <code>/api/next-song</code> with <code>profileOnly: true</code>. LLM runs, Spotify lookup skipped. Returns raw song suggestions + updated profile. Suggestions shown in "DJ is thinking…" panel below the player.</li>
+      <li><strong>When songs actually needed</strong>: <code>resolvePending()</code> — calls <code>/api/next-song</code> with <code>songsToResolve: [...]</code>. Skips LLM entirely, just resolves the suggestions to Spotify tracks. Triggered lazily by the fill effect when buffer is empty.</li>
+    </ol>
+  </li>
+</ul>
+
+<h3 class="fix">Fix: Profile text quality</h3>
+<ul>
+  <li class="problem">The "What I know about you" profile was a structured coordinate log (<code>LIKED: (42,28) warm soul | DISLIKED: ...</code>) — more like a debug dump than a human description.</li>
+  <li class="fix">Updated the LLM system prompt: <code>profile</code> field is now 2-3 natural sentences describing the listener's taste in terms of genres, eras, moods, instruments, and energy. Under 60 words. "Write like a DJ's notes on their audience."</li>
+</ul>
+
 <h2>2026-03-30</h2>
 
 <h3>Problem: 401 Unauthorized spam on Vercel</h3>

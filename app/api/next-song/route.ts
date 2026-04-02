@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
-import { getNextSongQuery, LLMProvider, ListenEvent, ExploreMode } from '@/app/lib/llm'
+import { getNextSongQuery, LLMProvider, ListenEvent, ExploreMode, SongSuggestion } from '@/app/lib/llm'
 import { getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -31,6 +31,8 @@ export async function POST(req: NextRequest) {
       alreadyHeard?: string[]
       accessToken?: string
       mode?: ExploreMode
+      profileOnly?: boolean
+      songsToResolve?: SongSuggestion[]
     }>,
   ])
 
@@ -69,9 +71,31 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode } = body
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve } = body
 
-  let songs: { search: string; reason: string }[]
+  // ── Resolve-only path: skip LLM, just look up provided songs in Spotify ──
+  if (songsToResolve && songsToResolve.length > 0) {
+    if (isSpotifyOffline()) {
+      const waitMs = getSpotifyOfflineWaitMs()
+      markRateLimited(waitMs)
+      return Response.json({ error: 'rate_limited', retryAfterMs: waitMs }, { status: 429 })
+    }
+    const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
+      songsToResolve,
+      accessToken,
+      forceTextSearch,
+      sessionHistory ?? []
+    )
+    if (unauthorized) return Response.json({ error: 'not_authenticated' }, { status: 401 })
+    if (rateLimitedRetryMs) markRateLimited(rateLimitedRetryMs)
+    if (foundSongs.length === 0) {
+      if (rateLimitedRetryMs) return Response.json({ error: 'rate_limited', retryAfterMs: rateLimitedRetryMs }, { status: 429 })
+      return Response.json({ error: 'no_tracks_found' }, { status: 404 })
+    }
+    return Response.json({ songs: foundSongs })
+  }
+
+  let songs: SongSuggestion[]
   let profile: string | undefined
   try {
     const result = await getNextSongQuery(
@@ -91,6 +115,11 @@ export async function POST(req: NextRequest) {
       { error: 'llm_response_invalid', message: (err as Error).message },
       { status: 502 }
     )
+  }
+
+  // ── Profile-only path: return LLM suggestions without Spotify lookup ──
+  if (profileOnly) {
+    return Response.json({ songs, profile })
   }
 
   if (isSpotifyOffline()) {

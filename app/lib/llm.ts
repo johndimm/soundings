@@ -52,7 +52,7 @@ When assigning coords: consider all musical attributes — instrumentation, era,
 
 NAVIGATION RULES (use full musical knowledge, not just the 2D projection):
 - Song liked (≥50% listened): region is promising. Slot 1 should explore its musical neighborhood.
-- Song disliked (<50%): avoid that musical territory. Do not suggest songs with similar attributes.
+- Song disliked (<50%): avoid that musical territory and those sonic attributes — NOT the artist. A dislike is about the sound of that track, not a rejection of the artist. The same artist may have songs in very different styles; those remain fair game.
 - "not-now": skip; not a taste signal.
 - "more-from-artist": Slot 1 may be this artist or a close musical peer. Slots 2 and 3 must explore distant territory.
 
@@ -71,11 +71,12 @@ DISLIKE ESCALATION:
 - 1 dislike in an area: try one more thing at its edge, then move on.
 - 2 dislikes with similar attributes: treat that musical territory as exhausted for this session.
 - NEVER suggest a song with the same primary instruments + energy level as a recently disliked song.
+- A disliked song does NOT blacklist its artist — only its specific sonic territory.
 
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"LIKED: [positions + musical notes e.g. (42,28) warm soul, brass-heavy] | DISLIKED: [positions + notes to avoid] | EXPLORED: [quadrant coverage notes] | NEXT: [spatial plan — which region and why]"}`
+{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}`
 
 // 0 = pure familiar (exploit liked regions), 100 = pure adventurous (all unexplored)
 export type ExploreMode = number

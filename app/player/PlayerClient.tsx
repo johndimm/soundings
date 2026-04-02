@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
-import { ListenEvent, LLMProvider } from '@/app/lib/llm'
+import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 
@@ -165,6 +165,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const [gradePercent, setGradePercent] = useState(50)
   const [hasRated, setHasRated] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
+  const [pendingSuggestions, setPendingSuggestions] = useState<{ search: string; reason: string }[]>([])
+  const [submittedUris, setSubmittedUris] = useState<Set<string>>(new Set())
 
   const dedupeHistory = useCallback((entries: HistoryEntry[]) => {
     const map = new Map<string, HistoryEntry>()
@@ -205,6 +207,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const hasRatedRef = useRef(false)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingSuggestionsRef = useRef<{ search: string; reason: string }[]>([])
+  const resolvingRef = useRef(false)
 
   // Restore backoff timer from localStorage on mount
   useEffect(() => {
@@ -397,25 +401,34 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     sliderRef.current = playbackState.position
   }, [playbackState])
 
-  // Reclaim playback device when tab becomes visible again (e.g. after opening Spotify)
+  // Reclaim playback device when Spotify steals it (e.g. user opened a Spotify tab)
   const lastReclaimRef = useRef(0)
+  const wasPlayingRef = useRef(false)
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.hidden) return
+      if (document.hidden) {
+        // Record whether we were playing when leaving
+        wasPlayingRef.current = !isPausedRef.current
+        return
+      }
+      // Only reclaim if we were playing before leaving AND are now paused —
+      // that's the signature of Spotify stealing the device.
+      if (!wasPlayingRef.current) return
       const dId = deviceIdRef.current
       if (!dId) return
       const now = Date.now()
-      if (now - lastReclaimRef.current < 10_000) {
-        console.info('visibilitychange: skipping reclaim (throttled)')
-        return
-      }
-      lastReclaimRef.current = now
-      console.info('visibilitychange: reclaiming device', dId)
-      fetch('https://api.spotify.com/v1/me/player', {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ device_ids: [dId], play: false }),
-      }).catch(() => {})
+      if (now - lastReclaimRef.current < 10_000) return
+      // Small delay so the SDK state settles before we check
+      setTimeout(() => {
+        if (!isPausedRef.current) return // still playing, nothing was stolen
+        lastReclaimRef.current = Date.now()
+        console.info('visibilitychange: device was stolen, reclaiming', dId)
+        fetch('https://api.spotify.com/v1/me/player', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_ids: [dId], play: true }),
+        }).catch(() => {})
+      }, 500)
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
@@ -545,6 +558,102 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     []
   )
 
+  // ── Profile-only fetch: LLM call without Spotify lookup ──────────────────
+  // Used on each rating: updates profile + populates pendingSuggestions.
+  // Spotify resolution happens lazily in resolvePending when songs are needed.
+  const fetchProfileOnly = useCallback(() => {
+    if (fetchingRef.current) return // don't stack on top of a full fetch
+    const payload: Record<string, unknown> = {
+      sessionHistory: sessionHistoryRef.current,
+      priorProfile: priorProfileRef.current || undefined,
+      provider: providerRef.current,
+      notes: buildCombinedNotes(
+        genresRef.current,
+        genreTextRef.current,
+        timePeriodRef.current,
+        notesRef.current,
+        popularityRef.current,
+        regionsRef.current
+      ),
+      alreadyHeard: [
+        ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
+        ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
+        ...llmBufferRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
+        ...pendingSuggestionsRef.current.map(s => s.search),
+      ],
+      mode: exploreModeRef.current,
+      profileOnly: true,
+      accessToken: accessTokenRef.current,
+    }
+    fetch('/api/next-song', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return
+        if (data.profile) {
+          setPriorProfile(data.profile)
+          priorProfileRef.current = data.profile
+          setProfile(data.profile)
+        }
+        if (Array.isArray(data.songs) && data.songs.length > 0) {
+          const suggestions = (data.songs as SongSuggestion[]).map(s => ({ search: s.search, reason: s.reason }))
+          setPendingSuggestions(suggestions)
+          pendingSuggestionsRef.current = suggestions
+        }
+        setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
+      })
+      .catch(() => {})
+  }, [])
+
+  // ── Resolve pending suggestions → Spotify lookup → add to buffer ──────────
+  const resolvePending = useCallback(() => {
+    if (resolvingRef.current) return
+    const suggestions = pendingSuggestionsRef.current
+    if (suggestions.length === 0) return
+    resolvingRef.current = true
+    const payload = {
+      songsToResolve: suggestions,
+      sessionHistory: sessionHistoryRef.current,
+      accessToken: accessTokenRef.current,
+    }
+    fetch('/api/next-song', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        // Clear pending regardless of outcome
+        setPendingSuggestions([])
+        pendingSuggestionsRef.current = []
+        if (!data?.songs) return
+        const newCards: CardState[] = (data.songs as { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number } }[])
+          .map(s => ({ track: s.track, reason: s.reason, category: s.category, coords: s.coords }))
+        const excludeUris = new Set<string>([
+          ...playedUrisRef.current,
+          ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
+          ...queueRef.current.map(c => c.track.uri),
+          ...llmBufferRef.current.map(c => c.track.uri),
+        ])
+        const fresh = newCards.filter(c => !excludeUris.has(c.track.uri))
+        if (fresh.length > 0) {
+          const newBuffer = [...llmBufferRef.current, ...fresh]
+          setLlmBuffer(newBuffer)
+          llmBufferRef.current = newBuffer
+        }
+      })
+      .catch(() => {
+        setPendingSuggestions([])
+        pendingSuggestionsRef.current = []
+      })
+      .finally(() => { resolvingRef.current = false })
+  }, [])
+
   // ── Fetch from LLM → append to buffer (last-write-wins via generation counter) ──
   const fetchToBuffer = useCallback(
     (
@@ -590,6 +699,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
           priorProfileRef.current = newProfile
           setProfile(newProfile)
         }
+        setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
 
         if (gen !== fetchGenRef.current) return
 
@@ -729,9 +839,13 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       return
     }
 
-    // Buffer empty and queue needs filling → fetch
+    // Buffer empty and queue needs filling → resolve pending or fetch fresh
     if (!loadingQueue && llmBuffer.length === 0 && (!currentCard || queue.length < 3)) {
-      fetchToBuffer()
+      if (pendingSuggestions.length > 0 && !resolvingRef.current) {
+        resolvePending()
+      } else if (pendingSuggestions.length === 0) {
+        fetchToBuffer()
+      }
     }
   }, [
     currentCard,
@@ -743,6 +857,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     fetchToBuffer,
     fillQueueFromBuffer,
     backoffUntil,
+    pendingSuggestions.length,
+    resolvePending,
   ])
 
   // ── Record a rating (log it + fire LLM prefetch, but do NOT advance) ─────
@@ -789,11 +905,10 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     setHasRated(true)
     hasRatedRef.current = true
 
-    // Refresh on rating: new results replace buffer + update profile.
-    // force=false so concurrent ratings don't stack up parallel Spotify requests.
-    // If a fetch is already in flight it completes first; the next call will use the updated history.
-    fetchToBuffer(undefined, undefined, undefined, false, true)
-  }, [dedupeHistory, fetchToBuffer])
+    // On rating: call LLM for profile update + new suggestions (no Spotify lookup).
+    // Spotify resolution happens lazily when songs are actually needed.
+    fetchProfileOnly()
+  }, [dedupeHistory, fetchProfileOnly])
 
   // ── Advance to next song (called by Next button or play-slider-end) ───────
   const advance = useCallback((playedToEnd = false) => {
@@ -1054,12 +1169,14 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
         >
           {/* Album art background */}
           {currentCard?.track.albumArt && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={currentCard.track.albumArt}
-              alt={currentCard.track.album}
-              className="absolute inset-0 w-full h-full object-cover"
-              draggable={false}
+            <div
+              className="absolute inset-0"
+              style={{
+                backgroundImage: `url(${currentCard.track.albumArt})`,
+                backgroundSize: 'auto 100%',
+                backgroundRepeat: 'no-repeat',
+                animation: 'albumPan 20s ease-in-out infinite alternate',
+              }}
             />
           )}
 
@@ -1204,8 +1321,11 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
           )}
         </div>
 
-        {/* Session panel */}
-        <div className="flex-1 px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950 min-w-0">
+        {/* Right column: session panel */}
+        <div className="flex-1 flex flex-col gap-4 min-w-0">
+
+          {/* Session panel */}
+          <div className="flex-1 px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950 min-w-0">
           <SessionPanel
             history={cardHistory}
             queue={queue}
@@ -1232,6 +1352,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
             onDiscoveryChange={setDiscovery}
             onRemoveMultiple={handleRemoveMultiple}
             onRateHistoryItem={handleRateHistoryItem}
+            submittedUris={submittedUris}
+            pendingSuggestions={pendingSuggestions}
             onRemoveQueueItem={(index) => {
               const q = queueRef.current
               if (index < 0 || index >= q.length) return
@@ -1281,6 +1403,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
             }}
             onPlayHistoryItem={(uri) => handlePlayHistoryItem(uri)}
           />
+          </div>
         </div>
       </div>
     </div>
