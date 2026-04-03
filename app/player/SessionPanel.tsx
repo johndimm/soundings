@@ -201,7 +201,7 @@ export default function SessionPanel({
     <div className="flex flex-col gap-4 text-white w-full">
 
       {/* Up next */}
-      <div className="flex flex-col gap-1">
+      <div data-guide="up-next" className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <label className="text-xs text-zinc-500 uppercase tracking-wide">
             Up next{queue.length > 0 ? ` (${queue.length})` : ''}
@@ -280,11 +280,11 @@ export default function SessionPanel({
       {profile && <ProfileView profile={profile} onEdit={onProfileChange} />}
 
       {/* Discovery slider */}
-      <div className="flex flex-col gap-1">
+      <div data-guide="discovery" className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
             Discovery
-            {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+            {settingsDirty && <span data-guide="discovery-queued" className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
           </label>
           <span className="text-xs text-zinc-400">
             {discovery <= 20 ? 'Familiar' : discovery <= 40 ? 'Mostly familiar' : discovery <= 60 ? 'Balanced' : discovery <= 80 ? 'Mostly new' : 'Adventurous'}
@@ -305,7 +305,7 @@ export default function SessionPanel({
       </div>
 
       {/* Genre selector */}
-      <div className="flex flex-col gap-2">
+      <div data-guide="genres" className="flex flex-col gap-2">
         <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
           Genres
           {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
@@ -357,7 +357,7 @@ export default function SessionPanel({
       </div>
 
       {/* Time period */}
-      <div className="flex flex-col gap-1">
+      <div data-guide="heard" className="flex flex-col gap-1">
         <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
           Time period
           {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
@@ -445,6 +445,7 @@ export default function SessionPanel({
             return (
               <div
                 key={realIndex}
+                data-guide={i === 0 ? 'heard-item' : undefined}
                 className={`flex items-center gap-2 py-1 rounded-lg px-1 transition-colors ${isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-900/50'} ${isPending ? 'opacity-50' : ''}`}
               >
                 <input

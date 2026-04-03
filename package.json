@@ -6,7 +6,8 @@
     "dev": "next dev -H 127.0.0.1 -p 8000",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "guide:screenshots": "node scripts/generate-guide-screenshots.mjs"
   },
   "dependencies": {
     "next": "16.2.1",

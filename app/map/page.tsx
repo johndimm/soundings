@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { GUIDE_DEMO_MAP_HISTORY } from '@/app/lib/guideDemo'
 
 interface HistoryEntry {
   track: string
@@ -82,6 +83,10 @@ function toSvgX(pct: number) { return PAD + (pct / 100) * (SVG_W - PAD * 2) }
 function toSvgY(pct: number) { return PAD + (pct / 100) * (SVG_H - PAD * 2) }
 
 export default function MapPage() {
+  const [guideDemo, setGuideDemo] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('guide-demo') === '1'
+  })
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [darts, setDarts] = useState<Dart[]>([])
   const [now, setNow] = useState(Date.now())
@@ -89,6 +94,11 @@ export default function MapPage() {
   const dartIdRef = useRef(0)
   const prevLengthRef = useRef(0)
   const rafRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    setGuideDemo(new URLSearchParams(window.location.search).get('guide-demo') === '1')
+  }, [])
 
   // Drive dart animation
   useEffect(() => {
@@ -103,6 +113,12 @@ export default function MapPage() {
 
   // Load history from localStorage every 2s, launch darts for new entries
   useEffect(() => {
+    if (guideDemo) {
+      prevLengthRef.current = GUIDE_DEMO_MAP_HISTORY.length
+      setHistory(GUIDE_DEMO_MAP_HISTORY)
+      return
+    }
+
     function load() {
       try {
         const raw = localStorage.getItem('earprint-history')
@@ -134,7 +150,7 @@ export default function MapPage() {
     load()
     const id = setInterval(load, 2000)
     return () => clearInterval(id)
-  }, [])
+  }, [guideDemo])
 
   const estimatedCount = history.filter(e => !e.coords).length
 
@@ -166,6 +182,7 @@ export default function MapPage() {
             ← acoustic · electronic →
           </div>
           <svg
+            data-guide="music-map"
             viewBox={`0 0 ${SVG_W} ${SVG_H}`}
             width={SVG_W}
             height={SVG_H}

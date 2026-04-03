@@ -194,7 +194,7 @@ The full listen history for the current channel, newest first. Each entry shows:
 
 [Screenshot: channel tab bar with "Jazz & Soul", "Electronic", "+ New"]
 
-Channels let you maintain separate listening sessions with completely independent histories, profiles, and settings. Think of them as moods, contexts, or experiments — a work channel, a workout channel, a "deep dive into Brazilian music" channel.
+Channels let you maintain separate listening sessions with completely independent histories, profiles, and settings. **Make a channel for every mood** — morning focus, late-night ambient, work, workout, a deep dive into Brazilian music — and switch between them without losing your place.
 
 ### What a channel stores
 
@@ -203,10 +203,13 @@ Each channel saves independently:
 - The session history sent to the DJ
 - The AI taste profile
 - All settings: Discovery, Genres, Region, Time period, Popularity, Tell the DJ
+- Where you left off on the current song (playback position)
 
 ### Switching channels
 
 Click a channel tab to switch to it. Your current session is automatically saved before switching. The new channel loads with its own history and settings.
+
+**Playback position is remembered per channel.** When you return to a channel, the current song resumes where you left off instead of starting at the beginning. You can jump from channel to channel **without delay or break** in your flow — no reset, no hunting for the right moment. Treat each tab like a separate radio tuned to a mood.
 
 ### Creating a channel
 
@@ -226,11 +229,21 @@ If you used earprint before channels were added, your existing history is automa
 
 ---
 
+## The taste space
+
+Earprint treats music as a **high-dimensional space** — not just genre tags. We know many things about songs: writers, performers, instruments, recording date, where it was recorded, and how it is categorized. **All of those attributes can feed into a notion of distance**: similar songs are **close**; different songs are farther apart.
+
+If you like a song, the DJ can look for **nearby** music you have not heard yet. If you dislike something, it can learn to **avoid that general region** of the space — not by banning one label, but by steering away from that neighborhood of sound.
+
+**Exploring your taste** means exploring the space: taking **semi-random shots** into territory you have not discovered. On this model, **category is only one of many facts** the system can use; the rest of the picture comes from everything else we know about the track.
+
+---
+
 ## The map
 
-[Screenshot: the 2D music map with colored genre dots]
+[Screenshot: the 2D music map — green (liked), red (disliked), grey (not-now), genre labels]
 
-The **Map** link opens a separate view showing all the songs you've heard plotted on a 2D space:
+The **Map** link opens a separate view — a **simple 2D projection** of that idea (easy to see on screen; the full picture is much richer than two axes). It shows all the songs you've heard plotted in a plane:
 
 - **X-axis**: acoustic/live → electronic/synthetic
 - **Y-axis**: calm/sparse → intense/energetic

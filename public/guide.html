@@ -115,18 +115,28 @@
   td code { font-size: 0.82em; }
   tr:last-child td { border-bottom: none; }
 
-  .screenshot {
-    display: block;
+  figure.screenshot {
     margin: 1rem 0 1.5rem;
-    padding: 0.6rem 1rem;
-    background: #1a1a1a;
-    border: 1px dashed #2e2e2e;
-    border-radius: 6px;
-    color: #444;
+  }
+  .screenshot img {
+    display: block;
+    width: auto;
+    max-width: 100%;
+    border-radius: 12px;
+    border: 1px solid #262626;
+    background: #0a0a0a;
+    box-shadow: 0 24px 48px rgba(0,0,0,0.28);
+  }
+  .screenshot img.zoomable { cursor: zoom-in; }
+  .img-album-indicator { width: 360px; }
+  .img-track-info { width: 304px; }
+  .img-rating-slider { width: 53px; }
+  .screenshot figcaption {
+    margin-top: 0.55rem;
+    color: #5a5a5a;
     font-size: 0.82rem;
     font-style: italic;
   }
-  .screenshot::before { content: '📷 '; }
 
   .toc {
     background: #161616;
@@ -164,6 +174,40 @@
   .nav { color: #444; font-size: 0.85rem; margin-bottom: 2rem; }
   .nav a { color: #555; }
   .nav a:hover { color: #1db954; }
+
+  .lightbox {
+    position: fixed;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    background: rgba(0, 0, 0, 0.88);
+    z-index: 9999;
+    cursor: zoom-out;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: min(96vw, 1600px);
+    max-height: 92vh;
+    width: auto;
+    height: auto;
+    border-radius: 12px;
+    border: 1px solid #2a2a2a;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+    background: #0a0a0a;
+  }
+  .lightbox-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    color: #bbb;
+    font-size: 1.6rem;
+    line-height: 1;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
 </style>
 </head>
 <body>
@@ -190,6 +234,7 @@
     <li><a href="#reactions">How the DJ interprets ratings</a></li>
     <li><a href="#sidebar">The sidebar</a></li>
     <li><a href="#channels">Channels</a></li>
+    <li><a href="#taste-space">The taste space</a></li>
     <li><a href="#map">The map</a></li>
     <li><a href="#status">Status and rate limiting</a></li>
     <li><a href="#mobile">Mobile</a></li>
@@ -208,7 +253,10 @@
 
 <h2 id="player">The player</h2>
 
-<span class="screenshot">The full player — album art panel on the left, sidebar on the right</span>
+<figure class="screenshot">
+  <img class="zoomable" src="/guide/screenshots/full-player.png" alt="The full player — album art panel on the left, sidebar on the right">
+  <figcaption>The full player — album art panel on the left, sidebar on the right</figcaption>
+</figure>
 
 <h3>Album art panel</h3>
 
@@ -219,7 +267,10 @@
   <li><strong>Hover</strong> over the art to see "play" or "pause" as text over a dim overlay.</li>
 </ul>
 
-<span class="screenshot">Album art with ▶ indicator in top-right corner</span>
+<figure class="screenshot">
+  <img class="img-album-indicator" src="/guide/screenshots/album-indicator.png" alt="Album art with play indicator in top-right corner">
+  <figcaption>Album art with ▶ indicator in top-right corner</figcaption>
+</figure>
 
 <h3>Track info</h3>
 
@@ -230,7 +281,10 @@
   <li><strong>DJ's reason</strong> — a one-sentence note explaining why this song was picked: slot role, musical position, connection to your history.</li>
 </ul>
 
-<span class="screenshot">Track info area — title, artist, year, DJ reason</span>
+<figure class="screenshot">
+  <img class="img-track-info" src="/guide/screenshots/track-info.png" alt="Track info area — title, artist, year, DJ reason">
+  <figcaption>Track info area — title, artist, year, DJ reason</figcaption>
+</figure>
 
 <h3>Progress bar</h3>
 
@@ -252,7 +306,10 @@
 
 <h3>1. The vertical slider (on the album art)</h3>
 
-<span class="screenshot">Vertical slider on right edge of album art, showing "72%" and "rated" in green</span>
+<figure class="screenshot">
+  <img class="img-rating-slider" src="/guide/screenshots/rating-slider.png" alt='Vertical slider on right edge of album art, showing "72%" and "rated" in green'>
+  <figcaption>Vertical slider on right edge of album art, showing "72%" and "rated" in green</figcaption>
+</figure>
 
 <p>A vertical slider lives on the right edge of the album art. Drag it <strong>up</strong> to say you liked the song, <strong>down</strong> to say you didn't. The percentage is the rating. When you release, it locks in and "rate" turns green. You can adjust it multiple times — only the last value counts.</p>
 
@@ -270,7 +327,10 @@
 
 <h3>4. Editing past ratings in the Heard list</h3>
 
-<span class="screenshot">Heard section — a past song with its horizontal rating slider</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/heard-item.png" alt="Heard section — a past song with its horizontal rating slider">
+  <figcaption>Heard section — a past song with its horizontal rating slider</figcaption>
+</figure>
 
 <p>In the right panel under <strong>Heard</strong>, every song you've listened to has a small horizontal slider. Drag it left or right to revise the rating after the fact. The change is applied immediately to the session history the DJ uses — no save needed.</p>
 
@@ -316,7 +376,10 @@
 
 <h2 id="sidebar">The sidebar</h2>
 
-<span class="screenshot">Full sidebar — Up next, taste profile, Discovery, Genres, Region, Time period, Popularity, Tell the DJ, Heard</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/sidebar.png" alt="Full sidebar — Up next, taste profile, Discovery, Genres, Region, Time period, Popularity, Tell the DJ, Heard">
+  <figcaption>Full sidebar — Up next, taste profile, Discovery, Genres, Region, Time period, Popularity, Tell the DJ, Heard</figcaption>
+</figure>
 
 <h3>Up next</h3>
 
@@ -324,7 +387,10 @@
 
 <p>Below the confirmed queue, a <strong>"DJ is thinking…"</strong> section may appear showing song names and reasons the DJ has suggested but hasn't yet resolved to Spotify tracks. These become clickable once the Spotify lookup finishes.</p>
 
-<span class="screenshot">Up next — one confirmed track, two pending suggestions below</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/up-next.png" alt="Up next — one confirmed track, two pending suggestions below">
+  <figcaption>Up next — one confirmed track, two pending suggestions below</figcaption>
+</figure>
 
 <h3>What I know about you</h3>
 
@@ -334,7 +400,10 @@
 
 <h3>Discovery slider</h3>
 
-<span class="screenshot">Discovery slider set to "Mostly new"</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/discovery-slider.png" alt='Discovery slider set to "Mostly new"'>
+  <figcaption>Discovery slider set to "Mostly new"</figcaption>
+</figure>
 
 <p>Controls how adventurous the DJ is:</p>
 <ul>
@@ -346,7 +415,10 @@
 
 <h3>Genres</h3>
 
-<span class="screenshot">Genre chips — "Jazz" and "Electronic" selected (white filled)</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/genre-chips.png" alt='Genre chips — "Jazz" and "Electronic" selected (white filled)'>
+  <figcaption>Genre chips — "Jazz" and "Electronic" selected (white filled)</figcaption>
+</figure>
 
 <p>Click genre chips to constrain the DJ. Multiple selections are OR'd — any selected genre is fair game. The free-text field below lets you describe a style in your own words: <em>"dreamy shoegaze"</em>, <em>"Nordic folk"</em>, <em>"dark ambient"</em>.</p>
 
@@ -373,7 +445,10 @@
 
 <h3>Heard</h3>
 
-<span class="screenshot">Heard section — songs with sliders, checkboxes, "Select all / Delete 2"</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/heard-section.png" alt='Heard section — songs with sliders, checkboxes, "Select all / Delete 2"'>
+  <figcaption>Heard section — songs with sliders, checkboxes, "Select all / Delete 2"</figcaption>
+</figure>
 
 <p>The full listen history for the current channel, newest first. Each entry shows album art, track name, artist, and a rating slider.</p>
 
@@ -387,9 +462,12 @@
 
 <h2 id="channels">Channels</h2>
 
-<span class="screenshot">Channel tab bar — "Jazz &amp; Soul", "Electronic", "+ New"</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/channels.png" alt='Channel tab bar — "Jazz &amp; Soul", "Electronic", "+ New"'>
+  <figcaption>Channel tab bar — "Jazz &amp; Soul", "Electronic", "+ New"</figcaption>
+</figure>
 
-<p>Channels let you maintain separate listening sessions with completely independent histories, profiles, and settings. Think of them as moods, contexts, or experiments — a work channel, a workout channel, a "deep dive into Brazilian music" channel.</p>
+<p>Channels let you maintain separate listening sessions with completely independent histories, profiles, and settings. <strong>Make a channel for every mood</strong> — morning focus, late-night ambient, work, workout, a deep dive into Brazilian music — and switch between them without losing your place.</p>
 
 <h3>What a channel stores</h3>
 <ul>
@@ -397,10 +475,12 @@
   <li>Session history sent to the DJ</li>
   <li>AI taste profile</li>
   <li>All settings: Discovery, Genres, Region, Time period, Popularity, Tell the DJ</li>
+  <li>Where you left off on the current song (playback position)</li>
 </ul>
 
 <h3>Switching channels</h3>
 <p>Click a channel tab. Your current session is automatically saved before switching. The new channel loads with its own history and settings.</p>
+<p><strong>Playback position is remembered per channel.</strong> When you return to a channel, the current song resumes where you left off instead of starting at the beginning. You can jump from channel to channel <strong>without delay or break</strong> in your flow — no reset, no hunting for the right moment. Treat each tab like a separate radio tuned to a mood.</p>
 
 <h3>Creating a channel</h3>
 <p>Click <strong>+ New</strong> at the right of the tab bar. A new channel is created immediately with a blank history and default settings.</p>
@@ -416,11 +496,24 @@
 
 <hr>
 
+<h2 id="taste-space">The taste space</h2>
+
+<p>Earprint treats music as a <strong>high-dimensional space</strong> — not just genre tags. We know many things about songs: writers, performers, instruments, recording date, where it was recorded, and how it is categorized. <strong>All of those attributes can feed into a notion of distance</strong>: similar songs are <strong>close</strong>; different songs are farther apart.</p>
+
+<p>If you like a song, the DJ can look for <strong>nearby</strong> music you haven't heard yet. If you dislike something, it can learn to <strong>avoid that general region</strong> of the space — not by banning one label, but by steering away from that neighborhood of sound.</p>
+
+<p><strong>Exploring your taste</strong> means exploring the space: taking <strong>semi-random shots</strong> into territory you haven't discovered. On this model, <strong>category is only one of many facts</strong> the system can use; the rest of the picture comes from everything else we know about the track.</p>
+
+<hr>
+
 <h2 id="map">The map</h2>
 
-<span class="screenshot">2D music map — colored genre dots and labels</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/music-map.svg" width="800" height="520" alt="Music map: green (liked), red (disliked), grey (not-now), genre labels">
+  <figcaption>Music map — green (liked), red (disliked), grey (not-now); genre labels show rough regions</figcaption>
+</figure>
 
-<p>The <strong>Map</strong> link opens a separate view showing all the songs you've heard plotted in a 2D space:</p>
+<p>The <strong>Map</strong> link opens a separate view — a <strong>simple 2D projection</strong> of that idea (easy to see on screen; the full picture is much richer than two axes). It shows all the songs you've heard plotted in a plane:</p>
 <ul>
   <li><strong>X-axis:</strong> acoustic / live / traditional → electronic / synthesized</li>
   <li><strong>Y-axis:</strong> calm / sparse / minimal → intense / energetic / driving</li>
@@ -431,7 +524,10 @@
 
 <h2 id="status">Status and rate limiting</h2>
 
-<span class="screenshot">Yellow banner — "Spotify unavailable until 8:14 PM — Try now · stats"</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/status-banner.png" alt='Yellow banner — "Spotify unavailable until 8:14 PM — Try now · stats"'>
+  <figcaption>Yellow banner — "Spotify unavailable until 8:14 PM — Try now · stats"</figcaption>
+</figure>
 
 <p>Earprint calls both Spotify and an AI service. Occasionally:</p>
 <ul>
@@ -461,7 +557,10 @@
 
 <p>Discovery, Genres, Region, Time period, and Tell the DJ all show a <span class="pill pill-amber">· queued</span> indicator when you've changed them but they haven't been sent to the DJ yet. The change goes out with the next natural LLM call — you don't need to do anything to trigger it.</p>
 
-<span class="screenshot">"Discovery · queued" label in amber next to the slider</span>
+<figure class="screenshot">
+  <img src="/guide/screenshots/discovery-queued.png" alt='Discovery · queued label in amber next to the slider'>
+  <figcaption>"Discovery · queued" label in amber next to the slider</figcaption>
+</figure>
 
 <hr>
 
@@ -479,6 +578,42 @@
 <hr>
 
 <p style="color: #333; font-size: 0.8rem; text-align: center;">earprint · <a href="/player">open player</a> · <a href="/diary.html">dev diary</a></p>
+
+<div class="lightbox" id="lightbox" aria-hidden="true">
+  <button class="lightbox-close" id="lightbox-close" aria-label="Close image">×</button>
+  <img id="lightbox-image" alt="">
+</div>
+
+<script>
+  const lightbox = document.getElementById('lightbox');
+  const lightboxImage = document.getElementById('lightbox-image');
+  const lightboxClose = document.getElementById('lightbox-close');
+  const zoomable = document.querySelector('.screenshot img.zoomable');
+
+  function closeLightbox() {
+    lightbox.classList.remove('open');
+    lightbox.setAttribute('aria-hidden', 'true');
+    lightboxImage.removeAttribute('src');
+    lightboxImage.alt = '';
+  }
+
+  if (zoomable) {
+    zoomable.addEventListener('click', () => {
+      lightboxImage.src = zoomable.src;
+      lightboxImage.alt = zoomable.alt;
+      lightbox.classList.add('open');
+      lightbox.setAttribute('aria-hidden', 'false');
+    });
+  }
+
+  lightboxClose.addEventListener('click', closeLightbox);
+  lightbox.addEventListener('click', (event) => {
+    if (event.target === lightbox || event.target === lightboxClose) closeLightbox();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && lightbox.classList.contains('open')) closeLightbox();
+  });
+</script>
 
 </body>
 </html>
