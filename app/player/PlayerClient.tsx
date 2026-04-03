@@ -533,10 +533,13 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
                 accessTokenRef.current = d.accessToken
                 cb(d.accessToken)
               } else {
-                cb(accessTokenRef.current)
+                // No valid token — redirect to login rather than passing a stale token
+                window.location.href = '/api/auth/login'
               }
             })
-            .catch(() => cb(accessTokenRef.current))
+            .catch(() => {
+              window.location.href = '/api/auth/login'
+            })
         },
         volume: 0.8,
       })
@@ -554,9 +557,9 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
         setError('Spotify player failed to initialize.')
       })
       p.addListener('authentication_error', () => {
-        console.error('Spotify SDK: authentication_error — disconnecting to stop retry loop')
+        console.error('Spotify SDK: authentication_error — redirecting to login')
         playerRef.current?.disconnect()
-        setError('Spotify authentication failed. Please reload the page.')
+        window.location.href = '/api/auth/login'
       })
 
       p.connect()
@@ -1431,7 +1434,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
                 backgroundImage: `url(${currentCard.track.albumArt})`,
                 backgroundSize: 'auto 100%',
                 backgroundRepeat: 'no-repeat',
-                animation: 'albumPan 20s ease-in-out infinite alternate',
+                animation: 'albumPan 60s ease-in-out infinite alternate',
               }}
             />
           )}

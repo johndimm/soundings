@@ -457,16 +457,19 @@ export default function SessionPanel({
                     <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
                   </div>
                 </button>
-                <div className="flex flex-col items-center flex-shrink-0 gap-0.5" style={{ width: 56 }}>
-                  <span className={`text-[10px] font-bold ${gradeColor(entry)}`}>{gradeLabel(entry)}</span>
+                <div className="flex flex-col flex-shrink-0 gap-1" style={{ width: 96 }}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[10px] font-bold uppercase tracking-wide ${gradeColor(entry)}`}>{gradeLabel(entry)}</span>
+                    <span className="text-[10px] text-zinc-500">{Math.round(entry.percentListened)}%</span>
+                  </div>
                   <input
                     type="range"
                     min={0}
                     max={100}
                     value={Math.round(entry.percentListened)}
                     onChange={e => onRateHistoryItem(realIndex, Number(e.target.value))}
-                    className="w-full accent-zinc-400"
-                    style={{ height: 14 }}
+                    className={`w-full ${entry.percentListened >= 75 ? 'accent-green-500' : entry.percentListened >= 45 ? 'accent-zinc-400' : 'accent-red-500'}`}
+                    style={{ height: 16 }}
                     title={`${Math.round(entry.percentListened)}%`}
                   />
                 </div>
