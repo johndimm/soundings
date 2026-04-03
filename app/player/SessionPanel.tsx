@@ -65,7 +65,7 @@ interface Props {
   onRateHistoryItem: (index: number, percent: number) => void
   onPlayQueueItem: (index: number) => void
   onRemoveQueueItem: (index: number) => void
-  onPlayHistoryItem: (uri: string | null) => void
+  onPlayHistoryItem: (entry: HistoryEntry) => void
   submittedUris: Set<string>
   pendingSuggestions: { search: string; reason: string }[]
   settingsDirty: boolean
@@ -455,7 +455,7 @@ export default function SessionPanel({
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
                 <button
-                  onClick={() => onPlayHistoryItem(entry.uri)}
+                  onClick={() => onPlayHistoryItem(entry)}
                   disabled={!entry.uri}
                   className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl px-2 py-1 text-left transition-colors disabled:opacity-50"
                   style={{ cursor: entry.uri ? 'pointer' : 'not-allowed' }}

@@ -1,5 +1,5 @@
 // Tracks Spotify API call timestamps in localStorage.
-// Each call to /api/next-song triggers up to 3 Spotify searches.
+// Each lazy resolve uses one Spotify call (GET /v1/tracks?ids= or Search, not both).
 // We record timestamps + estimated Spotify call count, then compute the
 // peak number of Spotify calls seen in any 30-second window.
 
@@ -35,8 +35,9 @@ function updatePeak(peak: number) {
   } catch {}
 }
 
-/** Call this after every /api/next-song attempt (pass songs returned, or 3 on 429). */
+/** Call this after each Spotify lookup (1 per resolved track). Pass 0 to skip logging. */
 export function recordFetch(spotifyCallCount: number) {
+  if (spotifyCallCount <= 0) return
   const now = Date.now()
   const cutoff = now - LOG_RETENTION_MS
   const log = readLog().filter(e => e.t > cutoff)

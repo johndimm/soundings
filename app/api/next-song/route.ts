@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
 import { getNextSongQuery, LLMProvider, ListenEvent, ExploreMode, SongSuggestion } from '@/app/lib/llm'
 import { getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
+import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   getAccessTokenExpiry,
@@ -217,7 +218,10 @@ async function resolveSongs(
 
   console.info('resolveSongs mode', {
     forceTextSearch,
-    songs: songs.map(({ search }) => search),
+    songs: songs.map(({ search, spotifyId }) => ({
+      search,
+      spotifyId: normalizeSpotifyTrackId(spotifyId) ?? '(none)',
+    })),
   })
 
   const idToReason = new Map<string, string>()
@@ -225,9 +229,9 @@ async function resolveSongs(
   const idToCoords = new Map<string, { x: number; y: number }>()
   const idToComposed = new Map<string, number>()
   const ids: string[] = []
-  const idlessSongs = songs.filter(song => !(song.spotifyId?.trim()))
+  const idlessSongs = songs.filter(song => !normalizeSpotifyTrackId(song.spotifyId))
   for (const song of songs) {
-    const id = song.spotifyId?.trim()
+    const id = normalizeSpotifyTrackId(song.spotifyId)
     if (!id) continue
     if (!idToReason.has(id)) {
       idToReason.set(id, song.reason)
@@ -251,16 +255,22 @@ async function resolveSongs(
         console.warn('Spotify batch lookup unauthorized, falling back to text search')
         fallbackSongs = songs
       } else if (trackResult.status === 'ok') {
-      trackResult.tracks.forEach(track => {
-        if (!track) return
-        if (skipTrack(track)) return
-        const reason = idToReason.get(track.id) ?? 'Spotify batch match'
-        const category = idToCategory.get(track.id)
-        const coords = idToCoords.get(track.id)
-        const composed = idToComposed.get(track.id)
-        results.push({ track, reason, category, coords, composed })
-      })
-        fallbackSongs = idlessSongs.slice()
+        const idsNeedingSearch: typeof songs = []
+        trackResult.tracks.forEach((track, i) => {
+          const requestedId = ids[i]
+          if (!track) {
+            const song = songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === requestedId)
+            if (song) idsNeedingSearch.push(song)
+            return
+          }
+          if (skipTrack(track)) return
+          const reason = idToReason.get(track.id) ?? 'Spotify batch match'
+          const category = idToCategory.get(track.id)
+          const coords = idToCoords.get(track.id)
+          const composed = idToComposed.get(track.id)
+          results.push({ track, reason, category, coords, composed })
+        })
+        fallbackSongs = [...idlessSongs, ...idsNeedingSearch]
       } else {
         console.warn('Spotify batch fetch failed, falling back to text search', trackResult.message)
         fallbackSongs = songs

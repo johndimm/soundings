@@ -1,17 +1,19 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, type ChangeEvent } from 'react'
 import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
+import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
+const CHANNELS_EXPORT_VERSION = 1
 
 interface Channel {
   id: string
@@ -71,6 +73,73 @@ function saveChannels(channels: Channel[]) {
   try {
     localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(channels))
   } catch {}
+}
+
+function normalizeImportedChannel(raw: unknown): Channel | null {
+  if (!raw || typeof raw !== 'object') return null
+  const o = raw as Record<string, unknown>
+  const id = typeof o.id === 'string' && o.id.trim() ? o.id.trim() : genChannelId()
+  const name = typeof o.name === 'string' ? o.name : 'Channel'
+  const createdAt =
+    typeof o.createdAt === 'number' && Number.isFinite(o.createdAt) ? o.createdAt : Date.now()
+  const cardHistory = Array.isArray(o.cardHistory) ? (o.cardHistory as HistoryEntry[]) : []
+  const sessionHistory = Array.isArray(o.sessionHistory) ? (o.sessionHistory as ListenEvent[]) : []
+  const profile = typeof o.profile === 'string' ? o.profile : ''
+  const isAutoNamed = typeof o.isAutoNamed === 'boolean' ? o.isAutoNamed : false
+  const queue = Array.isArray(o.queue) ? (o.queue as CardState[]) : []
+  const currentCard =
+    o.currentCard === null || o.currentCard === undefined ? null : (o.currentCard as CardState)
+
+  return {
+    id,
+    name,
+    isAutoNamed,
+    cardHistory,
+    sessionHistory,
+    profile,
+    createdAt,
+    currentCard,
+    queue,
+    genres: Array.isArray(o.genres) ? (o.genres as string[]) : undefined,
+    genreText: typeof o.genreText === 'string' ? o.genreText : undefined,
+    timePeriod: typeof o.timePeriod === 'string' ? o.timePeriod : undefined,
+    notes: typeof o.notes === 'string' ? o.notes : undefined,
+    regions: Array.isArray(o.regions) ? (o.regions as string[]) : undefined,
+    popularity: typeof o.popularity === 'number' ? o.popularity : undefined,
+    discovery: typeof o.discovery === 'number' ? o.discovery : undefined,
+    playbackPositionMs: typeof o.playbackPositionMs === 'number' ? o.playbackPositionMs : undefined,
+    playbackTrackUri: typeof o.playbackTrackUri === 'string' ? o.playbackTrackUri : undefined,
+  }
+}
+
+/** Accepts our export shape, `{ channels: [...] }`, or a raw `Channel[]`. */
+function parseChannelsImport(raw: unknown): { channels: Channel[]; activeChannelId?: string } | null {
+  let list: unknown[] | undefined
+  let activeChannelId: string | undefined
+
+  if (Array.isArray(raw)) {
+    list = raw
+  } else if (raw && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>
+    if (Array.isArray(o.channels)) {
+      list = o.channels
+      if (typeof o.activeChannelId === 'string' && o.activeChannelId) {
+        activeChannelId = o.activeChannelId
+      }
+    } else {
+      return null
+    }
+  } else {
+    return null
+  }
+
+  const channels: Channel[] = []
+  for (const item of list) {
+    const ch = normalizeImportedChannel(item)
+    if (ch) channels.push(ch)
+  }
+  if (channels.length === 0) return null
+  return { channels, activeChannelId }
 }
 
 interface SavedSettings {
@@ -153,6 +222,32 @@ function peekNextCard(ch: Channel): CardState | null {
   return null
 }
 
+const HEARD_RATE_LIMIT_REASON = 'Replay from your Heard (while Spotify rate limits are active)'
+const HEARD_PLAYBACK_REASON = 'Replay from Heard'
+const HEARD_FALLBACK_DURATION_MS = 180_000
+
+function historyEntryToTrack(entry: HistoryEntry): SpotifyTrack | null {
+  const uri = entry.uri?.trim()
+  if (!uri || !uri.startsWith('spotify:track:')) return null
+  const id = uri.slice('spotify:track:'.length).trim()
+  if (!id) return null
+  return {
+    id,
+    uri,
+    name: entry.track,
+    artist: entry.artist,
+    album: 'Unknown',
+    albumArt: entry.albumArt ?? null,
+    durationMs: HEARD_FALLBACK_DURATION_MS,
+  }
+}
+
+/** Liked / ok territory — same idea as green dots on the map (not "not-now"). */
+function isPositiveHeard(entry: HistoryEntry): boolean {
+  if (entry.reaction === 'not-now') return false
+  return entry.percentListened >= 50
+}
+
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -215,7 +310,6 @@ export default function PlayerClient({
   const [cardHistory, setCardHistory] = useState<HistoryEntry[]>([])
   const [, setPriorProfile] = useState('')
   const [profile, setProfile] = useState('')
-  const [llmBuffer, setLlmBuffer] = useState<CardState[]>([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [backoffUntil, setBackoffUntil] = useState<number | null>(() => {
@@ -243,7 +337,8 @@ export default function PlayerClient({
   const [gradePercent, setGradePercent] = useState(50)
   const [hasRated, setHasRated] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
-  const [pendingSuggestions, setPendingSuggestions] = useState<{ search: string; reason: string }[]>([])
+  /** LLM suggestions not yet looked up on Spotify — resolved one-at-a-time when filling Up Next or starting playback. */
+  const [suggestionBuffer, setSuggestionBuffer] = useState<SongSuggestion[]>([])
   const [submittedUris, setSubmittedUris] = useState<Set<string>>(new Set())
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannelId, setActiveChannelId] = useState<string>('')
@@ -284,10 +379,10 @@ export default function PlayerClient({
   const advanceRef = useRef<((playedToEnd?: boolean) => void) | null>(null)
   const pendingFadeInRef = useRef(false)
   const channelSwitchingRef = useRef(false)
+  const importChannelsInputRef = useRef<HTMLInputElement>(null)
   const deviceIdRef = useRef<string | null>(null)
   const lastPlayedUriRef = useRef<string | null>(null)
   const playedUrisRef = useRef<Set<string>>(new Set())
-  const llmBufferRef = useRef<CardState[]>([])
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
   const exploreModeRef = useRef<number>(50)
@@ -295,7 +390,7 @@ export default function PlayerClient({
   const hasRatedRef = useRef(false)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingSuggestionsRef = useRef<{ search: string; reason: string }[]>([])
+  const suggestionBufferRef = useRef<SongSuggestion[]>([])
   const resolvingRef = useRef(false)
   const profileGenRef = useRef(0)
   const channelsRef = useRef<Channel[]>([])
@@ -324,8 +419,8 @@ export default function PlayerClient({
     currentCardRef.current = demo.currentCard
     setQueue(demo.queue)
     queueRef.current = demo.queue
-    setLlmBuffer([])
-    llmBufferRef.current = []
+    setSuggestionBuffer([])
+    suggestionBufferRef.current = []
     setSessionHistory(demo.sessionHistory)
     sessionHistoryRef.current = demo.sessionHistory
     setCardHistory(demo.cardHistory)
@@ -364,8 +459,8 @@ export default function PlayerClient({
     setHasRated(demo.hasRated)
     hasRatedRef.current = demo.hasRated
     setHistoryReady(true)
-    setPendingSuggestions(demo.pendingSuggestions)
-    pendingSuggestionsRef.current = demo.pendingSuggestions
+    setSuggestionBuffer(demo.pendingSuggestions)
+    suggestionBufferRef.current = demo.pendingSuggestions
     setSubmittedUris(new Set(demo.submittedUris))
     setChannels(demo.channels)
     channelsRef.current = demo.channels
@@ -429,8 +524,7 @@ export default function PlayerClient({
     // Stop playback and clear transient state
     setCurrentCard(nextCurrent); currentCardRef.current = nextCurrent
     setQueue(restoredQueue); queueRef.current = restoredQueue
-    setLlmBuffer([]); llmBufferRef.current = []
-    setPendingSuggestions([]); pendingSuggestionsRef.current = []
+    setSuggestionBuffer([]); suggestionBufferRef.current = []
     fetchingRef.current = false
     lastPlayedUriRef.current = null
     playedUrisRef.current = new Set()
@@ -584,6 +678,64 @@ export default function PlayerClient({
       return updated
     })
   }, [])
+
+  const handleExportChannels = useCallback(() => {
+    if (isGuideDemo) return
+    const snapshot = snapshotCurrentChannel()
+    const payload = {
+      earprintExportVersion: CHANNELS_EXPORT_VERSION,
+      exportedAt: new Date().toISOString(),
+      activeChannelId: activeChannelIdRef.current,
+      channels: snapshot,
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `earprint-channels-${new Date().toISOString().slice(0, 10)}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [isGuideDemo, snapshotCurrentChannel])
+
+  const handleImportChannelsFile = useCallback(
+    async (e: ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (!file || isGuideDemo) return
+      try {
+        const text = await file.text()
+        const parsed: unknown = JSON.parse(text)
+        const result = parseChannelsImport(parsed)
+        if (!result) {
+          window.alert(
+            'Could not read channels from this file. Expected a JSON object with a "channels" array, or a JSON array of channels.'
+          )
+          return
+        }
+        if (
+          !window.confirm(
+            `Replace all ${channelsRef.current.length} channel(s) with ${result.channels.length} imported channel(s)? Your current channels will be overwritten.`
+          )
+        ) {
+          return
+        }
+        saveChannels(result.channels)
+        channelsRef.current = result.channels
+        setChannels(result.channels)
+        const activeId =
+          result.activeChannelId && result.channels.some(c => c.id === result.activeChannelId)
+            ? result.activeChannelId
+            : result.channels[0].id
+        const active = result.channels.find(c => c.id === activeId) ?? result.channels[0]
+        loadChannelIntoState(active)
+        setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
+        setError(null)
+      } catch (err) {
+        window.alert(err instanceof SyntaxError ? 'Invalid JSON file.' : (err as Error).message)
+      }
+    },
+    [isGuideDemo, loadChannelIntoState]
+  )
 
   // Restore backoff timer from localStorage on mount
   useEffect(() => {
@@ -982,18 +1134,18 @@ export default function PlayerClient({
     hasRatedRef.current = false
   }, [currentCard?.track.uri])
 
-  // ── Fetch 3 cards from API ────────────────────────────────────────────────
-  const fetchCards = useCallback(
+  // ── LLM batch: suggestions only (no Spotify) ─────────────────────────────
+  const fetchSuggestions = useCallback(
     async (
       sessionHist: ListenEvent[],
       profile: string,
       artistConstraint?: string,
       forceTextSearch?: boolean
-    ): Promise<{ cards: CardState[]; profile?: string }> => {
+    ): Promise<{ suggestions: SongSuggestion[]; profile?: string }> => {
       const alreadyHeard = [
         ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
         ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
-        ...llmBufferRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
+        ...suggestionBufferRef.current.map(s => s.search),
       ]
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
@@ -1010,6 +1162,7 @@ export default function PlayerClient({
         ),
         alreadyHeard: alreadyHeard.length > 0 ? alreadyHeard : undefined,
         mode: exploreModeRef.current,
+        profileOnly: true,
       }
       if (forceTextSearch) {
         payload.forceTextSearch = true
@@ -1023,10 +1176,9 @@ export default function PlayerClient({
       })
 
       if (res.status === 429) {
-        const payload = await res.json().catch(() => null)
+        const errBody = await res.json().catch(() => null)
         const payloadRetry =
-          payload && typeof payload.retryAfterMs === 'number' ? payload.retryAfterMs : undefined
-        recordFetch(3) // pessimistic: assume all 3 Spotify searches fired
+          errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
         throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
       }
       if (res.status === 401) {
@@ -1038,26 +1190,157 @@ export default function PlayerClient({
       }
 
       const data = await res.json()
-      const cards: CardState[] = (data.songs ?? []).map(
-        (s: { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }) => ({
-          track: s.track,
+      const suggestions: SongSuggestion[] = (data.songs ?? []).map(
+        (s: SongSuggestion) => ({
+          search: s.search,
           reason: s.reason,
           category: s.category,
+          spotifyId: s.spotifyId,
           coords: s.coords,
           composed: s.composed,
         })
       )
-      recordFetch(cards.length || 1)
-      console.info('fetchCards returned N songs', cards.length, cards.map(c => c.track.name))
-      console.info('fetchCards profile field:', data.profile ? data.profile.slice(0, 80) + '…' : '(none)')
-      return { cards, profile: data.profile }
+      console.info('fetchSuggestions LLM batch', suggestions.length, suggestions.map(s => s.search))
+      console.info('fetchSuggestions profile field:', data.profile ? data.profile.slice(0, 80) + '…' : '(none)')
+      return { suggestions, profile: data.profile }
     },
     []
   )
 
-  // ── Profile-only fetch: LLM call without Spotify lookup ──────────────────
-  // Used on each rating: updates profile + populates pendingSuggestions.
-  // Spotify resolution happens lazily in resolvePending when songs are needed.
+  /** Single Spotify search when a suggestion is promoted to Up Next / now playing. */
+  const resolveOneSuggestion = useCallback(async (s: SongSuggestion): Promise<CardState | null> => {
+    const res = await fetch('/api/next-song', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        songsToResolve: [s],
+        sessionHistory: sessionHistoryRef.current,
+        accessToken: accessTokenRef.current,
+        // Prefer GET /v1/tracks?ids= when LLM supplies an id (not Search); fall back to search if no id or lookup fails.
+        forceTextSearch: !normalizeSpotifyTrackId(s.spotifyId),
+      }),
+    })
+
+    if (res.status === 429) {
+      const errBody = await res.json().catch(() => null)
+      const payloadRetry =
+        errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
+      recordFetch(1)
+      throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
+    }
+    if (res.status === 401) {
+      throw new AuthError()
+    }
+    if (!res.ok) {
+      recordFetch(1)
+      return null
+    }
+
+    const data = await res.json()
+    const songs = data.songs as
+      | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[]
+      | undefined
+    if (!songs?.length) {
+      recordFetch(1)
+      return null
+    }
+    recordFetch(1)
+    const t = songs[0]
+    return {
+      track: t.track,
+      reason: t.reason,
+      category: t.category,
+      coords: t.coords,
+      composed: t.composed,
+    }
+  }, [])
+
+  /** Resolve up to `max` suggestions in order (constraint / replace flows). Skips failed lookups. */
+  const resolveSuggestionsToCards = useCallback(
+    async (list: SongSuggestion[], max: number): Promise<CardState[]> => {
+      const out: CardState[] = []
+      const seenUris = new Set<string>()
+      const excludeUris = new Set<string>([
+        ...playedUrisRef.current,
+        ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
+        ...queueRef.current.map(c => c.track.uri),
+      ])
+      for (const s of list) {
+        if (out.length >= max) break
+        try {
+          const card = await resolveOneSuggestion(s)
+          if (!card) continue
+          const u = card.track.uri
+          if (excludeUris.has(u) || seenUris.has(u)) continue
+          seenUris.add(u)
+          excludeUris.add(u)
+          out.push(card)
+        } catch (e) {
+          if (e instanceof RateLimitError || e instanceof AuthError) throw e
+        }
+      }
+      return out
+    },
+    [resolveOneSuggestion]
+  )
+
+  /** No Spotify search — rebuild cards from Heard when API is rate-limited. */
+  const fillFromHeardWhenRateLimited = useCallback(() => {
+    if (isGuideDemo) return
+
+    const ranked = [...cardHistoryRef.current]
+      .filter(e => isPositiveHeard(e))
+      .map(e => ({ entry: e, track: historyEntryToTrack(e) }))
+      .filter((x): x is { entry: HistoryEntry; track: SpotifyTrack } => x.track !== null)
+      .sort((a, b) => b.entry.percentListened - a.entry.percentListened)
+
+    const seen = new Set<string>([
+      ...playedUrisRef.current,
+      ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
+      ...queueRef.current.map(c => c.track.uri),
+    ])
+
+    const candidates = ranked.filter(({ track }) => !seen.has(track.uri))
+
+    if (!currentCardRef.current && candidates.length > 0) {
+      const { entry, track } = candidates[0]
+      const card: CardState = {
+        track,
+        reason: HEARD_RATE_LIMIT_REASON,
+        category: entry.category,
+        coords: entry.coords,
+      }
+      lastPlayedUriRef.current = null
+      currentCardRef.current = card
+      setCurrentCard(card)
+      seen.add(track.uri)
+      candidates.shift()
+    }
+
+    const newQ = [...queueRef.current]
+    for (const { entry, track } of candidates) {
+      if (newQ.length >= 3) break
+      if (seen.has(track.uri)) continue
+      seen.add(track.uri)
+      newQ.push({
+        track,
+        reason: HEARD_RATE_LIMIT_REASON,
+        category: entry.category,
+        coords: entry.coords,
+      })
+    }
+
+    if (
+      newQ.length !== queueRef.current.length ||
+      newQ.some((c, i) => c.track.uri !== queueRef.current[i]?.track.uri)
+    ) {
+      queueRef.current = newQ
+      setQueue(newQ)
+    }
+  }, [isGuideDemo])
+
+  // ── Profile-only fetch on rating: updates profile + merges suggestions into buffer ──
   const fetchProfileOnly = useCallback(() => {
     const gen = ++profileGenRef.current
     const payload: Record<string, unknown> = {
@@ -1075,8 +1358,7 @@ export default function PlayerClient({
       alreadyHeard: [
         ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
         ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
-        ...llmBufferRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
-        ...pendingSuggestionsRef.current.map(s => s.search),
+        ...suggestionBufferRef.current.map(s => s.search),
       ],
       mode: exploreModeRef.current,
       profileOnly: true,
@@ -1097,61 +1379,32 @@ export default function PlayerClient({
           setProfile(data.profile)
         }
         if (Array.isArray(data.songs) && data.songs.length > 0) {
-          const suggestions = (data.songs as SongSuggestion[]).map(s => ({ search: s.search, reason: s.reason }))
-          setPendingSuggestions(suggestions)
-          pendingSuggestionsRef.current = suggestions
+          const incoming = data.songs as SongSuggestion[]
+          setSuggestionBuffer(prev => {
+            const seen = new Set(prev.map(p => p.search))
+            const merged = [...prev]
+            for (const s of incoming) {
+              if (seen.has(s.search)) continue
+              merged.push({
+                search: s.search,
+                reason: s.reason,
+                category: s.category,
+                spotifyId: s.spotifyId,
+                coords: s.coords,
+                composed: s.composed,
+              })
+              seen.add(s.search)
+            }
+            suggestionBufferRef.current = merged
+            return merged
+          })
         }
         setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
       })
       .catch(() => {})
   }, [])
 
-  // ── Resolve pending suggestions → Spotify lookup → add to buffer ──────────
-  const resolvePending = useCallback(() => {
-    if (resolvingRef.current) return
-    const suggestions = pendingSuggestionsRef.current
-    if (suggestions.length === 0) return
-    resolvingRef.current = true
-    const payload = {
-      songsToResolve: suggestions,
-      sessionHistory: sessionHistoryRef.current,
-      accessToken: accessTokenRef.current,
-    }
-    fetch('/api/next-song', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        // Clear pending regardless of outcome
-        setPendingSuggestions([])
-        pendingSuggestionsRef.current = []
-        if (!data?.songs) return
-        const newCards: CardState[] = (data.songs as { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[])
-          .map(s => ({ track: s.track, reason: s.reason, category: s.category, coords: s.coords, composed: s.composed }))
-        const excludeUris = new Set<string>([
-          ...playedUrisRef.current,
-          ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-          ...queueRef.current.map(c => c.track.uri),
-          ...llmBufferRef.current.map(c => c.track.uri),
-        ])
-        const fresh = newCards.filter(c => !excludeUris.has(c.track.uri))
-        if (fresh.length > 0) {
-          const newBuffer = [...llmBufferRef.current, ...fresh]
-          setLlmBuffer(newBuffer)
-          llmBufferRef.current = newBuffer
-        }
-      })
-      .catch(() => {
-        setPendingSuggestions([])
-        pendingSuggestionsRef.current = []
-      })
-      .finally(() => { resolvingRef.current = false })
-  }, [])
-
-  // ── Fetch from LLM → append to buffer (last-write-wins via generation counter) ──
+  // ── Fetch from LLM → suggestion buffer (Spotify only when promoting to queue / now playing) ──
   const fetchToBuffer = useCallback(
     (
       artistConstraint?: string,
@@ -1160,15 +1413,11 @@ export default function PlayerClient({
       force = false,
       replaceBuffer = false
     ) => {
-    // Synchronous guard: prevent concurrent fetches unless explicitly forced
-    // (force is used for constraint changes, retry, and start-fresh)
     if (!force && (fetchingRef.current || resolvingRef.current)) {
       console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
       return
     }
 
-    // Minimum cooldown between fetches to avoid triggering Spotify rate limits.
-    // Bypass if the queue is critically empty (nothing playing and nothing queued).
     const queueTotal = (currentCardRef.current ? 1 : 0) + queueRef.current.length
     if (!force && queueTotal >= 2) {
       const sinceLastFetch = Date.now() - lastFetchAtRef.current
@@ -1185,9 +1434,7 @@ export default function PlayerClient({
       }
     }
 
-    // Client-side pre-flight rate limit check: each fetch costs ~3 Spotify calls.
-    // Background fetches skip at 60/30s (2/3 of limit).
-    // Forced fetches (constraint changes, retries) skip at 75/30s (5/6 of limit).
+    // Pre-flight: each Spotify resolve counts as 1 call (lazy, not 3 per LLM batch).
     {
       const { log } = readStats()
       const now = Date.now()
@@ -1202,14 +1449,12 @@ export default function PlayerClient({
     lastFetchAtRef.current = Date.now()
     setSettingsDirty(false)
     const gen = ++fetchGenRef.current
-    console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, bufferLen: llmBufferRef.current.length })
+    console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, suggestionLen: suggestionBufferRef.current.length })
     const sentHistory = [...sessionHistoryRef.current]
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
-    fetchCards(sentHistory, sentProfile, artistConstraint, forceTextSearch)
-      .then(({ cards, profile: newProfile }) => {
-        // Update profile from every completed fetch — not gated by gen,
-        // since a newer fetch superseding song cards still produces a valid profile.
+    fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch)
+      .then(async ({ suggestions, profile: newProfile }) => {
         console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
         if (newProfile) {
           setPriorProfile(newProfile)
@@ -1220,34 +1465,29 @@ export default function PlayerClient({
 
         if (gen !== fetchGenRef.current) return
 
-        // Exclude already-played, current card, queued, and already-buffered URIs
-        const excludeUris = new Set<string>([
-          ...playedUrisRef.current,
-          ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-          ...queueRef.current.map(c => c.track.uri),
-          ...llmBufferRef.current.map(c => c.track.uri),
-        ])
-        const seen = new Set<string>()
-        const fresh = cards.filter(c => {
-          if (seen.has(c.track.uri) || excludeUris.has(c.track.uri)) return false
-          seen.add(c.track.uri)
+        const seenSearch = new Set(suggestionBufferRef.current.map(s => s.search))
+        const fresh = suggestions.filter(s => {
+          if (seenSearch.has(s.search)) return false
+          seenSearch.add(s.search)
           return true
         })
 
-        if (onCards && fresh.length > 0) {
-          onCards(fresh)
+        if (onCards) {
+          const resolved = await resolveSuggestionsToCards(suggestions, 3)
+          onCards(resolved)
+          if (replaceBuffer) {
+            suggestionBufferRef.current = []
+            setSuggestionBuffer([])
+          }
+        } else {
+          const merged = replaceBuffer ? fresh : [...suggestionBufferRef.current, ...fresh]
+          suggestionBufferRef.current = merged
+          setSuggestionBuffer(merged)
+          console.info('fetchToBuffer appended suggestions', fresh.length, 'buffer length', merged.length)
         }
 
-        // Replace or append buffer depending on caller intent
-        const newBuffer = replaceBuffer ? fresh : [...llmBufferRef.current, ...fresh]
-        console.info('fetchToBuffer', replaceBuffer ? 'replaced' : 'appended', fresh.length, 'new cards; buffer length now', newBuffer.length)
-        setLlmBuffer(newBuffer)
-        llmBufferRef.current = newBuffer
-
-        // Clear only the entries that were sent
         setSessionHistory(prev => prev.slice(sentHistory.length))
         sessionHistoryRef.current = sessionHistoryRef.current.slice(sentHistory.length)
-
       })
       .catch(err => {
         if (err instanceof RateLimitError) {
@@ -1264,6 +1504,7 @@ export default function PlayerClient({
             try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
           }, waitMs)
           setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+          fillFromHeardWhenRateLimited()
           return
         }
 
@@ -1274,11 +1515,9 @@ export default function PlayerClient({
           return
         }
 
-        if (gen === fetchGenRef.current && !currentCardRef.current && llmBufferRef.current.length === 0) {
+        if (gen === fetchGenRef.current && !currentCardRef.current && suggestionBufferRef.current.length === 0) {
           setError('Could not load songs — LLM may be unavailable. Will retry.')
         }
-        // Back off on generic errors (e.g. LLM down) without touching backoffUntil.
-        // Re-acquire the fetch lock so finally() doesn't release it, then release after delay.
         fetchingRef.current = true
         if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
         backoffTimerRef.current = setTimeout(() => {
@@ -1288,103 +1527,137 @@ export default function PlayerClient({
         }, RATE_LIMIT_DEFAULT_WAIT_MS)
       })
       .finally(() => {
-        // Only the winning generation releases the lock.
-        // Non-winning fetches (superseded by a constraint change) must NOT reset
-        // fetchingRef — doing so would allow a new fetch to slip past the guard
-        // before loadingQueue state has propagated to the next render.
         if (gen === fetchGenRef.current) {
           fetchingRef.current = false
           setLoadingQueue(false)
         }
       })
-  }, [fetchCards])
+  }, [fetchSuggestions, resolveSuggestionsToCards, fillFromHeardWhenRateLimited])
 
-  // ── Pull from buffer to top up queue to 3 ────────────────────────────────
-  const fillQueueFromBuffer = useCallback(() => {
-    const buf = llmBufferRef.current
-    const q = queueRef.current
-    const needed = 3 - q.length
-    if (needed <= 0 || buf.length === 0) return
-    const toAdd = buf.slice(0, needed)
-    const remaining = buf.slice(needed)
-    const seen = new Set<string>([
-      ...playedUrisRef.current,
-      ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
-    ])
-    if (currentCardRef.current) {
-      seen.add(currentCardRef.current.track.uri)
+  /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
+  const startPlaybackFromSuggestions = useCallback(async () => {
+    while (!currentCardRef.current && suggestionBufferRef.current.length > 0) {
+      const [next, ...rest] = suggestionBufferRef.current
+      suggestionBufferRef.current = rest
+      setSuggestionBuffer(rest)
+      try {
+        const card = await resolveOneSuggestion(next)
+        if (card) {
+          const played = new Set(playedUrisRef.current)
+          if (!played.has(card.track.uri)) {
+            currentCardRef.current = card
+            setCurrentCard(card)
+            return
+          }
+        }
+      } catch (e) {
+        if (e instanceof RateLimitError) {
+          const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
+          setBackoffUntil(Date.now() + waitMs)
+          setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+          fillFromHeardWhenRateLimited()
+        } else if (e instanceof AuthError) {
+          setError('Authentication error (401). Access token may be invalid or missing.')
+        }
+        return
+      }
     }
-    q.forEach(card => seen.add(card.track.uri))
+  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
 
-    const uniqueToAdd = toAdd.filter(card => {
-      if (seen.has(card.track.uri)) return false
-      seen.add(card.track.uri)
-      return true
-    })
+  /** Resolve one suggestion at a time until queue has 3 items or buffer is empty. */
+  const topUpQueueFromSuggestions = useCallback(async () => {
+    while (queueRef.current.length < 3 && suggestionBufferRef.current.length > 0) {
+      const [next, ...rest] = suggestionBufferRef.current
+      suggestionBufferRef.current = rest
+      setSuggestionBuffer(rest)
+      try {
+        const card = await resolveOneSuggestion(next)
+        if (card) {
+          const seen = new Set<string>([
+            ...playedUrisRef.current,
+            ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
+            ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
+            ...queueRef.current.map(c => c.track.uri),
+          ])
+          if (!seen.has(card.track.uri)) {
+            const newQ = [...queueRef.current, card]
+            queueRef.current = newQ
+            setQueue(newQ)
+            console.info('topUpQueueFromSuggestions added', card.track.name, 'queue len', newQ.length)
+          }
+        }
+      } catch (e) {
+        if (e instanceof RateLimitError) {
+          const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
+          setBackoffUntil(Date.now() + waitMs)
+          setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+          fillFromHeardWhenRateLimited()
+        } else if (e instanceof AuthError) {
+          setError('Authentication error (401). Access token may be invalid or missing.')
+        }
+        return
+      }
+    }
+  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
 
-    const newQueue = [...q, ...uniqueToAdd]
-    console.info(
-      'fillQueueFromBuffer adding',
-      uniqueToAdd.length,
-      'cards from buffer; queue length before',
-      q.length,
-      'after',
-      newQueue.length
-    )
-
-    setQueue(newQueue)
-    queueRef.current = newQueue
-    setLlmBuffer(remaining)
-    llmBufferRef.current = remaining
-  }, [])
-
-  // ── Auto-fill: start playing, fill queue from buffer, fetch when buffer empty ──
+  // ── Auto-fill: resolve lazily → start playing, top up queue, or fetch more LLM suggestions ──
   useEffect(() => {
     if (isGuideDemo) return
     if (!deviceId || !historyReady) return
-
     if (backoffUntil && backoffUntil > Date.now()) {
+      if (!fetchingRef.current && !resolvingRef.current) {
+        resolvingRef.current = true
+        try {
+          fillFromHeardWhenRateLimited()
+        } finally {
+          resolvingRef.current = false
+        }
+      }
       return
     }
+    if (fetchingRef.current) return
 
-    // Nothing playing but buffer has songs → start immediately
-    if (!currentCard && llmBuffer.length > 0) {
-      const [first, ...rest] = llmBufferRef.current
-      currentCardRef.current = first
-      setCurrentCard(first)
-      setLlmBuffer(rest)
-      llmBufferRef.current = rest
-      return
-    }
+    if (resolvingRef.current) return
 
-    // Queue needs filling and buffer has songs → pull from buffer
-    if (queue.length < 3 && llmBuffer.length > 0) {
-      fillQueueFromBuffer()
-      return
-    }
-
-    // Buffer empty and queue needs filling → resolve pending or fetch fresh
-    if (!loadingQueue && llmBuffer.length === 0 && (!currentCard || queue.length < 3)) {
-      if (pendingSuggestions.length > 0 && !resolvingRef.current) {
-        resolvePending()
-      } else if (pendingSuggestions.length === 0) {
+    const run = async () => {
+      if (!currentCard && suggestionBuffer.length > 0) {
+        resolvingRef.current = true
+        try {
+          await startPlaybackFromSuggestions()
+        } finally {
+          resolvingRef.current = false
+        }
+        return
+      }
+      if (currentCard && queue.length < 3 && suggestionBuffer.length > 0) {
+        resolvingRef.current = true
+        try {
+          await topUpQueueFromSuggestions()
+        } finally {
+          resolvingRef.current = false
+        }
+        return
+      }
+      if (!loadingQueue && suggestionBuffer.length === 0 && (!currentCard || queue.length < 3)) {
         fetchToBuffer()
       }
     }
+
+    void run()
   }, [
     currentCard,
     queue.length,
-    llmBuffer.length,
+    suggestionBuffer.length,
     loadingQueue,
     deviceId,
     historyReady,
     fetchToBuffer,
-    fillQueueFromBuffer,
     backoffUntil,
-    pendingSuggestions.length,
-    resolvePending,
     cooldownTick,
     isGuideDemo,
+    startPlaybackFromSuggestions,
+    topUpQueueFromSuggestions,
+    fillFromHeardWhenRateLimited,
   ])
 
   // ── Record a rating (log it + fire LLM prefetch, but do NOT advance) ─────
@@ -1508,8 +1781,8 @@ export default function PlayerClient({
     setProfile('')
     setQueue([])
     queueRef.current = []
-    setLlmBuffer([])
-    llmBufferRef.current = []
+    setSuggestionBuffer([])
+    suggestionBufferRef.current = []
     fetchToBuffer(undefined, undefined, undefined, true)
   }, [fetchToBuffer])
 
@@ -1532,8 +1805,8 @@ export default function PlayerClient({
   const constraintInitRef = useRef(false)
   const handleConstraintResults = useCallback((cards: CardState[]) => {
     if (cards.length === 0) return
-    setLlmBuffer([])
-    llmBufferRef.current = []
+    setSuggestionBuffer([])
+    suggestionBufferRef.current = []
     if (!currentCardRef.current) {
       // Nothing playing — start immediately
       const [first, ...rest] = cards
@@ -1569,10 +1842,16 @@ export default function PlayerClient({
       constraintDebounceRef.current = null
       if (!deviceIdRef.current) return
       setLoadingQueue(true)
-      fetchToBuffer(undefined, undefined, cards => {
-        handleConstraintResults(cards)
-        setLoadingQueue(false)
-      }, true)
+      fetchToBuffer(
+        undefined,
+        undefined,
+        cards => {
+          handleConstraintResults(cards)
+          setLoadingQueue(false)
+        },
+        true,
+        true
+      )
     }, 600)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genres, genreText, timePeriod, notes, popularity, regions, isGuideDemo])
@@ -1612,18 +1891,18 @@ export default function PlayerClient({
     }
   }, [])
 
-  const playUri = useCallback(async (uri: string | null, label: string) => {
+  const playUri = useCallback(async (uri: string | null, label: string): Promise<boolean> => {
     if (isGuideDemo) {
       setPlayResponse(`Guide demo mode: playback disabled for ${label}.`)
-      return
+      return false
     }
     if (!deviceIdRef.current) {
       setPlayResponse('No Spotify device registered yet.')
-      return
+      return false
     }
     if (!uri) {
       setPlayResponse(`No URI available for ${label}.`)
-      return
+      return false
     }
 
     setPlayResponse(`Requesting playback for ${label}…`)
@@ -1640,16 +1919,38 @@ export default function PlayerClient({
       const data = await res.json()
       if (!res.ok) {
         setPlayResponse(`Playback failed: ${data.error} ${data.status ?? ''}`)
-        return
+        return false
       }
       setPlayResponse('Playback request accepted.')
+      return true
     } catch (err) {
       setPlayResponse(`Playback error: ${(err as Error).message}`)
+      return false
     }
   }, [isGuideDemo])
 
   const handlePlayHistoryItem = useCallback(
-    (uri: string | null) => playUri(uri, 'history entry'),
+    async (entry: HistoryEntry) => {
+      const uri = entry.uri?.trim()
+      if (!uri) return
+      const track = historyEntryToTrack(entry)
+      if (!track) return
+      const card: CardState = {
+        track,
+        reason: HEARD_PLAYBACK_REASON,
+        category: entry.category,
+        coords: entry.coords,
+      }
+      const ok = await playUri(uri, 'history entry')
+      if (!ok) return
+      lastPlayedUriRef.current = track.uri
+      playedUrisRef.current.add(track.uri)
+      pendingPlaybackPositionMsRef.current = undefined
+      currentCardRef.current = card
+      setCurrentCard(card)
+      setHasRated(false)
+      hasRatedRef.current = false
+    },
     [playUri]
   )
   const duration = playbackState?.duration ?? 0
@@ -1742,6 +2043,34 @@ export default function PlayerClient({
             onClick={createChannel}
             className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
           >+ New</button>
+          {!isGuideDemo && (
+            <>
+              <input
+                ref={importChannelsInputRef}
+                type="file"
+                accept="application/json,.json"
+                className="hidden"
+                aria-hidden
+                onChange={handleImportChannelsFile}
+              />
+              <button
+                type="button"
+                onClick={handleExportChannels}
+                className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
+                title="Download all channels as JSON"
+              >
+                Export
+              </button>
+              <button
+                type="button"
+                onClick={() => importChannelsInputRef.current?.click()}
+                className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
+                title="Replace channels from a JSON file"
+              >
+                Import
+              </button>
+            </>
+          )}
         </div>
       )}
 
@@ -2000,7 +2329,7 @@ export default function PlayerClient({
             onRemoveMultiple={handleRemoveMultiple}
             onRateHistoryItem={handleRateHistoryItem}
             submittedUris={submittedUris}
-            pendingSuggestions={pendingSuggestions}
+            pendingSuggestions={suggestionBuffer}
             onRemoveQueueItem={(index) => {
               const q = queueRef.current
               if (index < 0 || index >= q.length) return
@@ -2009,37 +2338,10 @@ export default function PlayerClient({
               queueRef.current = remaining
             }}
             onPlayQueueItem={(index) => {
-              const cur = currentCardRef.current
               const q = queueRef.current
               if (index < 0 || index >= q.length) return
               const picked = q[index]
               const remaining = q.filter((_, i) => i !== index)
-
-              // Log current song as move-on if not yet rated
-              if (cur && !hasRatedRef.current) {
-                const pct = durationRef.current > 0 ? (sliderRef.current / durationRef.current) * 100 : 0
-                const event: ListenEvent = {
-                  track: cur.track.name,
-                  artist: cur.track.artist,
-                  percentListened: pct,
-                  reaction: 'move-on',
-                  coords: cur.coords,
-                }
-                const historyEntry: HistoryEntry = {
-                  ...event,
-                  albumArt: cur.track.albumArt,
-                  uri: cur.track.uri,
-                  category: cur.category,
-                  coords: cur.coords,
-                }
-                const newCardHistory = dedupeHistory([...cardHistoryRef.current, historyEntry])
-                setCardHistory(newCardHistory)
-                cardHistoryRef.current = newCardHistory
-                const newSession = [...sessionHistoryRef.current, event]
-                setSessionHistory(newSession)
-                sessionHistoryRef.current = newSession
-                fetchToBuffer()
-              }
 
               currentCardRef.current = picked
               setCurrentCard(picked)
@@ -2048,7 +2350,7 @@ export default function PlayerClient({
               setHasRated(false)
               hasRatedRef.current = false
             }}
-            onPlayHistoryItem={(uri) => handlePlayHistoryItem(uri)}
+            onPlayHistoryItem={handlePlayHistoryItem}
           />
           </div>
         </div>

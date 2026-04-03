@@ -1,3 +1,5 @@
+import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
+
 export interface ListenEvent {
   track: string
   artist: string
@@ -78,6 +80,8 @@ If the user provides explicit constraints (genres, eras, styles), follow them st
 
 Respond with ONLY a JSON object:
 {"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","composed":1791,"coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
+
+Whenever you are confident of the exact Spotify catalog entry, set "spotify_id" to the 22-character track id (or spotify:track:… URI). The app resolves IDs via the Tracks API instead of Search, which helps when Search is rate-limited. Omit spotify_id if unsure.
 
 The "composed" field is the year of composition (for classical/jazz standards/etc.) — omit it for contemporary recordings where the release year is meaningful.`
 
@@ -354,11 +358,13 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         search: s.search,
         reason: s.reason,
         category: typeof s.category === 'string' ? s.category : undefined,
-        spotifyId: typeof s.spotifyId === 'string'
-          ? s.spotifyId.trim()
-          : typeof s.spotify_id === 'string'
-            ? s.spotify_id.trim()
-            : undefined,
+        spotifyId: normalizeSpotifyTrackId(
+          typeof s.spotifyId === 'string'
+            ? s.spotifyId
+            : typeof s.spotify_id === 'string'
+              ? s.spotify_id
+              : undefined
+        ),
         coords: parseCoords(s.coords),
         composed: typeof s.composed === 'number' && Number.isFinite(s.composed) ? s.composed : undefined,
       }))
