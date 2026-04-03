@@ -181,7 +181,7 @@ export default function MapPage() {
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fontSize="10"
-                fill="#2d2d30"
+                fill="#52525b"
                 fontFamily="monospace"
                 style={{ userSelect: 'none', pointerEvents: 'none' }}
               >

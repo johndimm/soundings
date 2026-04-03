@@ -10,10 +10,19 @@ export type SpotifyTracksResult =
   | { status: 'unauthorized'; message: string }
   | { status: 'error'; message: string }
 
+const searchCache = new Map<string, SpotifyTrack>()
+
 export async function searchTrack(
   query: string,
   accessToken: string
 ): Promise<SpotifySearchResult> {
+  const cacheKey = query.toLowerCase().trim()
+  const cached = searchCache.get(cacheKey)
+  if (cached) {
+    console.info(`Spotify search cache hit: "${query}"`)
+    return { status: 'ok', track: cached }
+  }
+
   const params = new URLSearchParams({ q: query, type: 'track', limit: '1' })
   console.info(`searching spotify for ${query}`)
   const res = await fetch(`https://api.spotify.com/v1/search?${params}`, {
@@ -55,18 +64,17 @@ export async function searchTrack(
     },
   })
 
-  return {
-    status: 'ok',
-    track: {
-      id: track.id,
-      uri: track.uri,
-      name: track.name,
-      artist: track.artists[0]?.name ?? 'Unknown',
-      album: track.album.name,
-      albumArt: track.album.images[0]?.url ?? null,
-      durationMs: track.duration_ms,
-    },
+  const result: SpotifyTrack = {
+    id: track.id,
+    uri: track.uri,
+    name: track.name,
+    artist: track.artists[0]?.name ?? 'Unknown',
+    album: track.album.name,
+    albumArt: track.album.images[0]?.url ?? null,
+    durationMs: track.duration_ms,
   }
+  searchCache.set(cacheKey, result)
+  return { status: 'ok', track: result }
 }
 
 export async function getTracksByIds(

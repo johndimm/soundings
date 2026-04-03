@@ -9,6 +9,62 @@ import { recordFetch, readStats } from '@/app/lib/callTracker'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
+const CHANNELS_STORAGE_KEY = 'earprint-channels'
+const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
+
+interface Channel {
+  id: string
+  name: string
+  isAutoNamed: boolean
+  cardHistory: HistoryEntry[]
+  sessionHistory: ListenEvent[]
+  profile: string
+  createdAt: number
+  // Profile settings
+  genres?: string[]
+  genreText?: string
+  timePeriod?: string
+  notes?: string
+  regions?: string[]
+  popularity?: number
+  discovery?: number
+}
+
+function genChannelId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6)
+}
+
+function deriveChannelName(history: HistoryEntry[], profile: string): string {
+  const counts: Record<string, number> = {}
+  for (const e of history) {
+    if (!e.category) continue
+    const top = e.category.split('>')[0].trim().split('/')[0].trim()
+    if (top) counts[top] = (counts[top] ?? 0) + 1
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([g]) => g)
+  if (top.length >= 2) return `${top[0]} & ${top[1]}`
+  if (top.length === 1) return top[0]
+  const keywords = profile.match(/\b(jazz|folk|electronic|rock|pop|classical|blues|soul|metal|indie|ambient|hip.hop|reggae|funk|latin|punk|experimental|acoustic|orchestral|country)\b/gi)
+  if (keywords?.length) {
+    const unique = [...new Set(keywords.map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()))].slice(0, 2)
+    return unique.join(' & ')
+  }
+  return ''
+}
+
+function loadChannels(): Channel[] {
+  try {
+    const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
+    if (raw) return JSON.parse(raw) as Channel[]
+  } catch {}
+  return []
+}
+
+function saveChannels(channels: Channel[]) {
+  try {
+    localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(channels))
+  } catch {}
+}
 
 interface SavedSettings {
   genres?: string[]
@@ -167,6 +223,10 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const [historyReady, setHistoryReady] = useState(false)
   const [pendingSuggestions, setPendingSuggestions] = useState<{ search: string; reason: string }[]>([])
   const [submittedUris, setSubmittedUris] = useState<Set<string>>(new Set())
+  const [channels, setChannels] = useState<Channel[]>([])
+  const [activeChannelId, setActiveChannelId] = useState<string>('')
+  const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
+  const [editingChannelName, setEditingChannelName] = useState('')
 
   const dedupeHistory = useCallback((entries: HistoryEntry[]) => {
     const map = new Map<string, HistoryEntry>()
@@ -210,6 +270,104 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const pendingSuggestionsRef = useRef<{ search: string; reason: string }[]>([])
   const resolvingRef = useRef(false)
   const profileGenRef = useRef(0)
+  const channelsRef = useRef<Channel[]>([])
+  const activeChannelIdRef = useRef<string>('')
+
+  // ── Channel management ───────────────────────────────────────────────────
+
+  const snapshotCurrentChannel = useCallback((): Channel[] => {
+    return channelsRef.current.map(ch => {
+      if (ch.id !== activeChannelIdRef.current) return ch
+      const autoName = deriveChannelName(cardHistoryRef.current, priorProfileRef.current)
+      const name = ch.isAutoNamed && autoName ? autoName : ch.name
+      return {
+        ...ch, name,
+        cardHistory: cardHistoryRef.current,
+        sessionHistory: sessionHistoryRef.current,
+        profile: priorProfileRef.current,
+        genres: genresRef.current,
+        genreText: genreTextRef.current,
+        timePeriod: timePeriodRef.current,
+        notes: notesRef.current,
+        regions: regionsRef.current,
+        popularity: popularityRef.current,
+        discovery: exploreModeRef.current,
+      }
+    })
+  }, [])
+
+  const loadChannelIntoState = useCallback((ch: Channel) => {
+    // Stop playback and clear transient state
+    setCurrentCard(null); currentCardRef.current = null
+    setQueue([]); queueRef.current = []
+    setLlmBuffer([]); llmBufferRef.current = []
+    setPendingSuggestions([]); pendingSuggestionsRef.current = []
+    fetchingRef.current = false
+    lastPlayedUriRef.current = null
+    playedUrisRef.current = new Set()
+    fetchGenRef.current++
+
+    const deduped = dedupeHistory(ch.cardHistory)
+    setCardHistory(deduped); cardHistoryRef.current = deduped
+    setSessionHistory(ch.sessionHistory); sessionHistoryRef.current = ch.sessionHistory
+    setPriorProfile(ch.profile); priorProfileRef.current = ch.profile
+    setProfile(ch.profile)
+
+    // Restore settings
+    const g = ch.genres ?? []; setGenres(g); genresRef.current = g
+    const gt = ch.genreText ?? ''; setGenreText(gt); genreTextRef.current = gt
+    const tp = ch.timePeriod ?? ''; setTimePeriod(tp); timePeriodRef.current = tp
+    const n = ch.notes ?? ''; setNotes(n); notesRef.current = n
+    const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
+    const pop = ch.popularity ?? 50; setPopularity(pop); popularityRef.current = pop
+    const disc = ch.discovery ?? 50; setDiscovery(disc); exploreModeRef.current = disc
+
+    setActiveChannelId(ch.id); activeChannelIdRef.current = ch.id
+    localStorage.setItem(ACTIVE_CHANNEL_KEY, ch.id)
+  }, [dedupeHistory])
+
+  const switchChannel = useCallback((id: string) => {
+    if (id === activeChannelIdRef.current) return
+    const saved = snapshotCurrentChannel()
+    const target = saved.find(c => c.id === id)
+    if (!target) return
+    const updated = saved
+    setChannels(updated); channelsRef.current = updated
+    saveChannels(updated)
+    loadChannelIntoState(target)
+  }, [snapshotCurrentChannel, loadChannelIntoState])
+
+  const createChannel = useCallback(() => {
+    const saved = snapshotCurrentChannel()
+    const id = genChannelId()
+    const fresh: Channel = { id, name: 'New Channel', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', createdAt: Date.now() }
+    const updated = [...saved, fresh]
+    setChannels(updated); channelsRef.current = updated
+    saveChannels(updated)
+    loadChannelIntoState(fresh)
+  }, [snapshotCurrentChannel, loadChannelIntoState])
+
+  const deleteChannel = useCallback((id: string) => {
+    let updated = channelsRef.current.filter(c => c.id !== id)
+    if (updated.length === 0) {
+      const newId = genChannelId()
+      updated = [{ id: newId, name: 'New Channel', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', createdAt: Date.now() }]
+    }
+    setChannels(updated); channelsRef.current = updated
+    saveChannels(updated)
+    if (id === activeChannelIdRef.current) {
+      loadChannelIntoState(updated[0])
+    }
+  }, [loadChannelIntoState])
+
+  const renameChannel = useCallback((id: string, name: string) => {
+    setChannels(prev => {
+      const updated = prev.map(ch => ch.id === id ? { ...ch, name: name.trim() || ch.name, isAutoNamed: false } : ch)
+      channelsRef.current = updated
+      saveChannels(updated)
+      return updated
+    })
+  }, [])
 
   // Restore backoff timer from localStorage on mount
   useEffect(() => {
@@ -285,38 +443,79 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     return () => { canceled = true }
   }, [])
 
-  // ── Load history from localStorage ───────────────────────────────────────
+  // ── Load channels and history from localStorage ──────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const saved = localStorage.getItem(HISTORY_STORAGE_KEY)
-    if (!saved) { setHistoryReady(true); return }
+    let chs = loadChannels()
+    let activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY) ?? ''
+
+    // Migrate legacy earprint-history into a default channel
+    if (chs.length === 0) {
+      let legacyHistory: HistoryEntry[] = []
+      try {
+        const raw = localStorage.getItem(HISTORY_STORAGE_KEY)
+        if (raw) legacyHistory = JSON.parse(raw)
+      } catch {}
+      const id = genChannelId()
+      const name = deriveChannelName(legacyHistory, '') || 'My Music'
+      const events = legacyHistory.map(({ track, artist, percentListened, reaction, coords }) => ({ track, artist, percentListened, reaction, coords }))
+      const ch: Channel = { id, name, isAutoNamed: true, cardHistory: legacyHistory, sessionHistory: events, profile: '', createdAt: Date.now() }
+      chs = [ch]
+      saveChannels(chs)
+      activeId = id
+      localStorage.setItem(ACTIVE_CHANNEL_KEY, id)
+    }
+
+    if (!activeId || !chs.find(c => c.id === activeId)) {
+      activeId = chs[0].id
+      localStorage.setItem(ACTIVE_CHANNEL_KEY, activeId)
+    }
+
+    const active = chs.find(c => c.id === activeId)!
     try {
-      const entries: HistoryEntry[] = JSON.parse(saved)
-      const deduped = dedupeHistory(entries)
-      const events = deduped.map(({ track, artist, percentListened, reaction, coords }) => ({
-        track, artist, percentListened, reaction, coords,
-      }))
+      const deduped = dedupeHistory(active.cardHistory)
       setCardHistory(deduped)
       cardHistoryRef.current = deduped
-      // Load full history as session context for the first LLM call
-      setSessionHistory(events)
-      sessionHistoryRef.current = events
-    } catch {
-      // ignore corrupt data
-    } finally {
-      setHistoryReady(true)
-    }
+      setSessionHistory(active.sessionHistory)
+      sessionHistoryRef.current = active.sessionHistory
+      if (active.profile) {
+        setPriorProfile(active.profile)
+        priorProfileRef.current = active.profile
+        setProfile(active.profile)
+      }
+      // Restore channel settings if present
+      if (active.genres) { setGenres(active.genres); genresRef.current = active.genres }
+      if (active.genreText !== undefined) { setGenreText(active.genreText); genreTextRef.current = active.genreText }
+      if (active.timePeriod !== undefined) { setTimePeriod(active.timePeriod); timePeriodRef.current = active.timePeriod }
+      if (active.notes !== undefined) { setNotes(active.notes); notesRef.current = active.notes }
+      if (active.regions) { setRegions(active.regions); regionsRef.current = active.regions }
+      if (active.popularity !== undefined) { setPopularity(active.popularity); popularityRef.current = active.popularity }
+      if (active.discovery !== undefined) { setDiscovery(active.discovery); exploreModeRef.current = active.discovery }
+    } catch {}
+
+    setChannels(chs)
+    channelsRef.current = chs
+    setActiveChannelId(activeId)
+    activeChannelIdRef.current = activeId
+    setHistoryReady(true)
   }, [dedupeHistory])
 
-  // ── Persist history ───────────────────────────────────────────────────────
+  // ── Persist active channel data on change ─────────────────────────────────
   useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (cardHistory.length === 0) {
-      localStorage.removeItem(HISTORY_STORAGE_KEY)
-      return
-    }
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(cardHistory))
-  }, [cardHistory])
+    if (!activeChannelId || typeof window === 'undefined') return
+    setChannels(prev => {
+      const updated = prev.map(ch => {
+        if (ch.id !== activeChannelId) return ch
+        const autoName = deriveChannelName(cardHistory, profile)
+        const name = ch.isAutoNamed && autoName ? autoName : ch.name
+        return { ...ch, name, cardHistory, profile }
+      })
+      channelsRef.current = updated
+      saveChannels(updated)
+      return updated
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cardHistory, profile, activeChannelId])
 
   // ── Spotify SDK ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -447,11 +646,24 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const playTrack = useCallback(async (uri: string) => {
     const dId = deviceIdRef.current
     if (!dId) return
-    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${dId}`, {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uris: [uri] }),
-    })
+    const doPlay = async (token: string) =>
+      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${dId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uris: [uri] }),
+      })
+    let res = await doPlay(accessTokenRef.current)
+    if (res.status === 401) {
+      // Token stale — refresh and retry once
+      const data = await fetch('/api/spotify/token').then(r => r.json()).catch(() => ({}))
+      if (data.accessToken) {
+        accessTokenRef.current = data.accessToken
+        res = await doPlay(data.accessToken)
+      }
+    }
+    if (!res.ok) {
+      console.warn('playTrack failed', res.status, uri)
+    }
   }, [])
 
   const togglePlayback = useCallback(() => {
@@ -470,6 +682,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       if (pendingFadeInRef.current && player) {
         pendingFadeInRef.current = false
         await player.setVolume(0)
+        await player.pause()
         await playTrack(currentCard.track.uri)
         await fadeVolume(player, 0, 1)
       } else {
@@ -666,8 +879,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     ) => {
     // Synchronous guard: prevent concurrent fetches unless explicitly forced
     // (force is used for constraint changes, retry, and start-fresh)
-    if (!force && fetchingRef.current) {
-      console.info('fetchToBuffer: skipping, fetch already in flight')
+    if (!force && (fetchingRef.current || resolvingRef.current)) {
+      console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
       return
     }
 
@@ -678,7 +891,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       const { log } = readStats()
       const now = Date.now()
       const recent = log.filter(e => e.t >= now - 30_000).reduce((s, e) => s + e.n, 0)
-      const threshold = force ? 75 : 60
+      const threshold = force ? 20 : 15
       if (recent >= threshold) {
         console.info('fetchToBuffer: skipping, approaching Spotify rate limit', recent, '/30s', force ? '(forced)' : '')
         return
@@ -1136,6 +1349,60 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
 <Link href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
         </div>
       </div>
+      {/* Channel tabs */}
+      {channels.length > 0 && (
+        <div className="flex items-center gap-1 px-4 py-2 border-b border-zinc-900 overflow-x-auto">
+          {channels.map(ch => (
+            <div
+              key={ch.id}
+              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-colors flex-shrink-0 ${
+                ch.id === activeChannelId
+                  ? 'bg-zinc-800 border-zinc-600 text-white'
+                  : 'border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+              }`}
+            >
+              {editingChannelId === ch.id ? (
+                <input
+                  className="bg-transparent outline-none w-28 text-white"
+                  value={editingChannelName}
+                  onChange={e => setEditingChannelName(e.target.value)}
+                  onBlur={() => { renameChannel(ch.id, editingChannelName); setEditingChannelId(null) }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { renameChannel(ch.id, editingChannelName); setEditingChannelId(null) }
+                    if (e.key === 'Escape') setEditingChannelId(null)
+                  }}
+                  autoFocus
+                />
+              ) : (
+                <span
+                  className={ch.id === activeChannelId ? 'cursor-text' : 'cursor-pointer'}
+                  onClick={() => {
+                    if (ch.id === activeChannelId) {
+                      setEditingChannelId(ch.id)
+                      setEditingChannelName(ch.name)
+                    } else {
+                      switchChannel(ch.id)
+                    }
+                  }}
+                >
+                  {ch.name}
+                </span>
+              )}
+              {channels.length > 1 && (
+                <button
+                  onClick={e => { e.stopPropagation(); deleteChannel(ch.id) }}
+                  className="text-zinc-600 hover:text-red-400 ml-1 leading-none transition-colors"
+                >×</button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={createChannel}
+            className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
+          >+ New</button>
+        </div>
+      )}
+
       {spotifyStatusMessage && (
         <div className="px-6 py-2 bg-yellow-900 text-yellow-50 text-sm text-center">
           {spotifyStatusMessage} — <a href="/status" className="underline text-yellow-300 text-xs">view call stats</a>

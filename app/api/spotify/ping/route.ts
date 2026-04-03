@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { ACCESS_TOKEN_COOKIE_NAME, refreshSpotifyAccessToken, getAccessTokenExpiry, TOKEN_REFRESH_THRESHOLD_MS } from '@/app/lib/spotify/tokens'
+import { resetSpotifyState } from '@/app/lib/spotify/status'
 
 export async function GET() {
   const cookieStore = await cookies()
@@ -41,5 +42,6 @@ export async function GET() {
     return NextResponse.json({ ok: false, status: res.status, latencyMs, message: `Spotify returned ${res.status}` })
   }
 
+  resetSpotifyState()
   return NextResponse.json({ ok: true, status: 200, latencyMs, message: 'Spotify is responding normally' })
 }
