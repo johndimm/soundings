@@ -901,8 +901,10 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       return
     }
 
-    // Minimum cooldown between fetches to avoid triggering Spotify rate limits
-    if (!force) {
+    // Minimum cooldown between fetches to avoid triggering Spotify rate limits.
+    // Bypass if the queue is critically empty (nothing playing and nothing queued).
+    const queueTotal = (currentCardRef.current ? 1 : 0) + queueRef.current.length
+    if (!force && queueTotal >= 2) {
       const sinceLastFetch = Date.now() - lastFetchAtRef.current
       if (sinceLastFetch < FETCH_COOLDOWN_MS) {
         const remaining = FETCH_COOLDOWN_MS - sinceLastFetch
