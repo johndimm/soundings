@@ -294,6 +294,16 @@ class AuthError extends Error {
   }
 }
 
+/** Web Playback SDK can emit auth errors repeatedly; avoid a redirect storm on Vercel. */
+let spotifyLoginRedirectScheduled = false
+
+function redirectToSpotifyLogin(reason: string) {
+  if (typeof window === 'undefined' || spotifyLoginRedirectScheduled) return
+  spotifyLoginRedirectScheduled = true
+  console.warn('Spotify session: redirecting to login:', reason)
+  window.location.href = '/api/auth/login'
+}
+
 export default function PlayerClient({
   accessToken: initialAccessToken,
   guideDemo,
@@ -937,19 +947,22 @@ export default function PlayerClient({
       const p = new window.Spotify.Player({
         name: 'Earprint',
         getOAuthToken: cb => {
-          fetch('/api/spotify/token')
-            .then(r => r.json())
-            .then(d => {
+          fetch('/api/spotify/token', { credentials: 'same-origin', cache: 'no-store' })
+            .then(async r => {
+              if (!r.ok) {
+                redirectToSpotifyLogin(`token HTTP ${r.status}`)
+                return
+              }
+              const d = (await r.json()) as { accessToken?: string }
               if (d.accessToken) {
                 accessTokenRef.current = d.accessToken
                 cb(d.accessToken)
               } else {
-                // No valid token — redirect to login rather than passing a stale token
-                window.location.href = '/api/auth/login'
+                redirectToSpotifyLogin('token response missing accessToken')
               }
             })
             .catch(() => {
-              window.location.href = '/api/auth/login'
+              redirectToSpotifyLogin('token fetch failed')
             })
         },
         volume: 0.8,
@@ -970,7 +983,7 @@ export default function PlayerClient({
       p.addListener('authentication_error', () => {
         console.error('Spotify SDK: authentication_error — redirecting to login')
         playerRef.current?.disconnect()
-        window.location.href = '/api/auth/login'
+        redirectToSpotifyLogin('sdk authentication_error')
       })
 
       p.connect()

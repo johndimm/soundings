@@ -1,4 +1,4 @@
-import { redirect } from 'next/navigation'
+import { NextResponse } from 'next/server'
 
 const SCOPES = [
   'streaming',
@@ -7,6 +7,8 @@ const SCOPES = [
   'user-modify-playback-state',
   'user-read-playback-state',
 ].join(' ')
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   const clientId = process.env.SPOTIFY_CLIENT_ID!
@@ -21,5 +23,5 @@ export async function GET() {
     state,
   })
 
-  redirect(`https://accounts.spotify.com/authorize?${params}`)
+  return NextResponse.redirect(`https://accounts.spotify.com/authorize?${params}`)
 }

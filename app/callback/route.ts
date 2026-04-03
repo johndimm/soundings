@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { storeSpotifyTokens, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
+export const dynamic = 'force-dynamic'
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const code = searchParams.get('code')
@@ -47,11 +49,9 @@ export async function GET(req: NextRequest) {
   storeSpotifyTokens(cookieStore, tokens)
   console.info('callback: cookies set, redirecting to player')
 
-  const html = `<!DOCTYPE html><html><head>
-<script>window.location.replace('/player')</script>
-</head><body>Redirecting...</body></html>`
-  return new NextResponse(html, {
-    status: 200,
-    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' },
+  // NextResponse.redirect merges Set-Cookie from cookies() — more reliable on Vercel than HTML+JS navigation.
+  return NextResponse.redirect(new URL('/player', req.url), {
+    status: 302,
+    headers: { 'Cache-Control': 'no-store' },
   })
 }
