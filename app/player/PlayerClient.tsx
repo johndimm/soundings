@@ -136,6 +136,7 @@ interface CardState {
   reason: string
   category?: string
   coords?: { x: number; y: number }
+  composed?: number
 }
 
 function formatMs(ms: number): string {
@@ -227,6 +228,10 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const [activeChannelId, setActiveChannelId] = useState<string>('')
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const [editingChannelName, setEditingChannelName] = useState('')
+  const [settingsDirty, setSettingsDirty] = useState(false)
+  const settingsInitRef = useRef(false)
+  const [cooldownTick, setCooldownTick] = useState(0)
+  const cooldownRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const dedupeHistory = useCallback((entries: HistoryEntry[]) => {
     const map = new Map<string, HistoryEntry>()
@@ -272,6 +277,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
   const profileGenRef = useRef(0)
   const channelsRef = useRef<Channel[]>([])
   const activeChannelIdRef = useRef<string>('')
+  const lastFetchAtRef = useRef<number>(0)
+  const FETCH_COOLDOWN_MS = 15_000
 
   // ── Channel management ───────────────────────────────────────────────────
 
@@ -421,6 +428,12 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
     } catch {}
   }, [genres, genreText, timePeriod, notes, regions, popularity, provider, discovery])
+
+  // Mark settings dirty after initial load
+  useEffect(() => {
+    if (!settingsInitRef.current) { settingsInitRef.current = true; return }
+    setSettingsDirty(true)
+  }, [notes, genreText, timePeriod, genres, regions, popularity, discovery])
 
   // Fetch Spotify user info once on mount
   useEffect(() => {
@@ -760,11 +773,12 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
 
       const data = await res.json()
       const cards: CardState[] = (data.songs ?? []).map(
-        (s: { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number } }) => ({
+        (s: { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }) => ({
           track: s.track,
           reason: s.reason,
           category: s.category,
           coords: s.coords,
+          composed: s.composed,
         })
       )
       recordFetch(cards.length || 1)
@@ -849,8 +863,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
         setPendingSuggestions([])
         pendingSuggestionsRef.current = []
         if (!data?.songs) return
-        const newCards: CardState[] = (data.songs as { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number } }[])
-          .map(s => ({ track: s.track, reason: s.reason, category: s.category, coords: s.coords }))
+        const newCards: CardState[] = (data.songs as { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[])
+          .map(s => ({ track: s.track, reason: s.reason, category: s.category, coords: s.coords, composed: s.composed }))
         const excludeUris = new Set<string>([
           ...playedUrisRef.current,
           ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
@@ -887,6 +901,22 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       return
     }
 
+    // Minimum cooldown between fetches to avoid triggering Spotify rate limits
+    if (!force) {
+      const sinceLastFetch = Date.now() - lastFetchAtRef.current
+      if (sinceLastFetch < FETCH_COOLDOWN_MS) {
+        const remaining = FETCH_COOLDOWN_MS - sinceLastFetch
+        console.info('fetchToBuffer: skipping, cooldown', Math.round(remaining / 1000), 's remaining')
+        if (!cooldownRetryTimerRef.current) {
+          cooldownRetryTimerRef.current = setTimeout(() => {
+            cooldownRetryTimerRef.current = null
+            setCooldownTick(t => t + 1)
+          }, remaining)
+        }
+        return
+      }
+    }
+
     // Client-side pre-flight rate limit check: each fetch costs ~3 Spotify calls.
     // Background fetches skip at 60/30s (2/3 of limit).
     // Forced fetches (constraint changes, retries) skip at 75/30s (5/6 of limit).
@@ -901,6 +931,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       }
     }
     fetchingRef.current = true
+    lastFetchAtRef.current = Date.now()
+    setSettingsDirty(false)
     const gen = ++fetchGenRef.current
     console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, bufferLen: llmBufferRef.current.length })
     const sentHistory = [...sessionHistoryRef.current]
@@ -975,14 +1007,17 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
         }
 
         if (gen === fetchGenRef.current && !currentCardRef.current && llmBufferRef.current.length === 0) {
-          setError('Could not load songs. Try again.')
+          setError('Could not load songs — LLM may be unavailable. Will retry.')
         }
-        // Back off on generic errors to prevent hammering the API
-        const waitMs = RATE_LIMIT_DEFAULT_WAIT_MS
-        const until = Date.now() + waitMs
-        setBackoffUntil(until)
+        // Back off on generic errors (e.g. LLM down) without touching backoffUntil.
+        // Re-acquire the fetch lock so finally() doesn't release it, then release after delay.
+        fetchingRef.current = true
         if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
-        backoffTimerRef.current = setTimeout(() => setBackoffUntil(null), waitMs)
+        backoffTimerRef.current = setTimeout(() => {
+          fetchingRef.current = false
+          setLoadingQueue(false)
+          setError(null)
+        }, RATE_LIMIT_DEFAULT_WAIT_MS)
       })
       .finally(() => {
         // Only the winning generation releases the lock.
@@ -1004,7 +1039,10 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     if (needed <= 0 || buf.length === 0) return
     const toAdd = buf.slice(0, needed)
     const remaining = buf.slice(needed)
-    const seen = new Set<string>()
+    const seen = new Set<string>([
+      ...playedUrisRef.current,
+      ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
+    ])
     if (currentCardRef.current) {
       seen.add(currentCardRef.current.track.uri)
     }
@@ -1076,6 +1114,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     backoffUntil,
     pendingSuggestions.length,
     resolvePending,
+    cooldownTick,
   ])
 
   // ── Record a rating (log it + fire LLM prefetch, but do NOT advance) ─────
@@ -1349,6 +1388,8 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
         <div className="flex gap-3 items-center">
           <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Map ↗</Link>
           <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Status</a>
+          <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Guide</a>
+          <a href="/diary.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Diary</a>
 <Link href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
         </div>
       </div>
@@ -1407,8 +1448,25 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       )}
 
       {spotifyStatusMessage && (
-        <div className="px-6 py-2 bg-yellow-900 text-yellow-50 text-sm text-center">
-          {spotifyStatusMessage} — <a href="/status" className="underline text-yellow-300 text-xs">view call stats</a>
+        <div className="px-6 py-2 bg-yellow-900 text-yellow-50 text-sm text-center flex items-center justify-center gap-3">
+          <span>{spotifyStatusMessage}</span>
+          <button
+            className="underline text-yellow-300 text-xs hover:text-yellow-100"
+            onClick={async () => {
+              const res = await fetch('/api/spotify/ping').then(r => r.json()).catch(() => null)
+              if (res?.ok) {
+                setBackoffUntil(null)
+                setError(null)
+                if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
+                try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
+              } else if (res?.retryAfterMs) {
+                const until = Date.now() + res.retryAfterMs + 5_000
+                setBackoffUntil(until)
+                try { localStorage.setItem('spotifyRateLimitUntil', String(until)) } catch {}
+              }
+            }}
+          >Try now</button>
+          <a href="/status" className="underline text-yellow-300 text-xs hover:text-yellow-100">stats</a>
         </div>
       )}
       {playResponse && (
@@ -1483,9 +1541,9 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
 
           {currentCard && (
             <>
-              {/* Vertical grade slider — right side */}
+              {/* Vertical grade slider — right side, aligned with Next button */}
               <div
-                className="absolute right-4 top-1/2 -translate-y-1/2 flex flex-col items-center gap-2 z-10"
+                className="absolute right-4 bottom-5 flex flex-col items-center gap-2 z-10"
                 onClick={e => e.stopPropagation()}
               >
                 <span className="text-white text-xs font-bold tabular-nums bg-black/40 px-1 rounded">
@@ -1532,7 +1590,12 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
                 >
                   {currentCard.track.name}
                 </a>
-                <p className="text-zinc-300 text-sm truncate">{currentCard.track.artist}</p>
+                <p className="text-zinc-300 text-sm truncate">
+                  {currentCard.track.artist}
+                  {(currentCard.composed ?? currentCard.track.releaseYear) && (
+                    <span className="text-zinc-500 ml-2">{currentCard.composed ?? currentCard.track.releaseYear}</span>
+                  )}
+                </p>
                 <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
                   {currentCard.reason}
                 </p>
@@ -1628,6 +1691,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
             onPopularityChange={setPopularity}
             discovery={discovery}
             onDiscoveryChange={setDiscovery}
+            settingsDirty={settingsDirty}
             onRemoveMultiple={handleRemoveMultiple}
             onRateHistoryItem={handleRateHistoryItem}
             submittedUris={submittedUris}

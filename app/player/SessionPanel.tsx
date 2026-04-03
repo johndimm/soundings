@@ -68,6 +68,7 @@ interface Props {
   onPlayHistoryItem: (uri: string | null) => void
   submittedUris: Set<string>
   pendingSuggestions: { search: string; reason: string }[]
+  settingsDirty: boolean
 }
 
 const SECTION_STYLES: Record<string, { label: string; labelColor: string; textColor: string; border: string }> = {
@@ -154,6 +155,7 @@ export default function SessionPanel({
   onDiscoveryChange,
   submittedUris,
   pendingSuggestions,
+  settingsDirty,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -280,7 +282,10 @@ export default function SessionPanel({
       {/* Discovery slider */}
       <div className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">Discovery</label>
+          <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+            Discovery
+            {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+          </label>
           <span className="text-xs text-zinc-400">
             {discovery <= 20 ? 'Familiar' : discovery <= 40 ? 'Mostly familiar' : discovery <= 60 ? 'Balanced' : discovery <= 80 ? 'Mostly new' : 'Adventurous'}
           </span>
@@ -301,7 +306,10 @@ export default function SessionPanel({
 
       {/* Genre selector */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Genres</label>
+        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+          Genres
+          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+        </label>
         <div className="flex flex-wrap gap-1.5">
           {GENRE_OPTIONS.map(g => (
             <button
@@ -327,7 +335,10 @@ export default function SessionPanel({
 
       {/* World region */}
       <div className="flex flex-col gap-2">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Region</label>
+        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+          Region
+          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+        </label>
         <div className="flex flex-wrap gap-1.5">
           {REGION_OPTIONS.map(r => (
             <button
@@ -347,7 +358,10 @@ export default function SessionPanel({
 
       {/* Time period */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Time period</label>
+        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+          Time period
+          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+        </label>
         <input
           value={timePeriod}
           onChange={e => onTimePeriodChange(e.target.value)}
@@ -380,7 +394,10 @@ export default function SessionPanel({
 
       {/* Notes */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Tell the DJ</label>
+        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+          Tell the DJ
+          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+        </label>
         <textarea
           value={notes}
           onChange={e => onNotesChange(e.target.value)}

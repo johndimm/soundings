@@ -161,13 +161,13 @@ export async function POST(req: NextRequest) {
   return Response.json({ songs: foundSongs, profile })
 }
 
-const SEARCH_DELAY_MS = 400
+const SEARCH_DELAY_MS = 1500
 
 function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-type FoundSong = { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number } }
+type FoundSong = { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }
 
 function buildTrackKey(track: SpotifyTrack) {
   return `${track.name.toLowerCase()}|${track.artist.toLowerCase()}`
@@ -196,7 +196,7 @@ function trackIsDuplicate(
 }
 
 async function resolveSongs(
-  songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number } }[],
+  songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number }; composed?: number }[],
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
   sessionHistory: ListenEvent[]
@@ -223,6 +223,7 @@ async function resolveSongs(
   const idToReason = new Map<string, string>()
   const idToCategory = new Map<string, string>()
   const idToCoords = new Map<string, { x: number; y: number }>()
+  const idToComposed = new Map<string, number>()
   const ids: string[] = []
   const idlessSongs = songs.filter(song => !(song.spotifyId?.trim()))
   for (const song of songs) {
@@ -232,6 +233,7 @@ async function resolveSongs(
       idToReason.set(id, song.reason)
       if (song.category) idToCategory.set(id, song.category)
       if (song.coords) idToCoords.set(id, song.coords)
+      if (song.composed) idToComposed.set(id, song.composed)
       ids.push(id)
     }
   }
@@ -255,7 +257,8 @@ async function resolveSongs(
         const reason = idToReason.get(track.id) ?? 'Spotify batch match'
         const category = idToCategory.get(track.id)
         const coords = idToCoords.get(track.id)
-        results.push({ track, reason, category, coords })
+        const composed = idToComposed.get(track.id)
+        results.push({ track, reason, category, coords, composed })
       })
         fallbackSongs = idlessSongs.slice()
       } else {
@@ -286,7 +289,7 @@ async function resolveSongs(
 }
 
 async function searchSongsSequential(
-  songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number } }[],
+  songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[],
   accessToken: string,
   seenHistory: Set<string>,
   produced: Set<string>,
@@ -314,7 +317,7 @@ async function searchSongsSequential(
       if (trackIsDuplicate(response.track, seenHistory, produced, producedArtists)) {
         continue
       }
-      results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords })
+      results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed })
     }
 
     await sleep(SEARCH_DELAY_MS)

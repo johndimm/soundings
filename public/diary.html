@@ -20,6 +20,80 @@
 <body>
 <h1>Earprint Dev Diary</h1>
 
+<h2>2026-04-03</h2>
+
+<h3>Problem: "Joseph Haydn 2021" — release year meaningless for classical music</h3>
+<ul>
+  <li class="problem">Spotify's <code>album.release_date</code> reflects when a recording was issued on Spotify, not when the music was written. A Haydn symphony shows "2021"; a Mozart concerto shows "2019". The year displayed to the user was useless for classical repertoire.</li>
+</ul>
+
+<h3 class="fix">Fix: Composition year via LLM</h3>
+<ul>
+  <li class="fix">Added <code>composed?: number</code> to the <code>SongSuggestion</code> interface in <code>app/lib/llm.ts</code>.</li>
+  <li class="fix">Updated the LLM system prompt JSON example to include <code>"composed":1791</code> with the instruction: "omit for contemporary recordings where the release year is meaningful."</li>
+  <li class="fix">Updated <code>parseLLMResponse</code> to extract and validate the <code>composed</code> field.</li>
+  <li class="fix">Added <code>composed?: number</code> to <code>CardState</code> in <code>PlayerClient.tsx</code> and threaded it through <code>fetchCards</code>, <code>resolvePending</code>, and the player display.</li>
+  <li class="fix">Display logic: <code>currentCard.composed ?? currentCard.track.releaseYear</code> — composition year takes priority; falls back to Spotify release year for contemporary tracks.</li>
+  <li class="fix">Also threaded <code>composed</code> through <code>route.ts</code>: added to <code>FoundSong</code> type, <code>idToComposed</code> map for batch lookup path, and <code>searchSongsSequential</code> parameter type.</li>
+</ul>
+
+<h3 class="problem">Problem: Build error from stray line outside template literal</h3>
+<ul>
+  <li class="problem">The <code>composed</code> instruction was accidentally placed outside the closing backtick of the LLM <code>SYSTEM_PROMPT</code> template literal. Turbopack reported: <em>"Expected ';', '}' or &lt;eof&gt; … The 'composed' field is the year of composition…"</em></li>
+  <li class="fix">Moved the sentence inside the template literal before the closing backtick.</li>
+</ul>
+
+<h3 class="problem">Problem: TypeScript error — <code>composed</code> not on <code>resolveSongs</code> parameter type</h3>
+<ul>
+  <li class="problem"><code>resolveSongs()</code> declared its <code>songs</code> parameter without <code>composed</code>, so <code>idToComposed.set(id, song.composed)</code> failed type-checking: <em>"Property 'composed' does not exist on type…"</em></li>
+  <li class="fix">Added <code>composed?: number</code> to the inline type for both <code>resolveSongs</code> and <code>searchSongsSequential</code> parameter signatures.</li>
+</ul>
+
+<h3>Channels</h3>
+<ul>
+  <li class="fix">Added named channel system. Each channel independently stores: listen history, session history, AI taste profile, and all settings (Discovery, Genres, Region, Time period, Popularity, Tell the DJ).</li>
+  <li class="fix">Channel tab bar between header and body. Click to switch; click active channel name to rename (Enter/Escape); × to delete (blocked if only one channel remains).</li>
+  <li class="fix">Auto-naming: channel name derived from top-2 genre categories heard, falling back to genre keywords extracted from the profile text.</li>
+  <li class="fix">Legacy migration: existing <code>earprint-history</code> data automatically imported as the first channel on first load.</li>
+  <li class="fix">Persistence: two <code>localStorage</code> keys — <code>earprint-channels</code> (array) and <code>earprint-active-channel</code> (active channel ID).</li>
+</ul>
+
+<h3>Rating editor improvements</h3>
+<ul>
+  <li class="fix">Heard list rating slider: widened from 56px to 96px, shows percentage, colored accent (green ≥75%, red &lt;45%, neutral in between), height 14→16px.</li>
+</ul>
+
+<h3>Settings "queued" indicator</h3>
+<ul>
+  <li class="fix">Discovery, Genres, Region, Time period, and Tell the DJ labels show <code>· queued</code> in amber when they've been changed but not yet sent in an LLM call. Cleared when <code>fetchToBuffer</code> fires.</li>
+</ul>
+
+<h3>Other UX fixes</h3>
+<ul>
+  <li class="fix">Persistent ▶/⏸ indicator in top-right of album art (always visible, not just on hover).</li>
+  <li class="fix">Release year displayed next to artist name (dimmed). Composition year takes priority over release year for classical/jazz.</li>
+  <li class="fix">Album art pan animation slowed from 20s to 60s.</li>
+  <li class="fix">Mobile portrait support: <code>min-w-[900px]</code> on root div + viewport pinch-to-zoom enabled.</li>
+  <li class="fix">Spotify <code>authentication_error</code> now redirects to <code>/api/auth/login</code> instead of showing a dead screen.</li>
+  <li class="fix"><code>getOAuthToken</code> redirects to login instead of calling callback with a stale token.</li>
+  <li class="fix">"Try now" button in rate limit banner pings Spotify and clears React <code>backoffUntil</code> state immediately on success.</li>
+  <li class="fix">Race condition: old song playing while new artwork was visible. Fixed by calling <code>player.pause()</code> before starting playback of new track.</li>
+</ul>
+
+<h3>Rate limiting hardening</h3>
+<ul>
+  <li class="fix">Persistent search cache: <code>.spotify-cache.json</code> survives server restarts. Previously cache was in-memory and lost on every restart.</li>
+  <li class="fix">1s server-side throttle between any two real Spotify API calls (<code>throttledFetch</code>).</li>
+  <li class="fix">1.5s delay between sequential text searches (was 400ms).</li>
+  <li class="fix">15s minimum between <code>fetchToBuffer</code> calls (<code>FETCH_COOLDOWN_MS</code>).</li>
+  <li class="fix">+5s jitter on client-side backoff timer after rate limit.</li>
+  <li class="fix">Pre-flight threshold lowered: refill triggers at 15 buffered (was 60).</li>
+  <li class="fix">Concurrent fetch guard: <code>resolvingRef</code> checked in <code>fetchToBuffer</code> to prevent overlapping calls.</li>
+  <li class="fix">LLM errors (DeepSeek 502, Gemini 403) no longer set Spotify <code>backoffUntil</code>. Instead: hold <code>fetchingRef</code> for 30s and show "LLM may be unavailable. Will retry." banner — keeps Spotify available.</li>
+  <li class="fix">Batch endpoint 403/401: falls back to text search instead of hard auth failure.</li>
+  <li class="fix">Ping endpoint (<code>/api/spotify/ping</code>) calls <code>resetSpotifyState()</code> on success, clearing server-side rate limit timer.</li>
+</ul>
+
 <h2>2026-04-01</h2>
 
 <h3>Problem: Spotify rate limiting — stats show nothing</h3>

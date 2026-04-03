@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Earprint User Guide</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+    background: #111;
+    color: #ccc;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+  a { color: #1db954; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  h1 { color: #1db954; font-size: 2rem; margin-bottom: 0.25rem; }
+  .subtitle { color: #555; font-size: 0.9rem; margin-bottom: 2.5rem; }
+
+  h2 {
+    color: #fff;
+    font-size: 1.2rem;
+    border-bottom: 1px solid #2a2a2a;
+    padding-bottom: 0.4rem;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+  }
+  h3 {
+    color: #1db954;
+    font-size: 0.95rem;
+    font-weight: 600;
+    margin-top: 1.8rem;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  p { margin: 0.6rem 0 1rem; color: #bbb; }
+
+  ul, ol { padding-left: 1.4rem; margin: 0.5rem 0 1rem; }
+  li { margin: 0.35rem 0; color: #bbb; }
+
+  strong { color: #e8e8e8; }
+  em { color: #aaa; font-style: italic; }
+  code {
+    background: #1e1e1e;
+    border: 1px solid #2a2a2a;
+    padding: 0.1em 0.4em;
+    border-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.85em;
+    color: #1db954;
+  }
+
+  hr { border: none; border-top: 1px solid #1e1e1e; margin: 2.5rem 0; }
+
+  .quickstart {
+    background: #0a1f10;
+    border: 1px solid #1db954;
+    border-radius: 10px;
+    padding: 1.4rem 1.6rem;
+    margin: 1.5rem 0 2.5rem;
+  }
+  .quickstart-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #1db954;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+  }
+  .quickstart p { color: #ccc; margin: 0.4rem 0; }
+  .quickstart strong { color: #fff; }
+
+  blockquote {
+    margin: 1rem 0;
+    padding: 0.8rem 1.2rem;
+    background: #1a1a1a;
+    border-left: 3px solid #1db954;
+    border-radius: 0 6px 6px 0;
+    color: #aaa;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.9em;
+  }
+  blockquote code { background: none; border: none; padding: 0; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0 1.5rem;
+    font-size: 0.9em;
+  }
+  th {
+    text-align: left;
+    color: #888;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #2a2a2a;
+  }
+  td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid #1a1a1a;
+    color: #bbb;
+    vertical-align: top;
+  }
+  td:first-child { color: #e8e8e8; font-weight: 500; white-space: nowrap; }
+  td code { font-size: 0.82em; }
+  tr:last-child td { border-bottom: none; }
+
+  .screenshot {
+    display: block;
+    margin: 1rem 0 1.5rem;
+    padding: 0.6rem 1rem;
+    background: #1a1a1a;
+    border: 1px dashed #2e2e2e;
+    border-radius: 6px;
+    color: #444;
+    font-size: 0.82rem;
+    font-style: italic;
+  }
+  .screenshot::before { content: '📷 '; }
+
+  .toc {
+    background: #161616;
+    border: 1px solid #222;
+    border-radius: 8px;
+    padding: 1.2rem 1.5rem;
+    margin: 2rem 0 2.5rem;
+  }
+  .toc-title {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+    margin-bottom: 0.75rem;
+  }
+  .toc ol { margin: 0; padding-left: 1.2rem; }
+  .toc li { margin: 0.25rem 0; font-size: 0.9rem; }
+  .toc a { color: #888; }
+  .toc a:hover { color: #1db954; }
+
+  .pill {
+    display: inline-block;
+    padding: 0.15em 0.55em;
+    border-radius: 999px;
+    font-size: 0.75em;
+    font-weight: 600;
+    vertical-align: middle;
+    margin: 0 0.1em;
+  }
+  .pill-green { background: #14532d; color: #4ade80; }
+  .pill-red   { background: #450a0a; color: #f87171; }
+  .pill-gray  { background: #27272a; color: #a1a1aa; }
+  .pill-amber { background: #451a03; color: #fbbf24; }
+
+  .nav { color: #444; font-size: 0.85rem; margin-bottom: 2rem; }
+  .nav a { color: #555; }
+  .nav a:hover { color: #1db954; }
+</style>
+</head>
+<body>
+
+<p class="nav"><a href="/player">← Back to player</a> · <a href="/diary.html">Dev diary</a></p>
+
+<h1>Earprint</h1>
+<p class="subtitle">User guide</p>
+
+<p>Earprint is a music discovery app that uses an AI DJ to learn your taste and find music you don't know yet. It plays directly through Spotify — you need a Spotify Premium account.</p>
+
+<div class="quickstart">
+  <div class="quickstart-label">Quick start</div>
+  <p>All you really need is the <strong>Next button</strong>. Press it when you hear something you don't like — skipping early gives the song a low score. If you let a song play to the end, it gets a high score.</p>
+  <p>The DJ will probe your taste, notice what you skip and what you finish, and gradually zero in on music you like. If you want to be more precise, drag the <strong>rating slider</strong> on the right edge of the album art — it overrides the automatic score derived from how long you listened. Everything else is optional: the controls just let you give hints to speed the process up.</p>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><a href="#how-it-works">How it works</a></li>
+    <li><a href="#player">The player</a></li>
+    <li><a href="#rating">Rating a track</a></li>
+    <li><a href="#reactions">How the DJ interprets ratings</a></li>
+    <li><a href="#sidebar">The sidebar</a></li>
+    <li><a href="#channels">Channels</a></li>
+    <li><a href="#map">The map</a></li>
+    <li><a href="#status">Status and rate limiting</a></li>
+    <li><a href="#mobile">Mobile</a></li>
+    <li><a href="#queued">Settings that aren't sent immediately</a></li>
+    <li><a href="#provider">LLM provider</a></li>
+  </ol>
+</div>
+
+<hr>
+
+<h2 id="how-it-works">How it works</h2>
+
+<p>When you open earprint, the AI DJ picks three songs from very different parts of the musical map and lines them up. As you listen and react, the DJ builds a picture of your taste and uses it to choose what comes next. The more you interact, the more accurate it gets. Everything is saved in your browser — no account needed.</p>
+
+<hr>
+
+<h2 id="player">The player</h2>
+
+<span class="screenshot">The full player — album art panel on the left, sidebar on the right</span>
+
+<h3>Album art panel</h3>
+
+<p>The left side is the album art, which slowly pans across the image while a song plays.</p>
+<ul>
+  <li><strong>Click anywhere on the art</strong> to pause or resume playback.</li>
+  <li><strong>▶ / ⏸ indicator</strong> — a small icon in the top-right corner tells you at a glance whether the song is playing or paused.</li>
+  <li><strong>Hover</strong> over the art to see "play" or "pause" as text over a dim overlay.</li>
+</ul>
+
+<span class="screenshot">Album art with ▶ indicator in top-right corner</span>
+
+<h3>Track info</h3>
+
+<p>At the bottom of the art panel:</p>
+<ul>
+  <li><strong>Song title</strong> — click it to open the track in Spotify.</li>
+  <li><strong>Artist</strong> and <strong>year</strong> — for contemporary recordings this is the release year; for classical music and jazz standards it shows the year of <em>composition</em> (e.g. "1785" for Mozart K. 475, not the CD release date).</li>
+  <li><strong>DJ's reason</strong> — a one-sentence note explaining why this song was picked: slot role, musical position, connection to your history.</li>
+</ul>
+
+<span class="screenshot">Track info area — title, artist, year, DJ reason</span>
+
+<h3>Progress bar</h3>
+
+<p>Below the track info is a scrubber. Drag it to seek. If you drag it all the way to the end, the app advances to the next song — same as pressing Next.</p>
+
+<h3>Next button</h3>
+
+<p>Press <strong>Next</strong> to move on. The current song fades out over ~700 ms and the next one begins.</p>
+<ul>
+  <li>If you haven't rated the current song, pressing Next logs it automatically: the percentage listened is used as the rating.</li>
+  <li>If the song finished naturally, it's logged as 100%.</li>
+</ul>
+
+<hr>
+
+<h2 id="rating">Rating a track</h2>
+
+<p>Rating is how you teach the DJ your taste. Higher = liked; lower = not for me. There are <strong>four ways</strong> to rate.</p>
+
+<h3>1. The vertical slider (on the album art)</h3>
+
+<span class="screenshot">Vertical slider on right edge of album art, showing "72%" and "rated" in green</span>
+
+<p>A vertical slider lives on the right edge of the album art. Drag it <strong>up</strong> to say you liked the song, <strong>down</strong> to say you didn't. The percentage is the rating. When you release, it locks in and "rate" turns green. You can adjust it multiple times — only the last value counts.</p>
+
+<h3>2. Pressing Next without rating</h3>
+
+<p>If you press Next without touching the slider, the app rates the song based on how much of it you listened to:</p>
+
+<blockquote><code>rating = (position / duration) × 100</code></blockquote>
+
+<p>Skip after 30% → recorded as 30%. Play to the end → recorded as 100%.</p>
+
+<h3>3. Playing a song to completion</h3>
+
+<p>The song auto-advances when playback reaches 98% of the duration. This counts as a 100% rating.</p>
+
+<h3>4. Editing past ratings in the Heard list</h3>
+
+<span class="screenshot">Heard section — a past song with its horizontal rating slider</span>
+
+<p>In the right panel under <strong>Heard</strong>, every song you've listened to has a small horizontal slider. Drag it left or right to revise the rating after the fact. The change is applied immediately to the session history the DJ uses — no save needed.</p>
+
+<p>The label next to each entry reflects the rating:</p>
+<ul>
+  <li><span class="pill pill-green">liked</span> — ≥ 70%</li>
+  <li><span class="pill pill-gray">ok</span> — 40–69%</li>
+  <li><span class="pill pill-red">nope</span> — &lt; 40%</li>
+</ul>
+
+<hr>
+
+<h2 id="reactions">How the DJ interprets ratings</h2>
+
+<p>The DJ maps your rating percentage to a reaction that shapes the next batch of suggestions:</p>
+
+<table>
+  <thead>
+    <tr><th>Rating</th><th>Reaction</th><th>Meaning to the DJ</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>≥ 80%</td>
+      <td><code>more-from-artist</code></td>
+      <td>Loved it. Slot 1 next round may be this artist or a close musical peer.</td>
+    </tr>
+    <tr>
+      <td>31–79%</td>
+      <td><code>move-on</code></td>
+      <td>Fine, but don't push it. Explore nearby territory.</td>
+    </tr>
+    <tr>
+      <td>≤ 30%</td>
+      <td><code>not-now</code></td>
+      <td>Skip this musical territory. Not the artist — just this sound.</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>A dislike is about the sonic character of the track, not a ban on the artist. The same artist may have songs in very different styles — those remain fair game.</p>
+
+<hr>
+
+<h2 id="sidebar">The sidebar</h2>
+
+<span class="screenshot">Full sidebar — Up next, taste profile, Discovery, Genres, Region, Time period, Popularity, Tell the DJ, Heard</span>
+
+<h3>Up next</h3>
+
+<p>Shows the songs queued for playback. Click any song to jump to it immediately. Click <strong>×</strong> next to a song to remove it from the queue.</p>
+
+<p>Below the confirmed queue, a <strong>"DJ is thinking…"</strong> section may appear showing song names and reasons the DJ has suggested but hasn't yet resolved to Spotify tracks. These become clickable once the Spotify lookup finishes.</p>
+
+<span class="screenshot">Up next — one confirmed track, two pending suggestions below</span>
+
+<h3>What I know about you</h3>
+
+<p>The DJ maintains a short paragraph describing your taste — genres, eras, moods, energy levels. It updates after each rating.</p>
+
+<p>Click <strong>edit</strong> to manually revise the profile. Useful if it's wrong, or if you want to steer the DJ in a different direction.</p>
+
+<h3>Discovery slider</h3>
+
+<span class="screenshot">Discovery slider set to "Mostly new"</span>
+
+<p>Controls how adventurous the DJ is:</p>
+<ul>
+  <li><strong>Familiar</strong> (left) — stay close to regions of the map you've already liked</li>
+  <li><strong>Adventurous</strong> (right) — prioritize unexplored territory and surprises</li>
+</ul>
+<p>The label updates as you move: Familiar → Mostly familiar → Balanced → Mostly new → Adventurous.</p>
+<p>Changes take effect on the <strong>next LLM call</strong>. When staged, a small <span class="pill pill-amber">· queued</span> tag appears next to the label.</p>
+
+<h3>Genres</h3>
+
+<span class="screenshot">Genre chips — "Jazz" and "Electronic" selected (white filled)</span>
+
+<p>Click genre chips to constrain the DJ. Multiple selections are OR'd — any selected genre is fair game. The free-text field below lets you describe a style in your own words: <em>"dreamy shoegaze"</em>, <em>"Nordic folk"</em>, <em>"dark ambient"</em>.</p>
+
+<h3>Region</h3>
+
+<p>Constrains suggestions to music from a specific part of the world. Useful for exploring a musical tradition geographically.</p>
+
+<h3>Time period</h3>
+
+<p>A free-text field. Write anything: <em>"1970s"</em>, <em>"after 2020"</em>, <em>"baroque era"</em>, <em>"pre-war blues"</em>. The DJ follows this strictly.</p>
+
+<h3>Popularity</h3>
+
+<p>Controls how mainstream the suggestions are:</p>
+<ul>
+  <li><strong>Obscure / Hidden gems</strong> — avoid anything well-known</li>
+  <li><strong>Mixed</strong> (middle, default) — no constraint</li>
+  <li><strong>Mainstream</strong> — prefer recognizable songs</li>
+</ul>
+
+<h3>Tell the DJ</h3>
+
+<p>A free-text note sent with every request. Use it for one-off instructions: <em>"nothing with electric guitar right now"</em>, <em>"upbeat only"</em>, <em>"I'm studying, keep it calm"</em>. Shows <span class="pill pill-amber">· queued</span> until sent.</p>
+
+<h3>Heard</h3>
+
+<span class="screenshot">Heard section — songs with sliders, checkboxes, "Select all / Delete 2"</span>
+
+<p>The full listen history for the current channel, newest first. Each entry shows album art, track name, artist, and a rating slider.</p>
+
+<ul>
+  <li><strong>Replay a past song:</strong> click the row to play it again via Spotify.</li>
+  <li><strong>Delete entries:</strong> check one or more entries, then click <strong>Delete N</strong>. Removing entries also removes them from the session history the DJ uses — useful for resetting a direction that isn't working.</li>
+  <li><strong>Select all / Deselect all:</strong> toggles all checkboxes at once.</li>
+</ul>
+
+<hr>
+
+<h2 id="channels">Channels</h2>
+
+<span class="screenshot">Channel tab bar — "Jazz &amp; Soul", "Electronic", "+ New"</span>
+
+<p>Channels let you maintain separate listening sessions with completely independent histories, profiles, and settings. Think of them as moods, contexts, or experiments — a work channel, a workout channel, a "deep dive into Brazilian music" channel.</p>
+
+<h3>What a channel stores</h3>
+<ul>
+  <li>Full listen history (Heard)</li>
+  <li>Session history sent to the DJ</li>
+  <li>AI taste profile</li>
+  <li>All settings: Discovery, Genres, Region, Time period, Popularity, Tell the DJ</li>
+</ul>
+
+<h3>Switching channels</h3>
+<p>Click a channel tab. Your current session is automatically saved before switching. The new channel loads with its own history and settings.</p>
+
+<h3>Creating a channel</h3>
+<p>Click <strong>+ New</strong> at the right of the tab bar. A new channel is created immediately with a blank history and default settings.</p>
+
+<h3>Renaming a channel</h3>
+<p>Click the name of the <strong>active</strong> channel tab — it becomes an editable text field. Press Enter to save, Escape to cancel. Channels are also auto-named from the top genres heard in them (e.g. "Jazz &amp; Soul").</p>
+
+<h3>Deleting a channel</h3>
+<p>Click the <strong>×</strong> on a channel tab. You cannot delete the last remaining channel.</p>
+
+<h3>Migration</h3>
+<p>If you used earprint before channels were added, your existing history is automatically imported as the first channel when you open the app.</p>
+
+<hr>
+
+<h2 id="map">The map</h2>
+
+<span class="screenshot">2D music map — colored genre dots and labels</span>
+
+<p>The <strong>Map</strong> link opens a separate view showing all the songs you've heard plotted in a 2D space:</p>
+<ul>
+  <li><strong>X-axis:</strong> acoustic / live / traditional → electronic / synthesized</li>
+  <li><strong>Y-axis:</strong> calm / sparse / minimal → intense / energetic / driving</li>
+</ul>
+<p>Each dot is a song. Colored labels mark broad genre regions. The map shows where your taste clusters and what territory you haven't explored yet.</p>
+
+<hr>
+
+<h2 id="status">Status and rate limiting</h2>
+
+<span class="screenshot">Yellow banner — "Spotify unavailable until 8:14 PM — Try now · stats"</span>
+
+<p>Earprint calls both Spotify and an AI service. Occasionally:</p>
+<ul>
+  <li><strong>Spotify rate limiting</strong> — Spotify has throttled the app. A yellow banner appears with an estimated wait time.
+    <ul>
+      <li>Click <strong>Try now</strong> to ping Spotify immediately. If it responds, the ban clears and music resumes.</li>
+      <li>Click <strong>stats</strong> for a breakdown of API call counts.</li>
+    </ul>
+  </li>
+  <li><strong>"Asking the DJ…" spinner</strong> — the AI is generating suggestions. Normal; takes a few seconds.</li>
+  <li><strong>"LLM may be unavailable. Will retry."</strong> — the AI service returned an error. The app retries after 30 seconds without treating it as a Spotify issue.</li>
+</ul>
+
+<hr>
+
+<h2 id="mobile">Mobile</h2>
+
+<ul>
+  <li><strong>Tap album art</strong> — play/pause</li>
+  <li><strong>Drag progress bar to the end</strong> — advance to next song</li>
+  <li><strong>Pinch to zoom</strong> — supported; useful in portrait mode to reveal the sidebar</li>
+</ul>
+
+<hr>
+
+<h2 id="queued">Settings that aren't sent immediately</h2>
+
+<p>Discovery, Genres, Region, Time period, and Tell the DJ all show a <span class="pill pill-amber">· queued</span> indicator when you've changed them but they haven't been sent to the DJ yet. The change goes out with the next natural LLM call — you don't need to do anything to trigger it.</p>
+
+<span class="screenshot">"Discovery · queued" label in amber next to the slider</span>
+
+<hr>
+
+<h2 id="provider">LLM provider</h2>
+
+<p>A dropdown in the header lets you choose the AI model powering the DJ:</p>
+<ul>
+  <li><strong>DeepSeek</strong> (default) — fast and accurate</li>
+  <li><strong>Claude</strong> (Anthropic) — strong musical reasoning</li>
+  <li><strong>GPT-4o</strong> (OpenAI)</li>
+  <li><strong>Gemini</strong> (Google)</li>
+</ul>
+<p>Switching providers mid-session is fine — the session history is passed to whichever model is active.</p>
+
+<hr>
+
+<p style="color: #333; font-size: 0.8rem; text-align: center;">earprint · <a href="/player">open player</a> · <a href="/diary.html">dev diary</a></p>
+
+</body>
+</html>

@@ -1,3 +1,33 @@
+import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { join } from 'path'
+
+const CACHE_FILE = join(process.cwd(), '.spotify-cache.json')
+
+function loadCache(): Map<string, SpotifyTrack> {
+  try {
+    if (existsSync(CACHE_FILE)) {
+      const data = JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as Record<string, SpotifyTrack>
+      return new Map(Object.entries(data))
+    }
+  } catch {}
+  return new Map()
+}
+
+function persistCache(cache: Map<string, SpotifyTrack>) {
+  try {
+    writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)))
+  } catch {}
+}
+
+// Global throttle: enforce minimum 1s between any two real Spotify API calls
+let lastSpotifyCallAt = 0
+async function throttledFetch(url: string, headers: Record<string, string>): Promise<Response> {
+  const wait = 1000 - (Date.now() - lastSpotifyCallAt)
+  if (wait > 0) await new Promise(r => setTimeout(r, wait))
+  lastSpotifyCallAt = Date.now()
+  return fetch(url, { headers })
+}
+
 export type SpotifySearchResult =
   | { status: 'ok'; track: SpotifyTrack }
   | { status: 'rate_limited'; retryAfterMs: number }
@@ -10,7 +40,7 @@ export type SpotifyTracksResult =
   | { status: 'unauthorized'; message: string }
   | { status: 'error'; message: string }
 
-const searchCache = new Map<string, SpotifyTrack>()
+const searchCache = loadCache()
 
 export async function searchTrack(
   query: string,
@@ -25,9 +55,7 @@ export async function searchTrack(
 
   const params = new URLSearchParams({ q: query, type: 'track', limit: '1' })
   console.info(`searching spotify for ${query}`)
-  const res = await fetch(`https://api.spotify.com/v1/search?${params}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  const res = await throttledFetch(`https://api.spotify.com/v1/search?${params}`, { Authorization: `Bearer ${accessToken}` })
   if (!res.ok) {
     if (res.status === 429) {
       const retryAfterHeader = res.headers.get('Retry-After')
@@ -64,6 +92,7 @@ export async function searchTrack(
     },
   })
 
+  const releaseYear = track.album?.release_date ? Number(track.album.release_date.slice(0, 4)) : undefined
   const result: SpotifyTrack = {
     id: track.id,
     uri: track.uri,
@@ -72,8 +101,10 @@ export async function searchTrack(
     album: track.album.name,
     albumArt: track.album.images[0]?.url ?? null,
     durationMs: track.duration_ms,
+    releaseYear: Number.isFinite(releaseYear) ? releaseYear : undefined,
   }
   searchCache.set(cacheKey, result)
+  persistCache(searchCache)
   return { status: 'ok', track: result }
 }
 
@@ -88,9 +119,7 @@ export async function getTracksByIds(
   console.info('Spotify batch track lookup', { ids: ids.slice(0, 50) })
 
   const params = new URLSearchParams({ ids: ids.slice(0, 50).join(',') })
-  const res = await fetch(`https://api.spotify.com/v1/tracks?${params}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  })
+  const res = await throttledFetch(`https://api.spotify.com/v1/tracks?${params}`, { Authorization: `Bearer ${accessToken}` })
 
   if (!res.ok) {
     if (res.status === 429) {
@@ -130,6 +159,7 @@ export async function getTracksByIds(
               album: ((track as { album: { name: string } }).album?.name ?? 'Unknown') as string,
               albumArt: (track as { album: { images: { url: string }[] } }).album?.images?.[0]?.url ?? null,
               durationMs: (track as { duration_ms: number }).duration_ms,
+              releaseYear: (() => { const d = (track as { album: { release_date?: string } }).album?.release_date; const y = d ? Number(d.slice(0, 4)) : NaN; return Number.isFinite(y) ? y : undefined })(),
             }
           : null
       )
@@ -152,4 +182,5 @@ export interface SpotifyTrack {
   album: string
   albumArt: string | null
   durationMs: number
+  releaseYear?: number
 }

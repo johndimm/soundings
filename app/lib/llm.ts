@@ -12,6 +12,7 @@ export interface SongSuggestion {
   category?: string
   spotifyId?: string
   coords?: { x: number; y: number }
+  composed?: number
 }
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
@@ -76,7 +77,9 @@ DISLIKE ESCALATION:
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}`
+{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","composed":1791,"coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
+
+The "composed" field is the year of composition (for classical/jazz standards/etc.) — omit it for contemporary recordings where the release year is meaningful.`
 
 // 0 = pure familiar (exploit liked regions), 100 = pure adventurous (all unexplored)
 export type ExploreMode = number
@@ -190,7 +193,7 @@ async function askOpenAI(
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: 'gpt-4.1',
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
@@ -241,7 +244,7 @@ async function askGemini(
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -341,7 +344,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
 
   // New format: {songs: [{search, reason, category, spotify_id, coords}, ...], profile}
   if (Array.isArray(parsed.songs)) {
-    type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string; coords?: unknown }
+    type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string; coords?: unknown; composed?: unknown }
     const songs = parsed.songs
       .filter((s: unknown): s is LLMRow => {
         const c = s as Record<string, unknown>
@@ -357,6 +360,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
             ? s.spotify_id.trim()
             : undefined,
         coords: parseCoords(s.coords),
+        composed: typeof s.composed === 'number' && Number.isFinite(s.composed) ? s.composed : undefined,
       }))
       .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
     const chosen = songs.slice(0, 3)
@@ -365,6 +369,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         search: s.search,
         coords: s.coords ?? 'none',
         spotifyId: s.spotifyId ?? 'none',
+        composed: s.composed ?? 'none',
       })))
       return { songs: chosen, profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }
     }
