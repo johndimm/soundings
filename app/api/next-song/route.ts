@@ -246,7 +246,8 @@ async function resolveSongs(
       if (trackResult.status === 'rate_limited') {
         rateLimitedRetryMs = trackResult.retryAfterMs
       } else if (trackResult.status === 'unauthorized') {
-        unauthorized = true
+        console.warn('Spotify batch lookup unauthorized, falling back to text search')
+        fallbackSongs = songs
       } else if (trackResult.status === 'ok') {
       trackResult.tracks.forEach(track => {
         if (!track) return

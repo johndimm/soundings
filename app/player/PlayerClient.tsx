@@ -735,7 +735,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       })
       .catch(err => {
         if (err instanceof RateLimitError) {
-          const waitMs = err.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS
+          const waitMs = (err.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
           const until = Date.now() + waitMs
           setBackoffUntil(until)
           try { localStorage.setItem('spotifyRateLimitUntil', String(until)) } catch {}
@@ -1099,12 +1099,6 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
     (uri: string | null) => playUri(uri, 'history entry'),
     [playUri]
   )
-  const handleSwitchAccount = useCallback(async () => {
-    await fetch('/api/auth/logout')
-    window.location.href = '/api/auth/login'
-  }, [])
-
-
   const duration = playbackState?.duration ?? 0
 
   const spotifyStatusMessage =
@@ -1113,7 +1107,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
       : null
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col">
+    <div className="min-h-screen min-w-[900px] bg-black text-white flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-900">
         <h1 className="text-xl font-bold">Earprint</h1>
@@ -1139,13 +1133,7 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
         <div className="flex gap-3 items-center">
           <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Map ↗</Link>
           <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Status</a>
-          <button
-            onClick={handleSwitchAccount}
-            className="text-xs text-zinc-300 hover:text-white transition-colors"
-          >
-            Switch account
-          </button>
-          <Link href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
+<Link href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
         </div>
       </div>
       {spotifyStatusMessage && (
@@ -1186,6 +1174,15 @@ export default function PlayerClient({ accessToken: initialAccessToken }: { acce
             <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200 bg-black/30 z-10 pointer-events-none">
               <span className="text-white text-2xl font-semibold tracking-wide select-none">
                 {playbackState?.paused ? 'play' : 'pause'}
+              </span>
+            </div>
+          )}
+
+          {/* Persistent play/pause indicator */}
+          {currentCard && (
+            <div className="absolute top-3 right-3 z-20 pointer-events-none">
+              <span className="text-white text-xl select-none drop-shadow-lg">
+                {playbackState?.paused ? '⏸' : '▶'}
               </span>
             </div>
           )}
