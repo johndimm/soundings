@@ -1199,6 +1199,12 @@ export default function PlayerClient({
         res = await doPlay(data.accessToken)
       }
     }
+    if (res.status === 404) {
+      // Device not yet registered on Spotify's backend — retry after a short delay
+      console.warn('playTrack: device not found (404), retrying in 1s…')
+      await new Promise(r => setTimeout(r, 1000))
+      res = await doPlay(accessTokenRef.current)
+    }
     if (!res.ok) {
       console.warn('playTrack failed', res.status, uri)
     }
@@ -1694,6 +1700,7 @@ export default function PlayerClient({
           fetchingRef.current = false
           setLoadingQueue(false)
           setError(null)
+          setCooldownTick(t => t + 1)
         }, RATE_LIMIT_DEFAULT_WAIT_MS)
       })
       .finally(() => {
@@ -2601,8 +2608,9 @@ export default function PlayerClient({
           ))}
           <button
             onClick={createChannel}
-            className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
-          >+ New</button>
+            className="px-2 py-1 text-lg leading-none text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
+            title="New channel"
+          >+</button>
           {!isGuideDemo && (
             <>
               <input
