@@ -9,6 +9,7 @@ import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
+import YoutubePlayer from './YoutubePlayer'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
@@ -145,6 +146,16 @@ function parseChannelsImport(raw: unknown): { channels: Channel[]; activeChannel
   return { channels, activeChannelId }
 }
 
+export interface CommittedSettings {
+  notes: string
+  genreText: string
+  timePeriod: string
+  genres: string[]
+  regions: string[]
+  popularity: number
+  discovery: number
+}
+
 interface SavedSettings {
   genres?: string[]
   genreText?: string
@@ -250,6 +261,11 @@ function historyEntryToTrack(entry: HistoryEntry): SpotifyTrack | null {
 function isPositiveHeard(entry: HistoryEntry): boolean {
   if (entry.reaction === 'not-now') return false
   return entry.percentListened >= 50
+}
+
+/** Stable dedup key that works for both Spotify (uses uri) and YouTube (uses id). */
+function trackPlayKey(track: { uri?: string; id: string }): string {
+  return track.uri ?? track.id
 }
 
 function formatMs(ms: number): string {
@@ -404,6 +420,7 @@ export default function PlayerClient({
   const [discovery, setDiscovery] = useState(() => loadSettings().discovery ?? 50)
   const [provider, setProvider] = useState<LLMProvider>(() => loadSettings().provider ?? 'deepseek')
   const [source, setSource] = useState<PlaybackSource>(() => loadSettings().source ?? DEFAULT_PLAYBACK_SOURCE)
+  const [ytSearchesRemaining, setYtSearchesRemaining] = useState<number | null>(null)
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [gradePercent, setGradePercent] = useState(50)
@@ -418,6 +435,18 @@ export default function PlayerClient({
   const [editingChannelName, setEditingChannelName] = useState('')
   const [settingsDirty, setSettingsDirty] = useState(false)
   const settingsInitRef = useRef(false)
+  const [committedSettings, setCommittedSettings] = useState<CommittedSettings>(() => {
+    const s = loadSettings()
+    return {
+      notes: s.notes ?? '',
+      genreText: s.genreText ?? '',
+      timePeriod: s.timePeriod ?? '',
+      genres: s.genres ?? [],
+      regions: s.regions ?? [],
+      popularity: s.popularity ?? 50,
+      discovery: s.discovery ?? 50,
+    }
+  })
   const [cooldownTick, setCooldownTick] = useState(0)
   const cooldownRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [spotifyPingInFlight, setSpotifyPingInFlight] = useState(false)
@@ -469,6 +498,7 @@ export default function PlayerClient({
   const timePeriodRef = useRef('')
   const popularityRef = useRef(50)
   const providerRef = useRef<LLMProvider>('deepseek')
+  const sourceRef = useRef<PlaybackSource>(DEFAULT_PLAYBACK_SOURCE)
   const sliderRef = useRef(0)
   const durationRef = useRef(0)
   const isPausedRef = useRef(true)
@@ -861,6 +891,10 @@ export default function PlayerClient({
   }, [provider])
 
   useEffect(() => {
+    sourceRef.current = source
+  }, [source])
+
+  useEffect(() => {
     genresRef.current = genres
   }, [genres])
 
@@ -1240,11 +1274,14 @@ export default function PlayerClient({
     if (isGuideDemo) return
     if (!currentCard) return
     if (!deviceId) return
-    if (currentCard.track.uri === lastPlayedUriRef.current) return
-    lastPlayedUriRef.current = currentCard.track.uri
-    playedUrisRef.current.add(currentCard.track.uri)
+    const key = trackPlayKey(currentCard.track)
+    if (key === lastPlayedUriRef.current) return
+    lastPlayedUriRef.current = key
+    playedUrisRef.current.add(key)
     const resumeMs = pendingPlaybackPositionMsRef.current
     pendingPlaybackPositionMsRef.current = undefined
+    // YouTube playback handled by the YouTube player (Phase 2) — skip Spotify playTrack
+    if ((currentCard.track.source as string) === 'youtube') return
     const doPlay = async () => {
       const player = playerRef.current
       if (pendingFadeInRef.current && player) {
@@ -1258,7 +1295,7 @@ export default function PlayerClient({
       }
     }
     doPlay()
-  }, [currentCard?.track.uri, deviceId, isGuideDemo]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentCard?.track.uri ?? currentCard?.track.id, deviceId, isGuideDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset grade slider and rated flag when song changes
   useEffect(() => {
@@ -1266,7 +1303,7 @@ export default function PlayerClient({
     gradeRef.current = 50
     setHasRated(false)
     hasRatedRef.current = false
-  }, [currentCard?.track.uri])
+  }, [currentCard?.track.uri ?? currentCard?.track.id])
 
   // ── LLM batch: suggestions only (no Spotify) ─────────────────────────────
   const fetchSuggestions = useCallback(
@@ -1309,7 +1346,7 @@ export default function PlayerClient({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, accessToken: accessTokenRef.current }),
+        body: JSON.stringify({ ...payload, accessToken: accessTokenRef.current, source: sourceRef.current }),
       })
 
       if (res.status === 429) {
@@ -1358,6 +1395,7 @@ export default function PlayerClient({
         accessToken: accessTokenRef.current,
         // Prefer GET /v1/tracks?ids= when LLM supplies an id (not Search); fall back to search if no id or lookup fails.
         forceTextSearch: !normalizeSpotifyTrackId(s.spotifyId),
+        source: sourceRef.current,
       }),
     })
 
@@ -1381,6 +1419,9 @@ export default function PlayerClient({
     }
 
     const data = await res.json()
+    if (typeof data.ytSearchesRemaining === 'number') {
+      setYtSearchesRemaining(data.ytSearchesRemaining)
+    }
     const songs = data.songs as
       | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[]
       | undefined
@@ -1614,6 +1655,7 @@ export default function PlayerClient({
     fetchingRef.current = true
     lastFetchAtRef.current = Date.now()
     setSettingsDirty(false)
+    setCommittedSettings({ notes, genreText, timePeriod, genres, regions, popularity, discovery })
     const gen = ++fetchGenRef.current
     console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, suggestionLen: suggestionBufferRef.current.length })
     const sentHistory = [...sessionHistoryRef.current]
@@ -1739,7 +1781,7 @@ export default function PlayerClient({
         suggestionBufferRef.current = rest
         setSuggestionBuffer(rest)
         const played = new Set(playedUrisRef.current)
-        if (!played.has(card.track.uri)) {
+        if (!played.has(trackPlayKey(card.track))) {
           currentCardRef.current = card
           setCurrentCard(card)
           console.info(DJQ, 'startPlaybackFromSuggestions: set now playing', card.track.name)
@@ -1786,16 +1828,16 @@ export default function PlayerClient({
         const seen = new Set<string>([
           ...playedUrisRef.current,
           ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
-          ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-          ...queueRef.current.map(c => c.track.uri),
+          ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
+          ...queueRef.current.map(c => trackPlayKey(c.track)),
         ])
-        if (!seen.has(card.track.uri)) {
+        if (!seen.has(trackPlayKey(card.track))) {
           const newQ = [...queueRef.current, card]
           queueRef.current = newQ
           setQueue(newQ)
           console.info(DJQ, 'topUpQueueFromSuggestions: added', card.track.name, 'queue len', newQ.length)
         } else {
-          console.info(DJQ, 'topUpQueueFromSuggestions: duplicate uri skipped', card.track.name)
+          console.info(DJQ, 'topUpQueueFromSuggestions: duplicate skipped', card.track.name)
         }
       } catch (e) {
         if (e instanceof RateLimitError) {
@@ -2567,7 +2609,7 @@ export default function PlayerClient({
           <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Status</a>
           <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Guide</a>
           <a href="/diary.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Diary</a>
-<Link href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</Link>
+<a href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</a>
         </div>
       </div>
       {/* Channel tabs */}
@@ -2688,15 +2730,23 @@ export default function PlayerClient({
       {/* Body */}
       <div className="flex flex-row gap-4 p-4 items-start overflow-y-auto flex-1">
 
-        {/* Player panel — full-bleed album art */}
+        {/* Player panel — full-bleed album art or YouTube player */}
         <div
           data-guide="album-panel"
           className="relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] bg-zinc-900"
-          style={{ height: 580, cursor: currentCard ? 'pointer' : 'default' }}
-          onClick={currentCard ? togglePlayback : undefined}
+          style={{ height: 580, cursor: currentCard && (currentCard.track.source as string) !== 'youtube' ? 'pointer' : 'default' }}
+          onClick={currentCard && (currentCard.track.source as string) !== 'youtube' ? togglePlayback : undefined}
         >
-          {/* Album art background */}
-          {currentCard?.track.albumArt && (
+          {/* YouTube player */}
+          {currentCard && (currentCard.track.source as string) === 'youtube' && (
+            <YoutubePlayer
+              videoId={currentCard.track.id}
+              onEnded={() => advanceRef.current?.(true)}
+            />
+          )}
+
+          {/* Album art background (Spotify only) */}
+          {currentCard?.track.albumArt && (currentCard.track.source as string) !== 'youtube' && (
             <div
               className="absolute inset-0"
               style={{
@@ -2813,10 +2863,12 @@ export default function PlayerClient({
               >
                 {/* Track info */}
                 <a
-                  href={`https://open.spotify.com/track/${currentCard.track.id}`}
+                  href={(currentCard.track.source as string) === 'youtube'
+                    ? `https://www.youtube.com/watch?v=${currentCard.track.id}`
+                    : `https://open.spotify.com/track/${currentCard.track.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  title="Open in Spotify"
+                  title={(currentCard.track.source as string) === 'youtube' ? 'Open on YouTube' : 'Open in Spotify'}
                   onClick={() => { openedSpotifyRef.current = true }}
                   className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors block"
                 >
@@ -2832,8 +2884,8 @@ export default function PlayerClient({
                   {currentCard.reason}
                 </p>
 
-                {/* Play time slider */}
-                <div className="flex items-center gap-2 mt-3">
+                {/* Play time slider — Spotify only */}
+                <div className="flex items-center gap-2 mt-3" style={{ visibility: (currentCard.track.source as string) === 'youtube' ? 'hidden' : 'visible' }}>
                   <span className="text-zinc-400 text-xs w-8 text-right tabular-nums">
                     {formatMs(sliderPosition)}
                   </span>
@@ -2924,6 +2976,7 @@ export default function PlayerClient({
             discovery={discovery}
             onDiscoveryChange={setDiscovery}
             settingsDirty={settingsDirty}
+            committedSettings={committedSettings}
             onRemoveMultiple={handleRemoveMultiple}
             onRateHistoryItem={handleRateHistoryItem}
             submittedUris={submittedUris}
@@ -2952,6 +3005,7 @@ export default function PlayerClient({
             onPlayHistoryItem={handlePlayHistoryItem}
             source={source}
             onSourceChange={setSource}
+            ytSearchesRemaining={ytSearchesRemaining}
           />
           </div>
         </div>

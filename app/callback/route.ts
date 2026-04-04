@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
+import { getBaseUrl } from '@/app/lib/baseUrl'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
 
-  const baseUrl = req.nextUrl.origin
+  const baseUrl = getBaseUrl() || req.nextUrl.origin
 
   if (error || !code) {
     return Response.redirect(`${baseUrl}/?error=spotify_auth_failed`, 302)
@@ -37,7 +38,7 @@ export async function GET(req: NextRequest) {
   if (!response.ok) {
     const errBody = await response.text().catch(() => '')
     console.error('callback: token exchange failed', { status: response.status, body: errBody })
-    return Response.redirect(`${baseUrl}/?error=token_exchange_failed`, 302)
+    return Response.redirect(`${getBaseUrl() || baseUrl}/?error=token_exchange_failed`, 302)
   }
 
   const tokens = (await response.json()) as SpotifyTokenResponse
@@ -48,7 +49,8 @@ export async function GET(req: NextRequest) {
     expires_in: tokens.expires_in,
   })
 
-  const res = NextResponse.redirect(new URL('/player', req.url), {
+  const base = getBaseUrl() || req.nextUrl.origin
+  const res = NextResponse.redirect(new URL('/player', base), {
     status: 302,
     headers: { 'Cache-Control': 'no-store' },
   })

@@ -5,6 +5,7 @@ import { ListenEvent } from '@/app/lib/llm'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { type PlaybackSource, PLAYBACK_SOURCE_LABELS, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
+import type { CommittedSettings } from './PlayerClient'
 
 export interface HistoryEntry extends ListenEvent {
   albumArt: string | null
@@ -75,8 +76,10 @@ interface Props {
   /** True while resolving DJ picks into the queue (automatic). */
   promotingDjPending?: boolean
   settingsDirty: boolean
+  committedSettings?: CommittedSettings
   source: PlaybackSource
   onSourceChange: (v: PlaybackSource) => void
+  ytSearchesRemaining?: number | null
 }
 
 const SECTION_STYLES: Record<string, { label: string; labelColor: string; textColor: string; border: string }> = {
@@ -165,10 +168,23 @@ export default function SessionPanel({
   pendingSuggestions,
   promotingDjPending = false,
   settingsDirty,
+  committedSettings,
   source,
   onSourceChange,
+  ytSearchesRemaining,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
+
+  const isDirty = (field: keyof CommittedSettings): boolean => {
+    if (!settingsDirty || !committedSettings) return false
+    const cur: Record<string, unknown> = { notes, genreText, timePeriod, genres, regions, popularity, discovery }
+    const committed = committedSettings[field]
+    const current = cur[field]
+    if (Array.isArray(committed) && Array.isArray(current)) {
+      return JSON.stringify(committed) !== JSON.stringify(current)
+    }
+    return committed !== current
+  }
 
   const toggleSelect = (i: number) => {
     setSelected(prev => {
@@ -300,7 +316,14 @@ export default function SessionPanel({
 
       {/* Playback source */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide">Source</label>
+        <div className="flex items-center justify-between">
+          <label className="text-xs text-zinc-500 uppercase tracking-wide">Source</label>
+          {source === 'youtube' && ytSearchesRemaining !== null && ytSearchesRemaining !== undefined && (
+            <span className={`text-xs tabular-nums ${ytSearchesRemaining <= 10 ? 'text-amber-400' : 'text-zinc-500'}`}>
+              {ytSearchesRemaining} searches left today
+            </span>
+          )}
+        </div>
         <div className="flex gap-1.5">
           {(Object.keys(PLAYBACK_SOURCE_LABELS) as PlaybackSource[]).map(s => (
             <button
@@ -323,7 +346,7 @@ export default function SessionPanel({
         <div className="flex items-center justify-between">
           <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
             Discovery
-            {settingsDirty && <span data-guide="discovery-queued" className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+            {isDirty('discovery') && <span data-guide="discovery-queued" className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
           </label>
           <span className="text-xs text-zinc-400">
             {discovery <= 20 ? 'Familiar' : discovery <= 40 ? 'Mostly familiar' : discovery <= 60 ? 'Balanced' : discovery <= 80 ? 'Mostly new' : 'Adventurous'}
@@ -347,7 +370,7 @@ export default function SessionPanel({
       <div data-guide="genres" className="flex flex-col gap-2">
         <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
           Genres
-          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+          {isDirty('genres') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
         </label>
         <div className="flex flex-wrap gap-1.5">
           {GENRE_OPTIONS.map(g => (
@@ -376,7 +399,7 @@ export default function SessionPanel({
       <div className="flex flex-col gap-2">
         <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
           Region
-          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+          {isDirty('regions') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
         </label>
         <div className="flex flex-wrap gap-1.5">
           {REGION_OPTIONS.map(r => (
@@ -399,7 +422,7 @@ export default function SessionPanel({
       <div data-guide="heard" className="flex flex-col gap-1">
         <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
           Time period
-          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+          {isDirty('timePeriod') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
         </label>
         <input
           value={timePeriod}
@@ -435,7 +458,7 @@ export default function SessionPanel({
       <div className="flex flex-col gap-1">
         <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
           Tell the DJ
-          {settingsDirty && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
+          {isDirty('notes') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
         </label>
         <textarea
           value={notes}

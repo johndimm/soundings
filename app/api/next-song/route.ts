@@ -15,6 +15,8 @@ import {
 } from '@/app/lib/llmSpotifyIdLog'
 import { enrichAlbumArtIfMissing, getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
+import { searchYouTube, isYouTubeQuotaExceeded, getYouTubeQuotaWaitMs, getYouTubeSearchesRemaining } from '@/app/lib/youtube'
+import type { PlaybackSource } from '@/app/lib/playback/types'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   getAccessTokenExpiry,
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
       mode?: ExploreMode
       profileOnly?: boolean
       songsToResolve?: SongSuggestion[]
+      source?: PlaybackSource
     }>,
   ])
 
@@ -102,13 +105,27 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve } = body
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
 
-  // ── Resolve-only path: skip LLM, just look up provided songs in Spotify ──
+  // ── Resolve-only path: skip LLM, just look up provided songs ────────────
   if (songsToResolve && songsToResolve.length > 0) {
     console.info('[next-song] resolve-only', songsToResolve.length, 'songs', {
+      source: source ?? 'spotify',
       forceTextSearch: forceTextSearch ?? DEFAULT_FORCE_TEXT_SEARCH,
     })
+
+    if (source === 'youtube') {
+      if (isYouTubeQuotaExceeded()) {
+        return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
+      }
+      const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songsToResolve)
+      if (quotaExceeded) {
+        return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
+      }
+      if (ytSongs.length === 0) return Response.json({ error: 'no_tracks_found' }, { status: 404 })
+      return Response.json({ songs: ytSongs, ytSearchesRemaining: getYouTubeSearchesRemaining() })
+    }
+
     if (isSpotifyOffline()) {
       const waitMs = getSpotifyOfflineWaitMs()
       markRateLimited(waitMs)
@@ -162,11 +179,27 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // ── Profile-only path: return LLM suggestions without Spotify lookup ──
+  // ── Profile-only path: return LLM suggestions without any track lookup ──
   if (profileOnly) {
     return Response.json({ songs, profile })
   }
 
+  // ── YouTube resolve path ──────────────────────────────────────────────────
+  if (source === 'youtube') {
+    if (isYouTubeQuotaExceeded()) {
+      return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
+    }
+    const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songs)
+    if (quotaExceeded) {
+      return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
+    }
+    if (ytSongs.length === 0) {
+      return Response.json({ error: 'no_tracks_found' }, { status: 404 })
+    }
+    return Response.json({ songs: ytSongs, profile, ytSearchesRemaining: getYouTubeSearchesRemaining() })
+  }
+
+  // ── Spotify resolve path ─────────────────────────────────────────────────
   if (isSpotifyOffline()) {
     const waitMs = getSpotifyOfflineWaitMs()
     console.warn(`Spotify offline mode active (${waitMs}ms). Skipping lookup.`)
@@ -206,6 +239,24 @@ export async function POST(req: NextRequest) {
   }
 
   return Response.json({ songs: foundSongs, profile })
+}
+
+type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }
+
+async function resolveYouTubeSongs(
+  songs: SongSuggestion[]
+): Promise<{ songs: YTFoundSong[]; quotaExceeded: boolean }> {
+  const results: YTFoundSong[] = []
+  for (const song of songs) {
+    const res = await searchYouTube(song.search)
+    if (res.status === 'ok') {
+      results.push({ track: res.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed })
+    }
+    if (res.status === 'quota_exceeded') {
+      return { songs: results, quotaExceeded: true }
+    }
+  }
+  return { songs: results, quotaExceeded: false }
 }
 
 const SEARCH_DELAY_MS = 1500
