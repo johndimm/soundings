@@ -227,10 +227,9 @@ const HEARD_PLAYBACK_REASON = 'Replay from Heard'
 const HEARD_FALLBACK_DURATION_MS = 180_000
 
 function historyEntryToTrack(entry: HistoryEntry): SpotifyTrack | null {
-  const uri = entry.uri?.trim()
-  if (!uri || !uri.startsWith('spotify:track:')) return null
-  const id = uri.slice('spotify:track:'.length).trim()
+  const id = normalizeSpotifyTrackId(entry.uri ?? undefined)
   if (!id) return null
+  const uri = `spotify:track:${id}`
   return {
     id,
     uri,
@@ -2434,16 +2433,15 @@ export default function PlayerClient({
       setPlayResponse(`Guide demo mode: playback disabled for ${label}.`)
       return false
     }
-    if (!deviceIdRef.current) {
-      setPlayResponse('No Spotify device registered yet.')
-      return false
-    }
     if (!uri) {
       setPlayResponse(`No URI available for ${label}.`)
       return false
     }
 
-    setPlayResponse(`Requesting playback for ${label}…`)
+    const dId = deviceIdRef.current
+    setPlayResponse(
+      dId ? `Requesting playback for ${label}…` : `Requesting playback on your active Spotify device…`,
+    )
 
     try {
       const res = await fetch('/api/play-track', {
@@ -2451,7 +2449,7 @@ export default function PlayerClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           uri,
-          deviceId: deviceIdRef.current,
+          ...(dId ? { deviceId: dId } : {}),
         }),
       })
       const data = await res.json()
@@ -2469,17 +2467,18 @@ export default function PlayerClient({
 
   const handlePlayHistoryItem = useCallback(
     async (entry: HistoryEntry) => {
-      const uri = entry.uri?.trim()
-      if (!uri) return
       const track = historyEntryToTrack(entry)
-      if (!track) return
+      if (!track) {
+        setPlayResponse('Cannot replay: no valid Spotify track id for this entry.')
+        return
+      }
       const card: CardState = {
         track,
         reason: HEARD_PLAYBACK_REASON,
         category: entry.category,
         coords: entry.coords,
       }
-      const ok = await playUri(uri, 'history entry')
+      const ok = await playUri(track.uri, 'history entry')
       if (!ok) return
       lastPlayedUriRef.current = track.uri
       playedUrisRef.current.add(track.uri)

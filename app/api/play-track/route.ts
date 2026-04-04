@@ -10,12 +10,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'not_authenticated' }, { status: 401 })
   }
 
-  const { uri, deviceId } = (await req.json()) as { uri?: string; deviceId?: string }
-  if (!uri || !deviceId) {
+  const { uri, deviceId } = (await req.json()) as { uri?: string; deviceId?: string | null }
+  if (!uri) {
     return NextResponse.json({ error: 'missing_parameters' }, { status: 400 })
   }
 
-  const response = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`, {
+  /** Omit `device_id` to use Spotify&apos;s currently active device (Web SDK not ready yet, or another app). */
+  const playUrl =
+    deviceId && deviceId.trim()
+      ? `https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(deviceId)}`
+      : 'https://api.spotify.com/v1/me/player/play'
+
+  const response = await fetch(playUrl, {
     method: 'PUT',
     headers: {
       Authorization: `Bearer ${accessToken}`,

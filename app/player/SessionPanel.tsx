@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ListenEvent } from '@/app/lib/llm'
 import { SpotifyTrack } from '@/app/lib/spotify'
+import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 
 export interface HistoryEntry extends ListenEvent {
   albumArt: string | null
@@ -453,6 +454,7 @@ export default function SessionPanel({
             const realIndex = history.length - 1 - i
             const isSelected = selected.has(realIndex)
             const isPending = !submittedUris.has(entry.uri ?? '')
+            const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
             return (
               <div
                 key={realIndex}
@@ -466,10 +468,14 @@ export default function SessionPanel({
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
                 <button
+                  type="button"
                   onClick={() => onPlayHistoryItem(entry)}
-                  disabled={!entry.uri}
+                  disabled={!playableTrackId}
                   className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl px-2 py-1 text-left transition-colors disabled:opacity-50"
-                  style={{ cursor: entry.uri ? 'pointer' : 'not-allowed' }}
+                  style={{
+                    cursor: playableTrackId ? 'pointer' : 'not-allowed',
+                    touchAction: 'manipulation',
+                  }}
                 >
                   {entry.albumArt ? (
                     // eslint-disable-next-line @next/next/no-img-element
