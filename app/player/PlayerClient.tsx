@@ -298,6 +298,8 @@ let spotifyLoginRedirectScheduled = false
 
 const SPOTIFY_REDIRECT_WINDOW_START = 'spotifyAuthRedirectWindowStart'
 const SPOTIFY_REDIRECT_COUNT = 'spotifyAuthRedirectCount'
+/** Set before first auto-redirect to OAuth; cleared on successful token. Blocks Vercel reload loop when cookies still fail after callback. */
+const SPOTIFY_AUTH_REDIRECT_ONCE_KEY = 'spotifyAuthRedirectOnce'
 const REDIRECT_WINDOW_MS = 10 * 60 * 1000
 const MAX_REDIRECTS_PER_WINDOW = 5
 
@@ -305,6 +307,7 @@ function clearSpotifyAuthRedirectLoop() {
   try {
     sessionStorage.removeItem(SPOTIFY_REDIRECT_WINDOW_START)
     sessionStorage.removeItem(SPOTIFY_REDIRECT_COUNT)
+    sessionStorage.removeItem(SPOTIFY_AUTH_REDIRECT_ONCE_KEY)
   } catch {}
 }
 
@@ -326,18 +329,6 @@ function recordSpotifyAuthRedirectAttempt(): boolean {
   } catch {
     return true
   }
-}
-
-/**
- * Session expired or missing token — user must re-auth. Do not use the sessionStorage loop
- * breaker here: repeated 401s from `/api/spotify/token` are a real “need login” signal, not a
- * redirect storm; blocking leaves the app stuck with no way to reach OAuth.
- */
-function forceSpotifyLoginRedirect(reason: string) {
-  if (typeof window === 'undefined' || spotifyLoginRedirectScheduled) return
-  spotifyLoginRedirectScheduled = true
-  console.warn('Spotify session: redirecting to login:', reason)
-  window.location.href = '/api/auth/login'
 }
 
 /** SDK `authentication_error` can fire in a tight loop; cap redirects per window. */
@@ -437,6 +428,25 @@ export default function PlayerClient({
   const redirectToSpotifyLoginRef = useRef<(reason: string) => void>(() => {})
   redirectToSpotifyLoginRef.current = (reason: string) => {
     trySpotifyRedirect(setError, reason)
+  }
+  const forceSpotifyLoginRedirectRef = useRef<(reason: string) => void>(() => {})
+  forceSpotifyLoginRedirectRef.current = (reason: string) => {
+    if (typeof window === 'undefined' || spotifyLoginRedirectScheduled) return
+    try {
+      if (sessionStorage.getItem(SPOTIFY_AUTH_REDIRECT_ONCE_KEY) === '1') {
+        setError(
+          'Spotify session could not be restored after sign-in (token still unauthorized). Use the button below to try again, or a private window if cookies are stuck.',
+        )
+        console.warn('Spotify session: not auto-redirecting again (would loop on Vercel):', reason)
+        return
+      }
+      sessionStorage.setItem(SPOTIFY_AUTH_REDIRECT_ONCE_KEY, '1')
+    } catch {
+      /* sessionStorage unavailable — still try one redirect */
+    }
+    spotifyLoginRedirectScheduled = true
+    console.warn('Spotify session: redirecting to login:', reason)
+    window.location.href = '/api/auth/login'
   }
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1029,7 +1039,7 @@ export default function PlayerClient({
           fetch('/api/spotify/token', { credentials: 'same-origin', cache: 'no-store' })
             .then(async r => {
               if (r.status === 401) {
-                forceSpotifyLoginRedirect(`token HTTP ${r.status}`)
+                forceSpotifyLoginRedirectRef.current(`token HTTP ${r.status}`)
                 return
               }
               if (!r.ok) {
@@ -1047,7 +1057,7 @@ export default function PlayerClient({
                 accessTokenRef.current = d.accessToken
                 cb(d.accessToken)
               } else {
-                forceSpotifyLoginRedirect('token response missing accessToken')
+                forceSpotifyLoginRedirectRef.current('token response missing accessToken')
               }
             })
             .catch(err => {
@@ -2710,14 +2720,33 @@ export default function PlayerClient({
 
           {/* Error */}
           {error && !currentCard && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
-              <p className="text-red-400 text-sm text-center px-6">{error}</p>
-              <button
-                onClick={e => { e.stopPropagation(); handleRetry() }}
-                className="text-sm bg-zinc-800 px-4 py-2 rounded-full hover:bg-zinc-700"
-              >
-                Try again
-              </button>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6">
+              <p className="text-red-400 text-sm text-center">{error}</p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation()
+                    try {
+                      sessionStorage.removeItem(SPOTIFY_AUTH_REDIRECT_ONCE_KEY)
+                    } catch {}
+                    window.location.href = '/api/auth/login'
+                  }}
+                  className="text-sm bg-green-700 px-4 py-2 rounded-full hover:bg-green-600 text-white"
+                >
+                  Sign in with Spotify
+                </button>
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation()
+                    handleRetry()
+                  }}
+                  className="text-sm bg-zinc-800 px-4 py-2 rounded-full hover:bg-zinc-700"
+                >
+                  Try again
+                </button>
+              </div>
             </div>
           )}
 

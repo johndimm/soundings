@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { cookies } from 'next/headers'
-import {
-  storeSpotifyTokens,
-  storeSpotifyTokensInResponse,
-  type SpotifyTokenResponse,
-} from '@/app/lib/spotify/tokens'
+import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -53,15 +48,12 @@ export async function GET(req: NextRequest) {
     expires_in: tokens.expires_in,
   })
 
-  const cookieStore = await cookies()
-  storeSpotifyTokens(cookieStore, tokens, requestIsHttps)
-
   const res = NextResponse.redirect(new URL('/player', req.url), {
     status: 302,
     headers: { 'Cache-Control': 'no-store' },
   })
-  // Also set on the Response object so Set-Cookie is not lost if mutable-cookie merge misbehaves.
+  // Single Set-Cookie path on the redirect response (avoids duplicate / merge quirks with cookies()).
   storeSpotifyTokensInResponse(res.cookies, tokens, requestIsHttps)
-  console.info('callback: cookies set (cookies() + res.cookies) → /player')
+  console.info('callback: cookies set on redirect response → /player')
   return res
 }

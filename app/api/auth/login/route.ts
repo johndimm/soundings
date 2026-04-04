@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 
 const SCOPES = [
   'streaming',
@@ -10,7 +10,12 @@ const SCOPES = [
 
 export const dynamic = 'force-dynamic'
 
-export async function GET() {
+/**
+ * Spotify OAuth. By default we do NOT send `prompt=consent` — that forces the full consent
+ * screen every time and feels broken on repeat logins. Use `?consent=1` when you need a fresh
+ * refresh token or re-authorization (Spotify may omit refresh_token on re-auth without it).
+ */
+export async function GET(req: NextRequest) {
   const clientId = process.env.SPOTIFY_CLIENT_ID!
   const redirectUri = process.env.SPOTIFY_REDIRECT_URI!
 
@@ -21,9 +26,12 @@ export async function GET() {
     scope: SCOPES,
     redirect_uri: redirectUri,
     state,
-    /** Spotify only returns a refresh_token on first auth unless we force consent again. */
-    prompt: 'consent',
   })
+
+  const forceConsent = req.nextUrl.searchParams.get('consent') === '1'
+  if (forceConsent) {
+    params.set('prompt', 'consent')
+  }
 
   return NextResponse.redirect(`https://accounts.spotify.com/authorize?${params}`)
 }
