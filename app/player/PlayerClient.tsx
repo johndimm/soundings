@@ -1206,7 +1206,12 @@ export default function PlayerClient({
       res = await doPlay(accessTokenRef.current)
     }
     if (!res.ok) {
-      console.warn('playTrack failed', res.status, uri)
+      const errBody = await res.text().catch(() => '')
+      const msg = `playTrack failed: HTTP ${res.status}${errBody ? ' — ' + errBody.slice(0, 120) : ''}`
+      console.warn(msg, uri)
+      setPlayResponse(msg)
+    } else {
+      setPlayResponse(null)
     }
   }, [isGuideDemo])
 
