@@ -134,6 +134,7 @@ export async function searchTrack(
     albumArt: track.album.images[0]?.url ?? null,
     durationMs: track.duration_ms,
     releaseYear: Number.isFinite(releaseYear) ? releaseYear : undefined,
+    source: 'spotify',
   }
   searchCache.set(cacheKey, result)
   persistCache(searchCache)
@@ -203,6 +204,7 @@ export async function getTracksByIds(
               albumArt: (track as { album: { images: { url: string }[] } }).album?.images?.[0]?.url ?? null,
               durationMs: (track as { duration_ms: number }).duration_ms,
               releaseYear: (() => { const d = (track as { album: { release_date?: string } }).album?.release_date; const y = d ? Number(d.slice(0, 4)) : NaN; return Number.isFinite(y) ? y : undefined })(),
+              source: 'spotify' as const,
             }
           : null
       )
@@ -264,4 +266,6 @@ export interface SpotifyTrack {
   albumArt: string | null
   durationMs: number
   releaseYear?: number
+  /** Always 'spotify'. Present so SpotifyTrack satisfies the generic Track interface. */
+  source: 'spotify'
 }

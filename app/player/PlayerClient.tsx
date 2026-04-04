@@ -8,6 +8,7 @@ import SessionPanel, { HistoryEntry } from './SessionPanel'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
+import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
@@ -37,6 +38,8 @@ interface Channel {
   playbackPositionMs?: number
   /** Must match `currentCard.track.uri` for `playbackPositionMs` to apply */
   playbackTrackUri?: string
+  /** Which audio source this channel uses. Defaults to 'spotify'. */
+  source?: PlaybackSource
 }
 
 function genChannelId() {
@@ -151,6 +154,7 @@ interface SavedSettings {
   popularity?: number
   provider?: LLMProvider
   discovery?: number
+  source?: PlaybackSource
 }
 
 function loadSettings(): SavedSettings {
@@ -238,6 +242,7 @@ function historyEntryToTrack(entry: HistoryEntry): SpotifyTrack | null {
     album: 'Unknown',
     albumArt: entry.albumArt ?? null,
     durationMs: HEARD_FALLBACK_DURATION_MS,
+    source: 'spotify' as const,
   }
 }
 
@@ -398,6 +403,7 @@ export default function PlayerClient({
   const [popularity, setPopularity] = useState(() => loadSettings().popularity ?? 50)
   const [discovery, setDiscovery] = useState(() => loadSettings().discovery ?? 50)
   const [provider, setProvider] = useState<LLMProvider>(() => loadSettings().provider ?? 'deepseek')
+  const [source, setSource] = useState<PlaybackSource>(() => loadSettings().source ?? DEFAULT_PLAYBACK_SOURCE)
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [gradePercent, setGradePercent] = useState(50)
@@ -886,10 +892,10 @@ export default function PlayerClient({
   useEffect(() => {
     if (isGuideDemo) return
     try {
-      const s: SavedSettings = { genres, genreText, timePeriod, notes, regions, popularity, provider, discovery }
+      const s: SavedSettings = { genres, genreText, timePeriod, notes, regions, popularity, provider, discovery, source }
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
     } catch {}
-  }, [genres, genreText, timePeriod, notes, regions, popularity, provider, discovery, isGuideDemo])
+  }, [genres, genreText, timePeriod, notes, regions, popularity, provider, discovery, source, isGuideDemo])
 
   // Mark settings dirty after initial load
   useEffect(() => {
@@ -2944,6 +2950,8 @@ export default function PlayerClient({
               hasRatedRef.current = false
             }}
             onPlayHistoryItem={handlePlayHistoryItem}
+            source={source}
+            onSourceChange={setSource}
           />
           </div>
         </div>

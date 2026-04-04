@@ -88,6 +88,7 @@ function track(
     albumArt,
     durationMs,
     releaseYear,
+    source: 'spotify' as const,
   }
 }
 
