@@ -5,7 +5,7 @@ export interface ListenEvent {
   artist: string
   percentListened: number
   reaction: 'move-on' | 'not-now' | 'more-from-artist'
-  coords?: { x: number; y: number }
+  coords?: { x: number; y: number; z?: number }
 }
 
 export interface SongSuggestion {
@@ -13,7 +13,7 @@ export interface SongSuggestion {
   reason: string
   category?: string
   spotifyId?: string
-  coords?: { x: number; y: number }
+  coords?: { x: number; y: number; z?: number }
   composed?: number
 }
 
@@ -45,25 +45,25 @@ export function getLLMModelApiId(provider: LLMProvider): string {
 
 const SYSTEM_PROMPT = `You are a DJ navigating a listener's taste across a high-dimensional music space.
 
-THE 2D MAP (for display — project your full musical knowledge onto these axes):
+THE 3D MAP (for display — project your full musical knowledge onto these axes):
   X-axis: 0 = purely acoustic/live/traditional instruments → 100 = fully electronic/synthesized
   Y-axis: 0 = calm/sparse/minimal/introspective → 100 = intense/energetic/dense/driving
+  Z-axis: 0 = underground/cult/obscure → 100 = mainstream/widely known/chart-topping
 
 Reference anchors (be consistent — the same song should always land near the same position):
-  (8, 22)  Nick Drake, solo acoustic folk
-  (12, 35) Bach solo cello, chamber music
-  (18, 50) Miles Davis "Kind of Blue", cool jazz
-  (25, 70) Flamenco, Coltrane "A Love Supreme"
-  (40, 55) The Beatles (mid-period), classic singer-songwriter
-  (55, 65) Stevie Wonder, soul/funk
-  (62, 80) Jimi Hendrix, AC/DC, hard rock
-  (68, 85) Metallica, heavy metal
-  (75, 45) Kraftwerk, Depeche Mode, synth-pop
-  (82, 70) Nine Inch Nails, industrial rock
-  (88, 28) Brian Eno "Ambient 1", ambient electronic
-  (93, 80) Aphex Twin "Windowlicker", electronic/IDM
+  (8, 22, 30)  Nick Drake, solo acoustic folk — cult but not mainstream
+  (12, 35, 55) Bach solo cello — famous composer, specialist audience
+  (18, 50, 40) Miles Davis "Kind of Blue" — jazz standard, known but niche
+  (25, 70, 35) Coltrane "A Love Supreme" — revered but underground
+  (40, 55, 88) The Beatles (mid-period) — massively mainstream
+  (55, 65, 80) Stevie Wonder, soul/funk — very well known
+  (62, 80, 75) Jimi Hendrix, AC/DC, hard rock — mainstream rock
+  (68, 85, 70) Metallica, heavy metal — mainstream in its genre
+  (75, 45, 72) Kraftwerk, Depeche Mode, synth-pop — influential, moderately mainstream
+  (88, 28, 20) Brian Eno "Ambient 1" — influential but cult
+  (93, 80, 45) Aphex Twin "Windowlicker" — well known in electronic circles
 
-When assigning coords: consider all musical attributes — instrumentation, era, production style, tempo, harmonic complexity, cultural origin, mood. The 2D position is a projection of this richer space, not just genre.
+When assigning coords: x/y capture sonic character; z captures how widely known/mainstream the specific recording is (not the artist in general — an obscure deep cut by a famous artist can have low z).
 
 NAVIGATION RULES (use full musical knowledge, not just the 2D projection):
 - Song liked (≥50% listened): region is promising. Slot 1 should explore its musical neighborhood.
@@ -91,7 +91,7 @@ DISLIKE ESCALATION:
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
+{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
 SPOTIFY ID (spotify_id) — conservative but not silent:
@@ -338,15 +338,17 @@ function findJsonObject(text: string): { payload: string; start: number; end: nu
   throw new Error('JSON object not terminated')
 }
 
-function parseCoords(raw: unknown): { x: number; y: number } | undefined {
+function parseCoords(raw: unknown): { x: number; y: number; z?: number } | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const c = raw as Record<string, unknown>
   const x = typeof c.x === 'number' ? c.x : typeof c.x === 'string' ? parseFloat(c.x) : NaN
   const y = typeof c.y === 'number' ? c.y : typeof c.y === 'string' ? parseFloat(c.y) : NaN
   if (isNaN(x) || isNaN(y)) return undefined
+  const zRaw = typeof c.z === 'number' ? c.z : typeof c.z === 'string' ? parseFloat(c.z) : NaN
   return {
     x: Math.min(100, Math.max(0, x)),
     y: Math.min(100, Math.max(0, y)),
+    ...(isNaN(zRaw) ? {} : { z: Math.min(100, Math.max(0, zRaw)) }),
   }
 }
 

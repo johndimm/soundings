@@ -388,16 +388,7 @@ export default function PlayerClient({
   const [profile, setProfile] = useState('')
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [backoffUntil, setBackoffUntil] = useState<number | null>(() => {
-    try {
-      const stored = localStorage.getItem('spotifyRateLimitUntil')
-      if (stored) {
-        const until = Number(stored)
-        if (until > Date.now()) return until
-      }
-    } catch {}
-    return null
-  })
+  const [backoffUntil, setBackoffUntil] = useState<number | null>(null)
   const backoffUntilRef = useRef<number | null>(null)
   useEffect(() => {
     backoffUntilRef.current = backoffUntil
@@ -411,15 +402,15 @@ export default function PlayerClient({
 
   const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
   const [playResponse, setPlayResponse] = useState<string | null>(null)
-  const [notes, setNotes] = useState(() => loadSettings().notes ?? '')
-  const [genres, setGenres] = useState<string[]>(() => loadSettings().genres ?? [])
-  const [genreText, setGenreText] = useState(() => loadSettings().genreText ?? '')
-  const [regions, setRegions] = useState<string[]>(() => loadSettings().regions ?? [])
-  const [timePeriod, setTimePeriod] = useState(() => loadSettings().timePeriod ?? '')
-  const [popularity, setPopularity] = useState(() => loadSettings().popularity ?? 50)
-  const [discovery, setDiscovery] = useState(() => loadSettings().discovery ?? 50)
-  const [provider, setProvider] = useState<LLMProvider>(() => loadSettings().provider ?? 'deepseek')
-  const [source, setSource] = useState<PlaybackSource>(() => loadSettings().source ?? DEFAULT_PLAYBACK_SOURCE)
+  const [notes, setNotes] = useState('')
+  const [genres, setGenres] = useState<string[]>([])
+  const [genreText, setGenreText] = useState('')
+  const [regions, setRegions] = useState<string[]>([])
+  const [timePeriod, setTimePeriod] = useState('')
+  const [popularity, setPopularity] = useState(50)
+  const [discovery, setDiscovery] = useState(50)
+  const [provider, setProvider] = useState<LLMProvider>('deepseek')
+  const [source, setSource] = useState<PlaybackSource>(DEFAULT_PLAYBACK_SOURCE)
   const [ytSearchesRemaining, setYtSearchesRemaining] = useState<number | null>(null)
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
@@ -435,17 +426,15 @@ export default function PlayerClient({
   const [editingChannelName, setEditingChannelName] = useState('')
   const [settingsDirty, setSettingsDirty] = useState(false)
   const settingsInitRef = useRef(false)
-  const [committedSettings, setCommittedSettings] = useState<CommittedSettings>(() => {
-    const s = loadSettings()
-    return {
-      notes: s.notes ?? '',
-      genreText: s.genreText ?? '',
-      timePeriod: s.timePeriod ?? '',
-      genres: s.genres ?? [],
-      regions: s.regions ?? [],
-      popularity: s.popularity ?? 50,
-      discovery: s.discovery ?? 50,
-    }
+  const skipNextDirtyRef = useRef(false)
+  const [committedSettings, setCommittedSettings] = useState<CommittedSettings>({
+    notes: '',
+    genreText: '',
+    timePeriod: '',
+    genres: [],
+    regions: [],
+    popularity: 50,
+    discovery: 50,
   })
   const [cooldownTick, setCooldownTick] = useState(0)
   const cooldownRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -931,9 +920,42 @@ export default function PlayerClient({
     } catch {}
   }, [genres, genreText, timePeriod, notes, regions, popularity, provider, discovery, source, isGuideDemo])
 
+  // Load settings from localStorage after mount (safe: avoids SSR/client hydration mismatch)
+  useEffect(() => {
+    const s = loadSettings()
+    skipNextDirtyRef.current = true
+    setNotes(s.notes ?? '')
+    setGenres(s.genres ?? [])
+    setGenreText(s.genreText ?? '')
+    setRegions(s.regions ?? [])
+    setTimePeriod(s.timePeriod ?? '')
+    setPopularity(s.popularity ?? 50)
+    setDiscovery(s.discovery ?? 50)
+    setProvider(s.provider ?? 'deepseek')
+    setSource(s.source ?? DEFAULT_PLAYBACK_SOURCE)
+    setCommittedSettings({
+      notes: s.notes ?? '',
+      genreText: s.genreText ?? '',
+      timePeriod: s.timePeriod ?? '',
+      genres: s.genres ?? [],
+      regions: s.regions ?? [],
+      popularity: s.popularity ?? 50,
+      discovery: s.discovery ?? 50,
+    })
+    try {
+      const stored = localStorage.getItem('spotifyRateLimitUntil')
+      if (stored) {
+        const until = Number(stored)
+        if (until > Date.now()) setBackoffUntil(until)
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Mark settings dirty after initial load
   useEffect(() => {
     if (!settingsInitRef.current) { settingsInitRef.current = true; return }
+    if (skipNextDirtyRef.current) { skipNextDirtyRef.current = false; return }
     setSettingsDirty(true)
   }, [notes, genreText, timePeriod, genres, regions, popularity, discovery])
 
@@ -1615,6 +1637,10 @@ export default function PlayerClient({
       console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
       return
     }
+    if (!force && suggestionBufferRef.current.length > 0) {
+      console.info('fetchToBuffer: skipping, buffer non-empty', suggestionBufferRef.current.length)
+      return
+    }
     if (force) {
       djLlmRetryAfterMsRef.current = 0
     }
@@ -2246,7 +2272,7 @@ export default function PlayerClient({
         }
         return
       }
-      if (!loadingQueue && (!currentCard || queue.length < 3)) {
+      if (!loadingQueue && queue.length === 0) {
         const retryAfter = djLlmRetryAfterMsRef.current
         if (retryAfter > 0 && Date.now() < retryAfter) {
           const wait = retryAfter - Date.now()
@@ -2358,7 +2384,7 @@ export default function PlayerClient({
       const newSession = [...sessionHistoryRef.current, event]
       setSessionHistory(newSession)
       sessionHistoryRef.current = newSession
-      fetchToBuffer()
+      if (suggestionBufferRef.current.length === 0) fetchToBuffer()
     }
 
     // Advance from queue
@@ -2778,7 +2804,7 @@ export default function PlayerClient({
           )}
 
           {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/20 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
 
           {/* Loading — show whenever there's no card and no error */}
           {!currentCard && !error && (
@@ -2859,7 +2885,7 @@ export default function PlayerClient({
               {/* Bottom controls */}
               <div
                 data-guide="track-info"
-                className="absolute bottom-0 left-0 right-14 px-5 pb-5 pt-8 z-10"
+                className="absolute bottom-0 left-0 right-14 px-5 pb-5 pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent"
                 onClick={e => e.stopPropagation()}
               >
                 {/* Track info */}
