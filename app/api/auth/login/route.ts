@@ -21,6 +21,8 @@ export async function GET() {
     scope: SCOPES,
     redirect_uri: redirectUri,
     state,
+    /** Spotify only returns a refresh_token on first auth unless we force consent again. */
+    prompt: 'consent',
   })
 
   return NextResponse.redirect(`https://accounts.spotify.com/authorize?${params}`)

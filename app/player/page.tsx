@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers'
 import PlayerClientWrapper from './PlayerClientWrapper'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PlayerPage({
   searchParams,
 }: {

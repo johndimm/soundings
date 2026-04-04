@@ -26,7 +26,9 @@ export default async function Home({
           <p className="text-red-400 text-sm">
             {error === 'spotify_auth_failed'
               ? 'Spotify login was cancelled.'
-              : 'Something went wrong. Please try again.'}
+              : error === 'token_exchange_failed'
+                ? 'Could not complete Spotify login (token exchange). Check redirect URI and app credentials in the Spotify dashboard.'
+                : 'Something went wrong. Please try again.'}
           </p>
         )}
         {hasToken && (

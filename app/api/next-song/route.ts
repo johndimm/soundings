@@ -1,7 +1,19 @@
 import { NextRequest } from 'next/server'
 import { cookies } from 'next/headers'
-import { getNextSongQuery, LLMProvider, ListenEvent, ExploreMode, SongSuggestion } from '@/app/lib/llm'
-import { getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
+import {
+  getLLMModelApiId,
+  getNextSongQuery,
+  LLMProvider,
+  ListenEvent,
+  ExploreMode,
+  SongSuggestion,
+} from '@/app/lib/llm'
+import {
+  logLlmCallWithModel,
+  logSpotifyBatchIdOutcome,
+  logSpotifyBatchIdsSkipped,
+} from '@/app/lib/llmSpotifyIdLog'
+import { enrichAlbumArtIfMissing, getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -47,9 +59,25 @@ export async function POST(req: NextRequest) {
     accessToken = body.accessToken
   }
 
-  if (!isSpotifyAvailable()) {
+  const hasResolveOnly = Boolean(body.songsToResolve && body.songsToResolve.length > 0)
+  /** LLM-only (profileOnly, no songsToResolve) does not call Spotify — must not be blocked by app gate. */
+  const llmOnlyNoSpotify = body.profileOnly === true && !hasResolveOnly
+  /**
+   * Resolving DJ suggestions to tracks (`songsToResolve`) must reach Spotify even when the global
+   * gate is active — otherwise users get LLM rows but an empty Up Next (profileOnly bypasses the
+   * gate; promote/resolve did not). Per-request Spotify errors are handled inside resolveSongs.
+   */
+  const skipGlobalSpotifyGate = llmOnlyNoSpotify || hasResolveOnly
+
+  if (!skipGlobalSpotifyGate && !isSpotifyAvailable()) {
     const waitMs = isSpotifyOffline() ? getSpotifyOfflineWaitMs() : getRateLimitRemainingMs()
-    markRateLimited(waitMs)
+    console.warn('[next-song] global Spotify gate blocked request', {
+      hasResolveOnly,
+      profileOnly: body.profileOnly,
+      waitMs,
+    })
+    // Do NOT call markRateLimited here — that would extend the cooldown (min 30s) on every poll
+    // while already blocked, trapping the client in perpetual 429.
     return Response.json(
       { error: 'rate_limited', retryAfterMs: waitMs },
       { status: 429 }
@@ -58,9 +86,10 @@ export async function POST(req: NextRequest) {
 
   const expiresAt = getAccessTokenExpiry(cookieStore)
   const shouldRefresh = expiresAt === null || expiresAt - Date.now() < TOKEN_REFRESH_THRESHOLD_MS
+  const requestIsHttps = req.nextUrl.protocol === 'https:'
 
   if (shouldRefresh) {
-    const refreshedToken = await refreshSpotifyAccessToken(cookieStore)
+    const refreshedToken = await refreshSpotifyAccessToken(cookieStore, requestIsHttps)
     if (refreshedToken) {
       accessToken = refreshedToken
     } else {
@@ -76,6 +105,9 @@ export async function POST(req: NextRequest) {
 
   // ── Resolve-only path: skip LLM, just look up provided songs in Spotify ──
   if (songsToResolve && songsToResolve.length > 0) {
+    console.info('[next-song] resolve-only', songsToResolve.length, 'songs', {
+      forceTextSearch: forceTextSearch ?? DEFAULT_FORCE_TEXT_SEARCH,
+    })
     if (isSpotifyOffline()) {
       const waitMs = getSpotifyOfflineWaitMs()
       markRateLimited(waitMs)
@@ -85,7 +117,8 @@ export async function POST(req: NextRequest) {
       songsToResolve,
       accessToken,
       forceTextSearch,
-      sessionHistory ?? []
+      sessionHistory ?? [],
+      undefined
     )
     if (unauthorized) return Response.json({ error: 'not_authenticated' }, { status: 401 })
     if (rateLimitedRetryMs) markRateLimited(rateLimitedRetryMs)
@@ -110,6 +143,16 @@ export async function POST(req: NextRequest) {
     )
     songs = result.songs
     profile = result.profile
+    const llmProvider = provider ?? 'deepseek'
+    const llmModelId = getLLMModelApiId(llmProvider)
+    const idsFromLlm = songs.filter(s => normalizeSpotifyTrackId(s.spotifyId)).length
+    logLlmCallWithModel({
+      provider: llmProvider,
+      modelId: llmModelId,
+      songCount: songs.length,
+      idsFromLlm,
+      profileOnly: body.profileOnly === true,
+    })
   } catch (err) {
     console.error('LLM response error', err)
     return Response.json(
@@ -133,11 +176,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const llmLog = { provider: provider ?? 'deepseek', modelId: getLLMModelApiId(provider ?? 'deepseek') }
   const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
     songs,
     accessToken,
     forceTextSearch,
-    sessionHistory ?? []
+    sessionHistory ?? [],
+    llmLog
   )
 
   if (unauthorized) {
@@ -200,7 +245,8 @@ async function resolveSongs(
   songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number }; composed?: number }[],
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
-  sessionHistory: ListenEvent[]
+  sessionHistory: ListenEvent[],
+  llmContext?: { provider: LLMProvider; modelId: string }
 ): Promise<{ foundSongs: FoundSong[]; rateLimitedRetryMs: number | null; unauthorized: boolean }> {
   const results: FoundSong[] = []
   let rateLimitedRetryMs: number | null = null
@@ -242,6 +288,15 @@ async function resolveSongs(
     }
   }
 
+  if (llmContext && ids.length > 0 && forceTextSearch) {
+    logSpotifyBatchIdsSkipped({
+      provider: llmContext.provider,
+      modelId: llmContext.modelId,
+      reason: 'forceTextSearch',
+      idsThatWouldHaveBeenChecked: ids.length,
+    })
+  }
+
   let fallbackSongs = songs
 
   if (!forceTextSearch) {
@@ -251,18 +306,38 @@ async function resolveSongs(
       const trackResult = await getTracksByIds(ids, accessToken)
       if (trackResult.status === 'rate_limited') {
         rateLimitedRetryMs = trackResult.retryAfterMs
+        if (llmContext) {
+          logSpotifyBatchIdsSkipped({
+            provider: llmContext.provider,
+            modelId: llmContext.modelId,
+            reason: 'rate_limited',
+            idsThatWouldHaveBeenChecked: ids.length,
+          })
+        }
       } else if (trackResult.status === 'unauthorized') {
         console.warn('Spotify batch lookup unauthorized, falling back to text search')
+        if (llmContext) {
+          logSpotifyBatchIdsSkipped({
+            provider: llmContext.provider,
+            modelId: llmContext.modelId,
+            reason: 'unauthorized',
+            idsThatWouldHaveBeenChecked: ids.length,
+          })
+        }
         fallbackSongs = songs
       } else if (trackResult.status === 'ok') {
         const idsNeedingSearch: typeof songs = []
+        let verifiedBySpotify = 0
+        let spotifyReturnedNull = 0
         trackResult.tracks.forEach((track, i) => {
           const requestedId = ids[i]
           if (!track) {
+            spotifyReturnedNull++
             const song = songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === requestedId)
             if (song) idsNeedingSearch.push(song)
             return
           }
+          verifiedBySpotify++
           if (skipTrack(track)) return
           const reason = idToReason.get(track.id) ?? 'Spotify batch match'
           const category = idToCategory.get(track.id)
@@ -270,9 +345,26 @@ async function resolveSongs(
           const composed = idToComposed.get(track.id)
           results.push({ track, reason, category, coords, composed })
         })
+        if (llmContext) {
+          logSpotifyBatchIdOutcome({
+            provider: llmContext.provider,
+            modelId: llmContext.modelId,
+            requestedIds: ids.length,
+            verifiedBySpotify,
+            spotifyReturnedNull,
+          })
+        }
         fallbackSongs = [...idlessSongs, ...idsNeedingSearch]
       } else {
         console.warn('Spotify batch fetch failed, falling back to text search', trackResult.message)
+        if (llmContext) {
+          logSpotifyBatchIdsSkipped({
+            provider: llmContext.provider,
+            modelId: llmContext.modelId,
+            reason: 'error',
+            idsThatWouldHaveBeenChecked: ids.length,
+          })
+        }
         fallbackSongs = songs
       }
     }
@@ -292,6 +384,23 @@ async function resolveSongs(
     }
     if (sequentialResult.unauthorized) {
       unauthorized = true
+    }
+  }
+
+  // ID batch path skips search, so album.images can be empty — fill from search when same track id.
+  if (!rateLimitedRetryMs && !unauthorized && results.length > 0) {
+    for (let i = 0; i < results.length; i++) {
+      const fs = results[i]
+      if (fs.track.albumArt) continue
+      const t = fs.track
+      const hint =
+        songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === t.id)?.search ??
+        `${t.name} ${t.artist}`
+      const next = await enrichAlbumArtIfMissing(t, accessToken, hint)
+      if (next.albumArt !== t.albumArt) {
+        console.info('next-song: enriched album art via search', { id: t.id, hint: hint.slice(0, 60) })
+        results[i] = { ...fs, track: next }
+      }
     }
   }
 

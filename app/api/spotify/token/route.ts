@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -12,8 +12,9 @@ export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'Cache-Control': 'no-store, private, must-revalidate' }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const cookieStore = await cookies()
+  const requestIsHttps = req.nextUrl.protocol === 'https:'
   let accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE_NAME)?.value
 
   if (!accessToken) {
@@ -25,7 +26,7 @@ export async function GET() {
   const needsRefresh = expiresAt === null || expiresAt - now < TOKEN_REFRESH_THRESHOLD_MS
 
   if (needsRefresh) {
-    const refreshed = await refreshSpotifyAccessToken(cookieStore)
+    const refreshed = await refreshSpotifyAccessToken(cookieStore, requestIsHttps)
     if (refreshed) {
       accessToken = refreshed
     } else if (expiresAt !== null && expiresAt <= now) {

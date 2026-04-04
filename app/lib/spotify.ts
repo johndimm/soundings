@@ -1,6 +1,22 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
+import { markSpotifyUnavailable } from '@/app/lib/spotify/status'
+
+/** Back off Spotify calls when API is down (5xx) or unreachable; override with SPOTIFY_DOWN_BACKOFF_MS. */
+const SPOTIFY_DOWN_BACKOFF_MS = Number(process.env.SPOTIFY_DOWN_BACKOFF_MS ?? 120_000)
+
+/**
+ * Spotify sometimes sends huge Retry-After (e.g. thousands of seconds). Applying that literally
+ * locks the app for hours. Cap the wait we honor (still respect minimum backoff via 429).
+ * Override with SPOTIFY_RETRY_AFTER_MAX_MS (e.g. 3600000 for 1h).
+ */
+const SPOTIFY_RETRY_AFTER_MAX_MS = Number(process.env.SPOTIFY_RETRY_AFTER_MAX_MS ?? 15 * 60 * 1000)
+
+function spotifyServerOrGatewayError(status: number): boolean {
+  return status >= 500 || status === 408
+}
+
 const CACHE_FILE = join(process.cwd(), '.spotify-cache.json')
 
 function loadCache(): Map<string, SpotifyTrack> {
@@ -21,11 +37,17 @@ function persistCache(cache: Map<string, SpotifyTrack>) {
 
 // Global throttle: enforce minimum 1s between any two real Spotify API calls
 let lastSpotifyCallAt = 0
-async function throttledFetch(url: string, headers: Record<string, string>): Promise<Response> {
+async function throttledFetch(url: string, headers: Record<string, string>): Promise<Response | null> {
   const wait = 1000 - (Date.now() - lastSpotifyCallAt)
   if (wait > 0) await new Promise(r => setTimeout(r, wait))
   lastSpotifyCallAt = Date.now()
-  return fetch(url, { headers })
+  try {
+    return await fetch(url, { headers })
+  } catch (err) {
+    console.error('[spotify] network error (treating as temporary outage)', err)
+    markSpotifyUnavailable(SPOTIFY_DOWN_BACKOFF_MS)
+    return null
+  }
 }
 
 export type SpotifySearchResult =
@@ -56,6 +78,9 @@ export async function searchTrack(
   const params = new URLSearchParams({ q: query, type: 'track', limit: '1' })
   console.info(`searching spotify for ${query}`)
   const res = await throttledFetch(`https://api.spotify.com/v1/search?${params}`, { Authorization: `Bearer ${accessToken}` })
+  if (res === null) {
+    return { status: 'rate_limited', retryAfterMs: SPOTIFY_DOWN_BACKOFF_MS }
+  }
   if (!res.ok) {
     if (res.status === 429) {
       const retryAfterHeader = res.headers.get('Retry-After')
@@ -70,6 +95,13 @@ export async function searchTrack(
       const text = await res.text().catch(() => '')
       console.warn(`Spotify search unauthorized: ${res.status}`, text)
       return { status: 'unauthorized', message: `Spotify search unauthorized: ${res.status}` }
+    }
+
+    if (spotifyServerOrGatewayError(res.status)) {
+      const retryAfterMs = Math.max(parseRetryAfterMs(res), SPOTIFY_DOWN_BACKOFF_MS)
+      console.warn(`Spotify search server/gateway error ${res.status}; backing off ${retryAfterMs}ms`)
+      markSpotifyUnavailable(retryAfterMs)
+      return { status: 'rate_limited', retryAfterMs }
     }
 
     const text = await res.text().catch(() => '')
@@ -121,6 +153,10 @@ export async function getTracksByIds(
   const params = new URLSearchParams({ ids: ids.slice(0, 50).join(',') })
   const res = await throttledFetch(`https://api.spotify.com/v1/tracks?${params}`, { Authorization: `Bearer ${accessToken}` })
 
+  if (res === null) {
+    return { status: 'rate_limited', retryAfterMs: SPOTIFY_DOWN_BACKOFF_MS }
+  }
+
   if (!res.ok) {
     if (res.status === 429) {
       const retryAfterHeader = res.headers.get('Retry-After')
@@ -140,6 +176,13 @@ export async function getTracksByIds(
         url: `https://api.spotify.com/v1/tracks?${params}`,
       })
       return { status: 'unauthorized', message: `Spotify tracks unauthorized: ${res.status}` }
+    }
+
+    if (spotifyServerOrGatewayError(res.status)) {
+      const retryAfterMs = Math.max(parseRetryAfterMs(res), SPOTIFY_DOWN_BACKOFF_MS)
+      console.warn(`Spotify tracks server/gateway error ${res.status}; backing off ${retryAfterMs}ms`)
+      markSpotifyUnavailable(retryAfterMs)
+      return { status: 'rate_limited', retryAfterMs }
     }
 
     const text = await res.text().catch(() => '')
@@ -168,10 +211,48 @@ export async function getTracksByIds(
   return { status: 'ok', tracks }
 }
 
+/**
+ * GET /v1/tracks sometimes returns empty `album.images` (or none). Search often has cover art.
+ * Only merge art when the search top result is the same track id so we don't show wrong artwork.
+ */
+export async function enrichAlbumArtIfMissing(
+  track: SpotifyTrack,
+  accessToken: string,
+  searchHint?: string
+): Promise<SpotifyTrack> {
+  if (track.albumArt) return track
+  const q = (searchHint?.trim() || `${track.name} ${track.artist}`).trim()
+  if (!q) return track
+  const res = await searchTrack(q, accessToken)
+  if (res.status !== 'ok' || !res.track.albumArt) return track
+  if (res.track.id !== track.id) {
+    console.info('enrichAlbumArtIfMissing: search top track id differs; not applying art', {
+      expected: track.id,
+      got: res.track.id,
+      q: q.slice(0, 80),
+    })
+    return track
+  }
+  return { ...track, albumArt: res.track.albumArt }
+}
+
 function parseRetryAfterMs(res: Response): number {
-  const retryAfterHeader = res.headers.get('Retry-After')
-  const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN
-  return Number.isFinite(retryAfterSeconds) ? retryAfterSeconds * 1000 : 30_000
+  const h = res.headers.get('Retry-After')
+  if (!h) return 30_000
+
+  const asSeconds = Number(h)
+  if (Number.isFinite(asSeconds) && asSeconds >= 0) {
+    const ms = Math.max(asSeconds * 1000, 30_000)
+    return Math.min(ms, SPOTIFY_RETRY_AFTER_MAX_MS)
+  }
+
+  const until = Date.parse(h)
+  if (Number.isFinite(until)) {
+    const ms = Math.max(0, until - Date.now())
+    return Math.min(Math.max(ms, 30_000), SPOTIFY_RETRY_AFTER_MAX_MS)
+  }
+
+  return 30_000
 }
 
 export interface SpotifyTrack {

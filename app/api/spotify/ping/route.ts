@@ -1,10 +1,11 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { ACCESS_TOKEN_COOKIE_NAME, refreshSpotifyAccessToken, getAccessTokenExpiry, TOKEN_REFRESH_THRESHOLD_MS } from '@/app/lib/spotify/tokens'
 import { resetSpotifyState } from '@/app/lib/spotify/status'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const cookieStore = await cookies()
+  const requestIsHttps = req.nextUrl.protocol === 'https:'
   let accessToken = cookieStore.get(ACCESS_TOKEN_COOKIE_NAME)?.value
 
   if (!accessToken) {
@@ -13,7 +14,7 @@ export async function GET() {
 
   const expiresAt = getAccessTokenExpiry(cookieStore)
   if (expiresAt === null || expiresAt - Date.now() < TOKEN_REFRESH_THRESHOLD_MS) {
-    const refreshed = await refreshSpotifyAccessToken(cookieStore)
+    const refreshed = await refreshSpotifyAccessToken(cookieStore, requestIsHttps)
     if (refreshed) accessToken = refreshed
   }
 

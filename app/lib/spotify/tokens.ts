@@ -6,7 +6,18 @@ const REFRESH_TOKEN_COOKIE = 'spotify_refresh_token'
 const ACCESS_TOKEN_EXPIRY_COOKIE = 'spotify_access_token_expires_at'
 const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 30 // 30 days
 const COOKIE_PATH = '/'
-const SECURE = process.env.NODE_ENV === 'production'
+/**
+ * `Secure` cookies are not stored on http:// — if NODE_ENV is production (e.g. `next start`)
+ * but the request is HTTP, pass `requestIsHttps: false` from the handler.
+ * For local `next start` on http://, you can also set `COOKIE_SECURE=false` in `.env.local`.
+ */
+function cookieSecure(requestIsHttps?: boolean): boolean {
+  if (process.env.COOKIE_SECURE === 'false') return false
+  if (process.env.COOKIE_SECURE === 'true') return true
+  if (requestIsHttps === false) return false
+  if (requestIsHttps === true) return true
+  return process.env.NODE_ENV === 'production'
+}
 const REFRESH_THRESHOLD_MS = 60 * 1000 // 1 minute
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>
@@ -17,30 +28,36 @@ export interface SpotifyTokenResponse {
   refresh_token?: string
 }
 
-function cookieOptions(maxAge: number) {
+function cookieOptions(maxAge: number, requestIsHttps?: boolean) {
   return {
     httpOnly: true,
-    secure: SECURE,
+    secure: cookieSecure(requestIsHttps),
     maxAge,
     path: COOKIE_PATH,
+    sameSite: 'lax' as const,
   }
 }
 
-function setAccessTokenCookies(cookieStore: CookieStore, tokens: SpotifyTokenResponse) {
+function setAccessTokenCookies(
+  cookieStore: CookieStore,
+  tokens: SpotifyTokenResponse,
+  requestIsHttps?: boolean
+) {
   console.info('setAccessTokenCookies: setting cookies', {
     has_access_token: Boolean(tokens.access_token),
     has_refresh_token: Boolean(tokens.refresh_token),
     expires_in: tokens.expires_in,
+    requestIsHttps,
   })
-  cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
+  cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in, requestIsHttps))
   console.info('setAccessTokenCookies: access token set')
 
   const expiresAt = Date.now() + tokens.expires_in * 1000
-  cookieStore.set(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), cookieOptions(tokens.expires_in))
+  cookieStore.set(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), cookieOptions(tokens.expires_in, requestIsHttps))
   console.info('setAccessTokenCookies: expiry set')
 
   if (tokens.refresh_token) {
-    cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_TOKEN_MAX_AGE))
+    cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_TOKEN_MAX_AGE, requestIsHttps))
     console.info('setAccessTokenCookies: refresh token set')
   } else {
     console.warn('setAccessTokenCookies: NO refresh token in response')
@@ -55,7 +72,8 @@ export function getAccessTokenExpiry(cookieStore: CookieStore): number | null {
 }
 
 export async function refreshSpotifyAccessToken(
-  cookieStore: CookieStore
+  cookieStore: CookieStore,
+  requestIsHttps?: boolean
 ): Promise<string | null> {
   const refreshToken = cookieStore.get(REFRESH_TOKEN_COOKIE)?.value
   if (!refreshToken) {
@@ -95,45 +113,56 @@ export async function refreshSpotifyAccessToken(
   }
 
   const tokens = (await response.json()) as SpotifyTokenResponse
-  setAccessTokenCookies(cookieStore, tokens)
+  setAccessTokenCookies(cookieStore, tokens, requestIsHttps)
   return tokens.access_token
 }
 
-export function storeSpotifyTokens(cookieStore: CookieStore, tokens: SpotifyTokenResponse) {
-  setAccessTokenCookies(cookieStore, tokens)
+export function storeSpotifyTokens(
+  cookieStore: CookieStore,
+  tokens: SpotifyTokenResponse,
+  requestIsHttps?: boolean
+) {
+  setAccessTokenCookies(cookieStore, tokens, requestIsHttps)
 }
 
-export function storeSpotifyTokensInResponse(responseCookies: ResponseCookies, tokens: SpotifyTokenResponse) {
-  responseCookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in))
+export function storeSpotifyTokensInResponse(
+  responseCookies: ResponseCookies,
+  tokens: SpotifyTokenResponse,
+  requestIsHttps?: boolean
+) {
+  responseCookies.set(ACCESS_TOKEN_COOKIE, tokens.access_token, cookieOptions(tokens.expires_in, requestIsHttps))
   const expiresAt = Date.now() + tokens.expires_in * 1000
-  responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), cookieOptions(tokens.expires_in))
+  responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), cookieOptions(tokens.expires_in, requestIsHttps))
   if (tokens.refresh_token) {
-    responseCookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_TOKEN_MAX_AGE))
+    responseCookies.set(REFRESH_TOKEN_COOKIE, tokens.refresh_token, cookieOptions(REFRESH_TOKEN_MAX_AGE, requestIsHttps))
   }
 }
 
-function serializeCookie(name: string, value: string, maxAge: number): string {
+function serializeCookie(name: string, value: string, maxAge: number, requestIsHttps?: boolean): string {
   const parts = [`${name}=${value}`, `Path=${COOKIE_PATH}`, `Max-Age=${maxAge}`, 'HttpOnly', 'SameSite=Lax']
-  if (SECURE) parts.push('Secure')
+  if (cookieSecure(requestIsHttps)) parts.push('Secure')
   return parts.join('; ')
 }
 
-export function buildSpotifyTokenSetCookieHeaders(tokens: SpotifyTokenResponse): string[] {
+export function buildSpotifyTokenSetCookieHeaders(
+  tokens: SpotifyTokenResponse,
+  requestIsHttps?: boolean
+): string[] {
   const expiresAt = Date.now() + tokens.expires_in * 1000
   const headers = [
-    serializeCookie(ACCESS_TOKEN_COOKIE, tokens.access_token, tokens.expires_in),
-    serializeCookie(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), tokens.expires_in),
+    serializeCookie(ACCESS_TOKEN_COOKIE, tokens.access_token, tokens.expires_in, requestIsHttps),
+    serializeCookie(ACCESS_TOKEN_EXPIRY_COOKIE, expiresAt.toString(), tokens.expires_in, requestIsHttps),
   ]
   if (tokens.refresh_token) {
-    headers.push(serializeCookie(REFRESH_TOKEN_COOKIE, tokens.refresh_token, REFRESH_TOKEN_MAX_AGE))
+    headers.push(serializeCookie(REFRESH_TOKEN_COOKIE, tokens.refresh_token, REFRESH_TOKEN_MAX_AGE, requestIsHttps))
   }
   return headers
 }
 
-export function clearSpotifyTokensFromResponse(responseCookies: ResponseCookies) {
-  responseCookies.set(ACCESS_TOKEN_COOKIE, '', cookieOptions(0))
-  responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, '', cookieOptions(0))
-  responseCookies.set(REFRESH_TOKEN_COOKIE, '', cookieOptions(0))
+export function clearSpotifyTokensFromResponse(responseCookies: ResponseCookies, requestIsHttps?: boolean) {
+  responseCookies.set(ACCESS_TOKEN_COOKIE, '', cookieOptions(0, requestIsHttps))
+  responseCookies.set(ACCESS_TOKEN_EXPIRY_COOKIE, '', cookieOptions(0, requestIsHttps))
+  responseCookies.set(REFRESH_TOKEN_COOKIE, '', cookieOptions(0, requestIsHttps))
 }
 
 export const ACCESS_TOKEN_COOKIE_NAME = ACCESS_TOKEN_COOKIE

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
 import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
@@ -297,8 +297,50 @@ class AuthError extends Error {
 /** Web Playback SDK can emit auth errors repeatedly; avoid a redirect storm on Vercel. */
 let spotifyLoginRedirectScheduled = false
 
-function redirectToSpotifyLogin(reason: string) {
+const SPOTIFY_REDIRECT_WINDOW_START = 'spotifyAuthRedirectWindowStart'
+const SPOTIFY_REDIRECT_COUNT = 'spotifyAuthRedirectCount'
+const REDIRECT_WINDOW_MS = 10 * 60 * 1000
+const MAX_REDIRECTS_PER_WINDOW = 5
+
+function clearSpotifyAuthRedirectLoop() {
+  try {
+    sessionStorage.removeItem(SPOTIFY_REDIRECT_WINDOW_START)
+    sessionStorage.removeItem(SPOTIFY_REDIRECT_COUNT)
+  } catch {}
+}
+
+/** Returns false if too many redirects in the window (loop breaker). */
+function recordSpotifyAuthRedirectAttempt(): boolean {
+  try {
+    const now = Date.now()
+    const start = sessionStorage.getItem(SPOTIFY_REDIRECT_WINDOW_START)
+    let count = Number(sessionStorage.getItem(SPOTIFY_REDIRECT_COUNT) || '0')
+    if (!start || now - Number(start) > REDIRECT_WINDOW_MS) {
+      sessionStorage.setItem(SPOTIFY_REDIRECT_WINDOW_START, String(now))
+      sessionStorage.setItem(SPOTIFY_REDIRECT_COUNT, '1')
+      return true
+    }
+    if (count >= MAX_REDIRECTS_PER_WINDOW) return false
+    count += 1
+    sessionStorage.setItem(SPOTIFY_REDIRECT_COUNT, String(count))
+    return true
+  } catch {
+    return true
+  }
+}
+
+function trySpotifyRedirect(
+  setError: (msg: string | null) => void,
+  reason: string,
+): void {
   if (typeof window === 'undefined' || spotifyLoginRedirectScheduled) return
+  if (!recordSpotifyAuthRedirectAttempt()) {
+    setError(
+      'Spotify login could not complete. Please try again later or clear site data for this site.',
+    )
+    console.warn('Spotify session: blocked redirect loop:', reason)
+    return
+  }
   spotifyLoginRedirectScheduled = true
   console.warn('Spotify session: redirecting to login:', reason)
   window.location.href = '/api/auth/login'
@@ -332,6 +374,17 @@ export default function PlayerClient({
     } catch {}
     return null
   })
+  const backoffUntilRef = useRef<number | null>(null)
+  useEffect(() => {
+    backoffUntilRef.current = backoffUntil
+  }, [backoffUntil])
+
+  /** True while Spotify resolve should be avoided (rate limit / gate). LLM-only next-song still runs. */
+  const isSpotifyBackoffActive = () => {
+    const u = backoffUntilRef.current
+    return Boolean(u && u > Date.now())
+  }
+
   const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
   const [playResponse, setPlayResponse] = useState<string | null>(null)
   const [notes, setNotes] = useState(() => loadSettings().notes ?? '')
@@ -359,6 +412,7 @@ export default function PlayerClient({
   const [cooldownTick, setCooldownTick] = useState(0)
   const cooldownRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [spotifyPingInFlight, setSpotifyPingInFlight] = useState(false)
+  const [promotingDjPending, setPromotingDjPending] = useState(false)
 
   const dedupeHistory = useCallback((entries: HistoryEntry[]) => {
     const map = new Map<string, HistoryEntry>()
@@ -368,6 +422,10 @@ export default function PlayerClient({
 
   // ── Refs ─────────────────────────────────────────────────────────────────
   const accessTokenRef = useRef(initialAccessToken)
+  const redirectToSpotifyLoginRef = useRef<(reason: string) => void>(() => {})
+  redirectToSpotifyLoginRef.current = (reason: string) => {
+    trySpotifyRedirect(setError, reason)
+  }
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sdkReadyRef = useRef(false)
@@ -401,13 +459,22 @@ export default function PlayerClient({
   const cardHistoryRef = useRef<HistoryEntry[]>([])
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suggestionBufferRef = useRef<SongSuggestion[]>([])
+  /** Set after `consumeDjSuggestionBuffer` is defined — used from fetchToBuffer before effect runs. */
+  const consumeDjSuggestionBufferRef = useRef<
+    ((opts?: { userInitiated?: boolean }) => Promise<void>) | null
+  >(null)
+  const djQueueLoggedHistoryWaitRef = useRef(false)
   const resolvingRef = useRef(false)
   const profileGenRef = useRef(0)
   const channelsRef = useRef<Channel[]>([])
   const activeChannelIdRef = useRef<string>('')
   const lastFetchAtRef = useRef<number>(0)
+  /** After constraint resolve returns 0 cards but LLM had rows, avoid immediate LLM refetch loop when consume empties the buffer. */
+  const djLlmRetryAfterMsRef = useRef(0)
   const FETCH_COOLDOWN_MS = 15_000
   const pendingPlaybackPositionMsRef = useRef<number | undefined>(undefined)
+  /** Console filter: `[dj-queue]` — why DJ suggestions do or don’t reach Up Next */
+  const DJQ = '[dj-queue]'
 
   function clampPlaybackOffsetMs(positionMs: number, durationMs: number): number {
     if (!Number.isFinite(durationMs) || durationMs <= 0) return Math.max(0, positionMs)
@@ -1155,11 +1222,14 @@ export default function PlayerClient({
       artistConstraint?: string,
       forceTextSearch?: boolean
     ): Promise<{ suggestions: SongSuggestion[]; profile?: string }> => {
+      const cur = currentCardRef.current
       const alreadyHeard = [
+        ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
         ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
         ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
         ...suggestionBufferRef.current.map(s => s.search),
       ]
+      const alreadyHeardDeduped = [...new Set(alreadyHeard.map(s => s.trim()).filter(Boolean))]
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
@@ -1173,7 +1243,7 @@ export default function PlayerClient({
           popularityRef.current,
           regionsRef.current
         ),
-        alreadyHeard: alreadyHeard.length > 0 ? alreadyHeard : undefined,
+        alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
         mode: exploreModeRef.current,
         profileOnly: true,
       }
@@ -1222,6 +1292,8 @@ export default function PlayerClient({
 
   /** Single Spotify search when a suggestion is promoted to Up Next / now playing. */
   const resolveOneSuggestion = useCallback(async (s: SongSuggestion): Promise<CardState | null> => {
+    // Do not preflight on client backoff — stale localStorage spotifyRateLimitUntil can block all
+    // resolves while LLM (profileOnly) still works. Rely on HTTP 429 to set backoff.
     const res = await fetch('/api/next-song', {
       method: 'POST',
       credentials: 'include',
@@ -1239,13 +1311,17 @@ export default function PlayerClient({
       const errBody = await res.json().catch(() => null)
       const payloadRetry =
         errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
+      console.warn(DJQ, 'resolveOneSuggestion: HTTP 429', s.search.slice(0, 48), errBody)
       recordFetch(1)
       throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
     }
     if (res.status === 401) {
+      console.warn(DJQ, 'resolveOneSuggestion: HTTP 401', s.search.slice(0, 48))
       throw new AuthError()
     }
     if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      console.warn(DJQ, 'resolveOneSuggestion: HTTP', res.status, s.search.slice(0, 48), errText.slice(0, 120))
       recordFetch(1)
       return null
     }
@@ -1255,11 +1331,13 @@ export default function PlayerClient({
       | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[]
       | undefined
     if (!songs?.length) {
+      console.warn(DJQ, 'resolveOneSuggestion: empty songs[] in response', s.search.slice(0, 48))
       recordFetch(1)
       return null
     }
     recordFetch(1)
     const t = songs[0]
+    console.info(DJQ, 'resolveOneSuggestion: ok', t.track.name, '—', t.track.artist)
     return {
       track: t.track,
       reason: t.reason,
@@ -1368,11 +1446,16 @@ export default function PlayerClient({
         popularityRef.current,
         regionsRef.current
       ),
-      alreadyHeard: [
-        ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
-        ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
-        ...suggestionBufferRef.current.map(s => s.search),
-      ],
+      alreadyHeard: (() => {
+        const cur = currentCardRef.current
+        const list = [
+          ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
+          ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
+          ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
+          ...suggestionBufferRef.current.map(s => s.search),
+        ]
+        return [...new Set(list.map(s => s.trim()).filter(Boolean))]
+      })(),
       mode: exploreModeRef.current,
       profileOnly: true,
       accessToken: accessTokenRef.current,
@@ -1411,6 +1494,12 @@ export default function PlayerClient({
             suggestionBufferRef.current = merged
             return merged
           })
+          if (suggestionBufferRef.current.length > 0) {
+            console.info(DJQ, 'fetchProfileOnly: invoking consume', suggestionBufferRef.current.length)
+            void consumeDjSuggestionBufferRef.current?.({ userInitiated: false }).catch(e =>
+              console.warn(DJQ, 'fetchProfileOnly: consume rejected', e)
+            )
+          }
         }
         setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
       })
@@ -1430,9 +1519,19 @@ export default function PlayerClient({
       console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
       return
     }
+    if (force) {
+      djLlmRetryAfterMsRef.current = 0
+    }
+    // Constraint path resolves LLM suggestions to tracks on Spotify — skip while backoff.
+    if (onCards && isSpotifyBackoffActive()) {
+      console.info('fetchToBuffer: skipping constraint path, Spotify backoff (needs resolve)')
+      return
+    }
 
     const queueTotal = (currentCardRef.current ? 1 : 0) + queueRef.current.length
-    if (!force && queueTotal >= 2) {
+    const bufferEmpty = suggestionBufferRef.current.length === 0
+    // Throttle LLM refetches when we already have enough queued — but always allow when buffer is empty.
+    if (!force && queueTotal >= 2 && !bufferEmpty) {
       const sinceLastFetch = Date.now() - lastFetchAtRef.current
       if (sinceLastFetch < FETCH_COOLDOWN_MS) {
         const remaining = FETCH_COOLDOWN_MS - sinceLastFetch
@@ -1447,14 +1546,14 @@ export default function PlayerClient({
       }
     }
 
-    // Pre-flight: each Spotify resolve counts as 1 call (lazy, not 3 per LLM batch).
-    {
+    // Spotify preflight only when we will resolve suggestions to tracks (onCards path).
+    if (onCards) {
       const { log } = readStats()
       const now = Date.now()
       const recent = log.filter(e => e.t >= now - 30_000).reduce((s, e) => s + e.n, 0)
       const threshold = force ? 20 : 15
       if (recent >= threshold) {
-        console.info('fetchToBuffer: skipping, approaching Spotify rate limit', recent, '/30s', force ? '(forced)' : '')
+        console.info('fetchToBuffer: skipping onCards, approaching Spotify rate limit', recent, '/30s', force ? '(forced)' : '')
         return
       }
     }
@@ -1489,14 +1588,35 @@ export default function PlayerClient({
           const resolved = await resolveSuggestionsToCards(suggestions, 3)
           onCards(resolved)
           if (replaceBuffer) {
-            suggestionBufferRef.current = []
-            setSuggestionBuffer([])
+            if (resolved.length > 0) {
+              djLlmRetryAfterMsRef.current = 0
+              suggestionBufferRef.current = []
+              setSuggestionBuffer([])
+            } else if (suggestions.length > 0) {
+              // Constraint resolve failed — keep LLM rows for DJ / consume. Do not call consume here
+              // (auto-fill effect runs once). Back off LLM refetch if consume empties buffer without filling queue.
+              suggestionBufferRef.current = suggestions.map(s => ({ ...s }))
+              setSuggestionBuffer(suggestionBufferRef.current)
+              djLlmRetryAfterMsRef.current = Date.now() + FETCH_COOLDOWN_MS
+            }
           }
         } else {
           const merged = replaceBuffer ? fresh : [...suggestionBufferRef.current, ...fresh]
           suggestionBufferRef.current = merged
           setSuggestionBuffer(merged)
+          if (merged.length > 0) {
+            djLlmRetryAfterMsRef.current = 0
+          }
           console.info('fetchToBuffer appended suggestions', fresh.length, 'buffer length', merged.length)
+          if (merged.length > 0) {
+            console.info(DJQ, 'fetchToBuffer: invoking consume after merge', merged.length)
+            try {
+              await consumeDjSuggestionBufferRef.current?.({ userInitiated: false })
+              console.info(DJQ, 'fetchToBuffer: consume finished (no throw)')
+            } catch (e) {
+              console.warn(DJQ, 'fetchToBuffer: consume threw', e)
+            }
+          }
         }
 
         setSessionHistory(prev => prev.slice(sentHistory.length))
@@ -1550,62 +1670,87 @@ export default function PlayerClient({
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
   const startPlaybackFromSuggestions = useCallback(async () => {
     while (!currentCardRef.current && suggestionBufferRef.current.length > 0) {
-      const [next, ...rest] = suggestionBufferRef.current
-      suggestionBufferRef.current = rest
-      setSuggestionBuffer(rest)
+      const next = suggestionBufferRef.current[0]
       try {
         const card = await resolveOneSuggestion(next)
-        if (card) {
-          const played = new Set(playedUrisRef.current)
-          if (!played.has(card.track.uri)) {
-            currentCardRef.current = card
-            setCurrentCard(card)
-            return
-          }
+        if (!card) {
+          console.warn(DJQ, 'startPlaybackFromSuggestions: resolve returned null; dropping row', next.search.slice(0, 48))
+          const rest = suggestionBufferRef.current.slice(1)
+          suggestionBufferRef.current = rest
+          setSuggestionBuffer(rest)
+          continue
         }
+        const rest = suggestionBufferRef.current.slice(1)
+        suggestionBufferRef.current = rest
+        setSuggestionBuffer(rest)
+        const played = new Set(playedUrisRef.current)
+        if (!played.has(card.track.uri)) {
+          currentCardRef.current = card
+          setCurrentCard(card)
+          console.info(DJQ, 'startPlaybackFromSuggestions: set now playing', card.track.name)
+          return
+        }
+        console.info(DJQ, 'startPlaybackFromSuggestions: resolved track already in played; popping', next.search.slice(0, 40))
       } catch (e) {
         if (e instanceof RateLimitError) {
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
+          console.warn(DJQ, 'startPlaybackFromSuggestions: RateLimitError', waitMs)
           setBackoffUntil(Date.now() + waitMs)
           setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
         } else if (e instanceof AuthError) {
+          console.warn(DJQ, 'startPlaybackFromSuggestions: AuthError')
           setError('Authentication error (401). Access token may be invalid or missing.')
         }
         return
       }
+    }
+    if (suggestionBufferRef.current.length > 0 && !currentCardRef.current) {
+      console.warn(DJQ, 'startPlaybackFromSuggestions: ended with buffer left but no current card', {
+        bufferLeft: suggestionBufferRef.current.length,
+      })
     }
   }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
 
   /** Resolve one suggestion at a time until queue has 3 items or buffer is empty. */
   const topUpQueueFromSuggestions = useCallback(async () => {
     while (queueRef.current.length < 3 && suggestionBufferRef.current.length > 0) {
-      const [next, ...rest] = suggestionBufferRef.current
-      suggestionBufferRef.current = rest
-      setSuggestionBuffer(rest)
+      const next = suggestionBufferRef.current[0]
       try {
         const card = await resolveOneSuggestion(next)
-        if (card) {
-          const seen = new Set<string>([
-            ...playedUrisRef.current,
-            ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
-            ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-            ...queueRef.current.map(c => c.track.uri),
-          ])
-          if (!seen.has(card.track.uri)) {
-            const newQ = [...queueRef.current, card]
-            queueRef.current = newQ
-            setQueue(newQ)
-            console.info('topUpQueueFromSuggestions added', card.track.name, 'queue len', newQ.length)
-          }
+        if (!card) {
+          console.warn(DJQ, 'topUpQueueFromSuggestions: resolve returned null; dropping row', next.search.slice(0, 48))
+          const rest = suggestionBufferRef.current.slice(1)
+          suggestionBufferRef.current = rest
+          setSuggestionBuffer(rest)
+          continue
+        }
+        const rest = suggestionBufferRef.current.slice(1)
+        suggestionBufferRef.current = rest
+        setSuggestionBuffer(rest)
+        const seen = new Set<string>([
+          ...playedUrisRef.current,
+          ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
+          ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
+          ...queueRef.current.map(c => c.track.uri),
+        ])
+        if (!seen.has(card.track.uri)) {
+          const newQ = [...queueRef.current, card]
+          queueRef.current = newQ
+          setQueue(newQ)
+          console.info(DJQ, 'topUpQueueFromSuggestions: added', card.track.name, 'queue len', newQ.length)
+        } else {
+          console.info(DJQ, 'topUpQueueFromSuggestions: duplicate uri skipped', card.track.name)
         }
       } catch (e) {
         if (e instanceof RateLimitError) {
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
+          console.warn(DJQ, 'topUpQueueFromSuggestions: RateLimitError', waitMs)
           setBackoffUntil(Date.now() + waitMs)
           setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
         } else if (e instanceof AuthError) {
+          console.warn(DJQ, 'topUpQueueFromSuggestions: AuthError')
           setError('Authentication error (401). Access token may be invalid or missing.')
         }
         return
@@ -1613,10 +1758,335 @@ export default function PlayerClient({
     }
   }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
 
-  // ── Auto-fill: resolve lazily → start playing, top up queue, or fetch more LLM suggestions ──
+  /** Outcome of batch ID promote — do not infer from isSpotifyBackoff() (stale client timer). */
+  type PromoteDjResult = 'ok' | 'noop' | 'rate_limited' | 'auth_error'
+
+  /**
+   * Batch-resolve pending DJ suggestions that already have Spotify track IDs (no text search).
+   * Uses one `/api/next-song` call → `getTracksByIds` on the server.
+   */
+  const promoteDjPendingByIdOnly = useCallback(async (): Promise<PromoteDjResult> => {
+    if (isGuideDemo) {
+      console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (guide demo)')
+      return 'noop'
+    }
+    const needCurrent = !currentCardRef.current
+    const queueRoom = Math.max(0, 3 - queueRef.current.length)
+    const maxTake =
+      needCurrent && queueRef.current.length === 0
+        ? 4
+        : queueRoom
+
+    if (maxTake <= 0) {
+      console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (no slots)', {
+        needCurrent,
+        queueLen: queueRef.current.length,
+      })
+      return 'noop'
+    }
+
+    const buf = suggestionBufferRef.current
+    const take: SongSuggestion[] = []
+    const indicesToRemove = new Set<number>()
+    for (let i = 0; i < buf.length; i++) {
+      const s = buf[i]
+      if (take.length >= maxTake) break
+      if (!normalizeSpotifyTrackId(s.spotifyId)) continue
+      take.push(s)
+      indicesToRemove.add(i)
+    }
+    if (take.length === 0) {
+      console.info(DJQ, 'promoteDjPendingByIdOnly: no spotifyId on pending rows; will use text resolve')
+      return 'noop'
+    }
+
+    console.info(DJQ, 'promoteDjPendingByIdOnly: batch request', take.length, 'ids')
+    const res = await fetch('/api/next-song', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songsToResolve: take,
+          sessionHistory: sessionHistoryRef.current,
+          accessToken: accessTokenRef.current,
+          forceTextSearch: false,
+        }),
+      })
+
+      if (res.status === 429) {
+        const errBody = await res.json().catch(() => null)
+        const retryMs =
+          errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: HTTP 429', errBody)
+        const waitMs = (retryMs ?? 60_000) + 5_000
+        setBackoffUntil(Date.now() + waitMs)
+        setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+        fillFromHeardWhenRateLimited()
+        return 'rate_limited'
+      }
+      if (res.status === 401) {
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: HTTP 401')
+        setError('Authentication error (401). Access token may be invalid or missing.')
+        return 'auth_error'
+      }
+      if (!res.ok) {
+        const t = await res.text().catch(() => '')
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: HTTP', res.status, t.slice(0, 160))
+        return 'noop'
+      }
+
+      const data = await res.json()
+      const songs = data.songs as
+        | {
+            track: SpotifyTrack
+            reason: string
+            category?: string
+            coords?: { x: number; y: number }
+            composed?: number
+          }[]
+        | undefined
+      if (!songs?.length) {
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: empty songs in response body')
+        return 'noop'
+      }
+
+      recordFetch(1)
+
+      const seen = new Set<string>([
+        ...playedUrisRef.current,
+        ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
+        ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
+        ...queueRef.current.map(c => c.track.uri),
+      ])
+
+      const cards: CardState[] = []
+      for (const t of songs) {
+        const u = t.track.uri
+        if (seen.has(u)) continue
+        seen.add(u)
+        cards.push({
+          track: t.track,
+          reason: t.reason,
+          category: t.category,
+          coords: t.coords,
+          composed: t.composed,
+        })
+      }
+      if (cards.length === 0) {
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: all tracks filtered as duplicates / seen')
+        const rest = buf.filter((_, i) => !indicesToRemove.has(i))
+        suggestionBufferRef.current = rest
+        setSuggestionBuffer(rest)
+        return 'noop'
+      }
+
+      const rest = buf.filter((_, i) => !indicesToRemove.has(i))
+      suggestionBufferRef.current = rest
+      setSuggestionBuffer(rest)
+
+      console.info(DJQ, 'promoteDjPendingByIdOnly: applying', cards.length, 'cards to player')
+      let restCards = cards
+      if (!currentCardRef.current && queueRef.current.length === 0) {
+        const [first, ...afterFirst] = restCards
+        currentCardRef.current = first
+        setCurrentCard(first)
+        lastPlayedUriRef.current = null
+        setHasRated(false)
+        hasRatedRef.current = false
+        seen.add(first.track.uri)
+        restCards = afterFirst.slice(0, 3)
+      }
+
+      const q = [...queueRef.current]
+      for (const c of restCards) {
+        if (q.length >= 3) break
+        if (seen.has(c.track.uri)) continue
+        seen.add(c.track.uri)
+        q.push(c)
+      }
+      queueRef.current = q
+      setQueue(q)
+      console.info(DJQ, 'promoteDjPendingByIdOnly: done', {
+        nowPlaying: Boolean(currentCardRef.current),
+        queueLen: q.length,
+        bufferLeft: suggestionBufferRef.current.length,
+      })
+      return 'ok'
+  }, [isGuideDemo, fillFromHeardWhenRateLimited])
+
+  /**
+   * Move DJ buffer into now playing / Up Next: batch by Spotify ID when possible, then lazy resolve.
+   * Runs automatically when there is room; `userInitiated` controls whether to surface setError toasts.
+   */
+  const consumeDjSuggestionBuffer = useCallback(
+    async (options?: { userInitiated?: boolean }) => {
+      const userInitiated = options?.userInitiated ?? false
+      const label = userInitiated ? 'user' : 'auto'
+      if (isGuideDemo) {
+        console.info(DJQ, 'consume: skipped (guide demo)', label)
+        return
+      }
+      if (suggestionBufferRef.current.length === 0) {
+        console.info(DJQ, 'consume: skipped (buffer empty)', label)
+        return
+      }
+
+      const slotsRemaining = () => {
+        const needCurrent = !currentCardRef.current
+        const queueRoom = Math.max(0, 3 - queueRef.current.length)
+        return needCurrent && queueRef.current.length === 0 ? 4 : queueRoom
+      }
+
+      const slots = slotsRemaining()
+      if (slots <= 0) {
+        console.info(DJQ, 'consume: skipped (no slots for queue)', label, {
+          hasCurrent: Boolean(currentCardRef.current),
+          queueLen: queueRef.current.length,
+        })
+        if (userInitiated) {
+          setError('Up Next is full — skip a track or press Next to make room.')
+        }
+        return
+      }
+
+      // Avoid hammering Spotify: effect re-runs when backoffUntil changes — without this we loop 429 → setBackoff → effect → consume → 429.
+      const backoffActive = Boolean(backoffUntilRef.current && backoffUntilRef.current > Date.now())
+      if (backoffActive) {
+        console.info(DJQ, 'consume: skipped (Spotify backoff active)', label)
+        if (userInitiated) {
+          setError('Spotify is rate-limited — try again after the cooldown.')
+        }
+        return
+      }
+
+      const hadIds = suggestionBufferRef.current.some(s =>
+        normalizeSpotifyTrackId(s.spotifyId)
+      )
+
+      console.info(DJQ, 'consume: start', label, {
+        bufferLen: suggestionBufferRef.current.length,
+        slots,
+        hadSpotifyIds: hadIds,
+        clientBackoffHint: isSpotifyBackoffActive(),
+      })
+
+      resolvingRef.current = true
+      setPromotingDjPending(true)
+      try {
+        let promoteDone = false
+        let loop = 0
+
+        while (suggestionBufferRef.current.length > 0) {
+          loop++
+          if (slotsRemaining() <= 0) {
+            console.info(DJQ, 'consume: loop exit (no slots)', { loop })
+            if (userInitiated) {
+              setError(
+                'Up Next is full — skip a track or press Next to add more from the DJ.'
+              )
+            }
+            break
+          }
+
+          if (!promoteDone && hadIds) {
+            console.info(DJQ, 'consume: calling promoteDjPendingByIdOnly', { loop })
+            const pr = await promoteDjPendingByIdOnly()
+            promoteDone = true
+            if (pr === 'rate_limited') {
+              console.warn(DJQ, 'consume: promote returned HTTP 429', { loop })
+              if (userInitiated) {
+                setError(
+                  'Spotify is rate-limited — try again after the cooldown.'
+                )
+              }
+              break
+            }
+            if (pr === 'auth_error') {
+              if (userInitiated) {
+                setError('Authentication error (401). Access token may be invalid or missing.')
+              }
+              break
+            }
+            continue
+          }
+
+          const bufBefore = suggestionBufferRef.current.length
+
+          if (!currentCardRef.current && suggestionBufferRef.current.length > 0) {
+            console.info(DJQ, 'consume: startPlaybackFromSuggestions', { loop, bufBefore })
+            await startPlaybackFromSuggestions()
+          }
+          if (
+            currentCardRef.current &&
+            queueRef.current.length < 3 &&
+            suggestionBufferRef.current.length > 0
+          ) {
+            console.info(DJQ, 'consume: topUpQueueFromSuggestions', {
+              loop,
+              bufBefore: suggestionBufferRef.current.length,
+              queueLen: queueRef.current.length,
+            })
+            await topUpQueueFromSuggestions()
+          }
+
+          if (suggestionBufferRef.current.length === bufBefore) {
+            console.warn(DJQ, 'consume: no progress (buffer unchanged)', {
+              loop,
+              bufBefore,
+              hasCurrent: Boolean(currentCardRef.current),
+              queueLen: queueRef.current.length,
+            })
+            if (suggestionBufferRef.current.length > 0 && userInitiated) {
+              setError(
+                'Could not add those tracks — they may already be queued or in your history.'
+              )
+            }
+            break
+          }
+        }
+
+        if (
+          userInitiated &&
+          isSpotifyBackoffActive() &&
+          suggestionBufferRef.current.length > 0
+        ) {
+          setError('Spotify is rate-limited — try again after the cooldown.')
+        }
+
+        console.info(DJQ, 'consume: end', label, {
+          bufferLeft: suggestionBufferRef.current.length,
+          queueLen: queueRef.current.length,
+          hasCurrent: Boolean(currentCardRef.current),
+        })
+      } finally {
+        if (currentCardRef.current || queueRef.current.length > 0) {
+          djLlmRetryAfterMsRef.current = 0
+        }
+        setPromotingDjPending(false)
+        resolvingRef.current = false
+      }
+    },
+    [
+      isGuideDemo,
+      promoteDjPendingByIdOnly,
+      startPlaybackFromSuggestions,
+      topUpQueueFromSuggestions,
+    ]
+  )
+  consumeDjSuggestionBufferRef.current = consumeDjSuggestionBuffer
+
+  // ── Auto-fill: move DJ buffer → now playing / Up Next, or fetch more LLM suggestions ──
   useEffect(() => {
     if (isGuideDemo) return
-    if (!deviceId || !historyReady) return
+    if (!historyReady) {
+      if (!djQueueLoggedHistoryWaitRef.current) {
+        djQueueLoggedHistoryWaitRef.current = true
+        console.info(DJQ, 'auto-fill effect: skipped until historyReady (channels restored)')
+      }
+      return
+    }
+    // Spotify backoff: fill from Heard without API calls, but do NOT exit — LLM (profileOnly)
+    // must still run to refill the DJ buffer when empty.
     if (backoffUntil && backoffUntil > Date.now()) {
       if (!fetchingRef.current && !resolvingRef.current) {
         resolvingRef.current = true
@@ -1626,32 +2096,74 @@ export default function PlayerClient({
           resolvingRef.current = false
         }
       }
+    }
+    if (fetchingRef.current) {
+      console.info(DJQ, 'auto-fill effect: skipped (fetchToBuffer in flight)')
       return
     }
-    if (fetchingRef.current) return
 
-    if (resolvingRef.current) return
+    if (resolvingRef.current) {
+      console.info(DJQ, 'auto-fill effect: skipped (resolvingRef in flight)')
+      return
+    }
 
     const run = async () => {
-      if (!currentCard && suggestionBuffer.length > 0) {
-        resolvingRef.current = true
+      if (suggestionBuffer.length > 0) {
+        const needCurrent = !currentCard
+        const queueRoom = Math.max(0, 3 - queue.length)
+        const slots =
+          needCurrent && queue.length === 0 ? 4 : queueRoom
+        if (slots <= 0) {
+          console.info(DJQ, 'auto-fill effect: buffer non-empty but no slots', {
+            suggestionBufferLen: suggestionBuffer.length,
+            hasCurrent: Boolean(currentCard),
+            queueLen: queue.length,
+          })
+          return
+        }
+        if (isSpotifyBackoffActive()) {
+          const u = backoffUntilRef.current
+          console.info(DJQ, 'auto-fill effect: skip consume (Spotify backoff); scheduling retry', {
+            untilMs: u ?? 0,
+          })
+          if (u && u > Date.now() && !cooldownRetryTimerRef.current) {
+            const wait = Math.min(u - Date.now() + 250, 120_000)
+            cooldownRetryTimerRef.current = setTimeout(() => {
+              cooldownRetryTimerRef.current = null
+              setCooldownTick(t => t + 1)
+            }, Math.max(wait, 500))
+          }
+          return
+        }
+        console.info(DJQ, 'auto-fill effect: calling consume', {
+          slots,
+          suggestionBufferLen: suggestionBuffer.length,
+          clientBackoffHint: isSpotifyBackoffActive(),
+        })
         try {
-          await startPlaybackFromSuggestions()
-        } finally {
-          resolvingRef.current = false
+          await consumeDjSuggestionBuffer({ userInitiated: false })
+          console.info(DJQ, 'auto-fill effect: consume done')
+        } catch (e) {
+          console.warn(DJQ, 'auto-fill effect: consume threw', e)
         }
         return
       }
-      if (currentCard && queue.length < 3 && suggestionBuffer.length > 0) {
-        resolvingRef.current = true
-        try {
-          await topUpQueueFromSuggestions()
-        } finally {
-          resolvingRef.current = false
+      if (!loadingQueue && (!currentCard || queue.length < 3)) {
+        const retryAfter = djLlmRetryAfterMsRef.current
+        if (retryAfter > 0 && Date.now() < retryAfter) {
+          const wait = retryAfter - Date.now()
+          console.info(DJQ, 'auto-fill effect: skipping fetchToBuffer (post-failed-constraint backoff)', {
+            waitMs: Math.round(wait),
+          })
+          if (wait > 0 && !cooldownRetryTimerRef.current) {
+            cooldownRetryTimerRef.current = setTimeout(() => {
+              cooldownRetryTimerRef.current = null
+              setCooldownTick(t => t + 1)
+            }, Math.min(wait + 100, 60_000))
+          }
+          return
         }
-        return
-      }
-      if (!loadingQueue && suggestionBuffer.length === 0 && (!currentCard || queue.length < 3)) {
+        console.info(DJQ, 'auto-fill effect: calling fetchToBuffer (buffer empty)')
         fetchToBuffer()
       }
     }
@@ -1662,14 +2174,12 @@ export default function PlayerClient({
     queue.length,
     suggestionBuffer.length,
     loadingQueue,
-    deviceId,
     historyReady,
     fetchToBuffer,
     backoffUntil,
     cooldownTick,
     isGuideDemo,
-    startPlaybackFromSuggestions,
-    topUpQueueFromSuggestions,
+    consumeDjSuggestionBuffer,
     fillFromHeardWhenRateLimited,
   ])
 
@@ -2343,6 +2853,7 @@ export default function PlayerClient({
             onRateHistoryItem={handleRateHistoryItem}
             submittedUris={submittedUris}
             pendingSuggestions={suggestionBuffer}
+            promotingDjPending={promotingDjPending}
             onRemoveQueueItem={(index) => {
               const q = queueRef.current
               if (index < 0 || index >= q.length) return

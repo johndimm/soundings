@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
-import { storeSpotifyTokens, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
+import {
+  storeSpotifyTokens,
+  storeSpotifyTokensInResponse,
+  type SpotifyTokenResponse,
+} from '@/app/lib/spotify/tokens'
 
 export const dynamic = 'force-dynamic'
+export const runtime = 'nodejs'
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -35,10 +40,13 @@ export async function GET(req: NextRequest) {
   })
 
   if (!response.ok) {
+    const errBody = await response.text().catch(() => '')
+    console.error('callback: token exchange failed', { status: response.status, body: errBody })
     return Response.redirect(`${baseUrl}/?error=token_exchange_failed`, 302)
   }
 
   const tokens = (await response.json()) as SpotifyTokenResponse
+  const requestIsHttps = req.nextUrl.protocol === 'https:'
   console.info('callback: token exchange result', {
     has_access_token: Boolean(tokens.access_token),
     has_refresh_token: Boolean(tokens.refresh_token),
@@ -46,12 +54,14 @@ export async function GET(req: NextRequest) {
   })
 
   const cookieStore = await cookies()
-  storeSpotifyTokens(cookieStore, tokens)
-  console.info('callback: cookies set, redirecting to player')
+  storeSpotifyTokens(cookieStore, tokens, requestIsHttps)
 
-  // NextResponse.redirect merges Set-Cookie from cookies() — more reliable on Vercel than HTML+JS navigation.
-  return NextResponse.redirect(new URL('/player', req.url), {
+  const res = NextResponse.redirect(new URL('/player', req.url), {
     status: 302,
     headers: { 'Cache-Control': 'no-store' },
   })
+  // Also set on the Response object so Set-Cookie is not lost if mutable-cookie merge misbehaves.
+  storeSpotifyTokensInResponse(res.cookies, tokens, requestIsHttps)
+  console.info('callback: cookies set (cookies() + res.cookies) → /player')
+  return res
 }

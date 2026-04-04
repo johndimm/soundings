@@ -19,6 +19,18 @@ export interface SongSuggestion {
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
 
+/** API model name used for each provider (keep in sync with ask* fetch bodies). */
+export const LLM_MODEL_API_ID: Record<LLMProvider, string> = {
+  anthropic: 'claude-opus-4-6',
+  openai: 'gpt-4.1',
+  deepseek: 'deepseek-chat',
+  gemini: 'gemini-2.5-flash-preview-04-17',
+}
+
+export function getLLMModelApiId(provider: LLMProvider): string {
+  return LLM_MODEL_API_ID[provider]
+}
+
 // ── Music Space ──────────────────────────────────────────────────────────────
 // Songs live in a high-dimensional space (era, instruments, energy, mood,
 // complexity, cultural origin, etc.). We project to 2D for the map.
@@ -79,9 +91,15 @@ DISLIKE ESCALATION:
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","spotify_id":"Spotify track ID if known","composed":1791,"coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","spotify_id":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
+{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
+You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
-Whenever you are confident of the exact Spotify catalog entry, set "spotify_id" to the 22-character track id (or spotify:track:… URI). The app resolves IDs via the Tracks API instead of Search, which helps when Search is rate-limited. Omit spotify_id if unsure.
+SPOTIFY ID (spotify_id) — conservative but not silent:
+- You do NOT have live Spotify API access. Never invent random-looking 22-character strings; wrong IDs break playback.
+- DO include spotify_id when you have a reliable identifier for that exact recording: the 22-character track id, a spotify:track:… URI, or a full https://open.spotify.com/track/… link you know is correct (same recording as "search"). The app extracts the id from URLs.
+- If you only know title and artist but have no id or link you trust, omit spotify_id for that song — the app resolves via "search".
+- When unsure between including a questionable id or omitting it, omit it.
+- The "search" field is always required and is the source of truth for lookup; spotify_id is an optional accelerator when trustworthy.
 
 The "composed" field is the year of composition (for classical/jazz standards/etc.) — omit it for contemporary recordings where the release year is meaningful.`
 
@@ -349,6 +367,14 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
   // New format: {songs: [{search, reason, category, spotify_id, coords}, ...], profile}
   if (Array.isArray(parsed.songs)) {
     type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string; coords?: unknown; composed?: unknown }
+    const rawSpotifyIdFromRow = (row: Record<string, unknown>): string | undefined => {
+      for (const k of ['spotifyId', 'spotify_id', 'spotify_track_id'] as const) {
+        const v = row[k]
+        if (typeof v === 'string' && v.trim()) return v.trim()
+        if (typeof v === 'number' && Number.isFinite(v)) return String(Math.trunc(v))
+      }
+      return undefined
+    }
     const songs = parsed.songs
       .filter((s: unknown): s is LLMRow => {
         const c = s as Record<string, unknown>
@@ -358,35 +384,38 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         search: s.search,
         reason: s.reason,
         category: typeof s.category === 'string' ? s.category : undefined,
-        spotifyId: normalizeSpotifyTrackId(
-          typeof s.spotifyId === 'string'
-            ? s.spotifyId
-            : typeof s.spotify_id === 'string'
-              ? s.spotify_id
-              : undefined
-        ),
+        spotifyId: normalizeSpotifyTrackId(rawSpotifyIdFromRow(s as unknown as Record<string, unknown>)),
         coords: parseCoords(s.coords),
         composed: typeof s.composed === 'number' && Number.isFinite(s.composed) ? s.composed : undefined,
       }))
       .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
     const chosen = songs.slice(0, 3)
     if (songs.length > 0) {
-      console.log('LLM songs', chosen.map((s: SongSuggestion) => ({
-        search: s.search,
-        coords: s.coords ?? 'none',
-        spotifyId: s.spotifyId ?? 'none',
-        composed: s.composed ?? 'none',
-      })))
+      const withId = chosen.filter(s => s.spotifyId).length
+      console.log(
+        `LLM songs: ${chosen.length} tracks, ${withId} with spotifyId, ${chosen.length - withId} search-only (no id — normal)`
+      )
+      console.log(
+        chosen.map((s: SongSuggestion) => ({
+          search: s.search,
+          coords: s.coords,
+          ...(s.spotifyId ? { spotifyId: s.spotifyId } : {}),
+          ...(s.composed != null ? { composed: s.composed } : {}),
+        }))
+      )
       return { songs: chosen, profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }
     }
   }
 
   // Old format fallback: {search, reason, profile}
   if (typeof parsed.search === 'string' && typeof parsed.reason === 'string') {
-    const spotifyId =
-      typeof parsed.spotifyId === 'string' ? parsed.spotifyId.trim()
-      : typeof parsed.spotify_id === 'string' ? parsed.spotify_id.trim()
-      : undefined
+    const rawSingle =
+      typeof parsed.spotifyId === 'string'
+        ? parsed.spotifyId.trim()
+        : typeof parsed.spotify_id === 'string'
+          ? parsed.spotify_id.trim()
+          : undefined
+    const spotifyId = normalizeSpotifyTrackId(rawSingle)
     const single: SongSuggestion = {
       search: parsed.search,
       reason: parsed.reason,

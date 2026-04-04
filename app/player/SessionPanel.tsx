@@ -67,7 +67,9 @@ interface Props {
   onRemoveQueueItem: (index: number) => void
   onPlayHistoryItem: (entry: HistoryEntry) => void
   submittedUris: Set<string>
-  pendingSuggestions: { search: string; reason: string }[]
+  pendingSuggestions: { search: string; reason: string; spotifyId?: string }[]
+  /** True while resolving DJ picks into the queue (automatic). */
+  promotingDjPending?: boolean
   settingsDirty: boolean
 }
 
@@ -155,6 +157,7 @@ export default function SessionPanel({
   onDiscoveryChange,
   submittedUris,
   pendingSuggestions,
+  promotingDjPending = false,
   settingsDirty,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -263,7 +266,15 @@ export default function SessionPanel({
         {/* DJ's pending suggestions — feed into Up Next from below */}
         {pendingSuggestions.length > 0 && (
           <div className="mt-2 border-t border-zinc-800 pt-2">
-            <div className="text-xs text-zinc-500 uppercase tracking-wider mb-1">DJ is thinking…</div>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="text-xs text-zinc-500 uppercase tracking-wider">DJ is thinking…</div>
+              {promotingDjPending && (
+                <div className="flex items-center gap-1.5 text-zinc-400">
+                  <div className="w-3 h-3 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
+                  <span className="text-[10px]">Adding to queue…</span>
+                </div>
+              )}
+            </div>
             <div className="flex flex-col gap-2">
               {pendingSuggestions.map((s, i) => (
                 <div key={i} className="text-xs px-1">
