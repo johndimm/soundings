@@ -1016,20 +1016,35 @@ export default function PlayerClient({
         getOAuthToken: cb => {
           fetch('/api/spotify/token', { credentials: 'same-origin', cache: 'no-store' })
             .then(async r => {
+              if (r.status === 401) {
+                redirectToSpotifyLoginRef.current(`token HTTP ${r.status}`)
+                return
+              }
               if (!r.ok) {
-                redirectToSpotifyLogin(`token HTTP ${r.status}`)
+                console.warn('Spotify token: transient HTTP error', r.status)
+                setError(
+                  'Could not reach Spotify right now. Your session is still here; try again in a moment.',
+                )
+                const fallback = accessTokenRef.current
+                if (fallback) cb(fallback)
                 return
               }
               const d = (await r.json()) as { accessToken?: string }
               if (d.accessToken) {
+                clearSpotifyAuthRedirectLoop()
                 accessTokenRef.current = d.accessToken
                 cb(d.accessToken)
               } else {
-                redirectToSpotifyLogin('token response missing accessToken')
+                redirectToSpotifyLoginRef.current('token response missing accessToken')
               }
             })
-            .catch(() => {
-              redirectToSpotifyLogin('token fetch failed')
+            .catch(err => {
+              console.warn('Spotify token: fetch failed', err)
+              setError(
+                'Could not reach Spotify right now. Your session is still here; try again in a moment.',
+              )
+              const fallback = accessTokenRef.current
+              if (fallback) cb(fallback)
             })
         },
         volume: 0.8,
@@ -1050,7 +1065,7 @@ export default function PlayerClient({
       p.addListener('authentication_error', () => {
         console.error('Spotify SDK: authentication_error — redirecting to login')
         playerRef.current?.disconnect()
-        redirectToSpotifyLogin('sdk authentication_error')
+        redirectToSpotifyLoginRef.current('sdk authentication_error')
       })
 
       p.connect()
