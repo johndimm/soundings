@@ -379,7 +379,7 @@ export default function PlayerClient({
     backoffUntilRef.current = backoffUntil
   }, [backoffUntil])
 
-  /** True while Spotify resolve should be avoided (rate limit / gate). LLM-only next-song still runs. */
+  /** True while Spotify resolve should be avoided (rate limit / gate). Profile-only LLM is skipped server-side when Spotify is offline. */
   const isSpotifyBackoffActive = () => {
     const u = backoffUntilRef.current
     return Boolean(u && u > Date.now())

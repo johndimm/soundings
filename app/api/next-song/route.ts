@@ -60,14 +60,14 @@ export async function POST(req: NextRequest) {
   }
 
   const hasResolveOnly = Boolean(body.songsToResolve && body.songsToResolve.length > 0)
-  /** LLM-only (profileOnly, no songsToResolve) does not call Spotify — must not be blocked by app gate. */
   const llmOnlyNoSpotify = body.profileOnly === true && !hasResolveOnly
   /**
-   * Resolving DJ suggestions to tracks (`songsToResolve`) must reach Spotify even when the global
-   * gate is active — otherwise users get LLM rows but an empty Up Next (profileOnly bypasses the
-   * gate; promote/resolve did not). Per-request Spotify errors are handled inside resolveSongs.
+   * `songsToResolve` must bypass the outer gate so resolve runs (with its own offline checks).
+   * Profile-only LLM (DJ buffer) skips Spotify on the server but still needs Spotify to be up for
+   * IDs to matter — when `isSpotifyOffline()`, do not call the LLM (same gate as full next-song).
    */
-  const skipGlobalSpotifyGate = llmOnlyNoSpotify || hasResolveOnly
+  const skipGlobalSpotifyGate =
+    hasResolveOnly || (llmOnlyNoSpotify && !isSpotifyOffline())
 
   if (!skipGlobalSpotifyGate && !isSpotifyAvailable()) {
     const waitMs = isSpotifyOffline() ? getSpotifyOfflineWaitMs() : getRateLimitRemainingMs()

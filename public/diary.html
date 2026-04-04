@@ -94,6 +94,34 @@
   <li class="fix">Ping endpoint (<code>/api/spotify/ping</code>) calls <code>resetSpotifyState()</code> on success, clearing server-side rate limit timer.</li>
 </ul>
 
+<h3 class="problem">Problem: Vercel infinite reload (OAuth redirect loop)</h3>
+<ul>
+  <li class="problem"><code>getOAuthToken</code> treated any failed token fetch like session expiry: <code>!r.ok</code> or network <code>catch</code> → redirect to <code>/api/auth/login</code>. After OAuth, <code>/player</code> loaded again; transient failures (outage, 5xx, flaky network) repeated the redirect. Module-level <code>spotifyLoginRedirectScheduled</code> only blocks within one page load, so full navigations could loop forever.</li>
+</ul>
+
+<h3 class="fix">Fix: Token fetch and redirect loop breaker</h3>
+<ul>
+  <li class="fix"><code>PlayerClient.tsx</code> <code>getOAuthToken</code>: only redirect on HTTP <strong>401</strong>. Other statuses and fetch failures set a visible error and optionally pass the last known token from <code>accessTokenRef</code> to the SDK so playback can recover without another OAuth round trip.</li>
+  <li class="fix">Session-based cap: up to <strong>5</strong> login redirects per <strong>10 minutes</strong> (<code>sessionStorage</code>); then show an error instead of redirecting. Counter cleared after a successful <code>200</code> token response.</li>
+  <li class="fix"><code>authentication_error</code> uses the same redirect helper via a ref so cooldown applies consistently.</li>
+</ul>
+
+<h3 class="problem">Problem: Production build failed — invalid <code>logs</code> symlink</h3>
+<ul>
+  <li class="problem">Turbopack panicked: <em>Symlink <code>logs/llm-spotify-ids.jsonl</code> is invalid, it points out of the filesystem root</em>. Locally <code>logs</code> had been a symlink to Cursor&apos;s <code>terminals</code> folder (outside the repo).</li>
+  <li class="fix">Removed the symlink; use a normal <code>logs/</code> directory inside the project for <code>llmSpotifyIdLog.ts</code> append output. <code>logs</code> remains gitignored.</li>
+</ul>
+
+<h3 class="problem">Problem: Wasted LLM calls while Spotify is offline</h3>
+<ul>
+  <li class="problem"><code>POST /api/next-song</code> with <code>profileOnly: true</code> (DJ buffer) bypassed the global Spotify gate so the LLM always ran even when <code>isSpotifyOffline()</code> was true — useless if Spotify IDs cannot be resolved.</li>
+</ul>
+
+<h3 class="fix">Fix: Gate profile-only LLM on offline state</h3>
+<ul>
+  <li class="fix"><code>app/api/next-song/route.ts</code>: <code>skipGlobalSpotifyGate</code> is now <code>hasResolveOnly || (llmOnlyNoSpotify &amp;&amp; !isSpotifyOffline())</code>. When the server has marked Spotify offline (5xx / network backoff / <code>SPOTIFY_OFFLINE</code>), profile-only requests return <strong>429</strong> with <code>retryAfterMs</code> before <code>getNextSongQuery</code> runs. Resolve-only requests still bypass the outer gate and handle offline inside <code>resolveSongs</code>.</li>
+</ul>
+
 <h2>2026-04-01</h2>
 
 <h3>Problem: Spotify rate limiting — stats show nothing</h3>
