@@ -1,0 +1,48 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "① Node: Next dev server (API routes, Server Components — NOT PlayerClient)",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "${workspaceFolder}/node_modules/next/dist/bin/next",
+        "dev",
+        "--webpack",
+        "-H",
+        "127.0.0.1",
+        "-p",
+        "8000"
+      ],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"]
+    },
+    {
+      "name": "② Chrome: PlayerClient + client code (run ① first, or npm run dev:webpack)",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:8000/player",
+      "webRoot": "${workspaceFolder}",
+      "sourceMaps": true,
+      "resolveSourceMapLocations": ["${workspaceFolder}/**", "!**/node_modules/**"],
+      "sourceMapPathOverrides": {
+        "webpack://_N_E/*": "${webRoot}/*",
+        "webpack:///./*": "${webRoot}/*",
+        "webpack:///*": "${webRoot}/*",
+        "webpack:///./~/*": "${webRoot}/node_modules/*",
+        "webpack-internal:///./*": "${webRoot}/*",
+        "webpack-internal:///(app-pages-browser)/*": "${webRoot}/*",
+        "webpack-internal:///(app-pages-browser)/./*": "${webRoot}/*"
+      }
+    },
+    {
+      "name": "Node: current file (.js / .mjs scripts only)",
+      "type": "node",
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "program": "${file}"
+    }
+  ]
+}

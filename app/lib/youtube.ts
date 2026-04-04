@@ -92,7 +92,6 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     part: 'snippet',
     q: query,
     type: 'video',
-    videoCategoryId: '10', // Music
     videoEmbeddable: 'true',
     maxResults: '1',
     key: apiKey,

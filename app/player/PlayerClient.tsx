@@ -1474,6 +1474,7 @@ export default function PlayerClient({
   /** No Spotify search — rebuild cards from Heard when API is rate-limited. */
   const fillFromHeardWhenRateLimited = useCallback(() => {
     if (isGuideDemo) return
+    if (sourceRef.current === 'youtube') return
 
     const ranked = [...cardHistoryRef.current]
       .filter(e => isPositiveHeard(e))
