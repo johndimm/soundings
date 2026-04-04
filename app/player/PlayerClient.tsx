@@ -328,6 +328,19 @@ function recordSpotifyAuthRedirectAttempt(): boolean {
   }
 }
 
+/**
+ * Session expired or missing token — user must re-auth. Do not use the sessionStorage loop
+ * breaker here: repeated 401s from `/api/spotify/token` are a real “need login” signal, not a
+ * redirect storm; blocking leaves the app stuck with no way to reach OAuth.
+ */
+function forceSpotifyLoginRedirect(reason: string) {
+  if (typeof window === 'undefined' || spotifyLoginRedirectScheduled) return
+  spotifyLoginRedirectScheduled = true
+  console.warn('Spotify session: redirecting to login:', reason)
+  window.location.href = '/api/auth/login'
+}
+
+/** SDK `authentication_error` can fire in a tight loop; cap redirects per window. */
 function trySpotifyRedirect(
   setError: (msg: string | null) => void,
   reason: string,
@@ -1016,7 +1029,7 @@ export default function PlayerClient({
           fetch('/api/spotify/token', { credentials: 'same-origin', cache: 'no-store' })
             .then(async r => {
               if (r.status === 401) {
-                redirectToSpotifyLoginRef.current(`token HTTP ${r.status}`)
+                forceSpotifyLoginRedirect(`token HTTP ${r.status}`)
                 return
               }
               if (!r.ok) {
@@ -1034,7 +1047,7 @@ export default function PlayerClient({
                 accessTokenRef.current = d.accessToken
                 cb(d.accessToken)
               } else {
-                redirectToSpotifyLoginRef.current('token response missing accessToken')
+                forceSpotifyLoginRedirect('token response missing accessToken')
               }
             })
             .catch(err => {

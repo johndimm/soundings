@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
 
   const hasResolveOnly = Boolean(body.songsToResolve && body.songsToResolve.length > 0)
   const llmOnlyNoSpotify = body.profileOnly === true && !hasResolveOnly
+
   /**
    * `songsToResolve` must bypass the outer gate so resolve runs (with its own offline checks).
    * Profile-only LLM (DJ buffer) skips Spotify on the server but still needs Spotify to be up for
