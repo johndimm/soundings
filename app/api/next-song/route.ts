@@ -156,6 +156,7 @@ export async function POST(req: NextRequest) {
 
   let songs: SongSuggestion[]
   let profile: string | undefined
+  let suggestedArtists: string[] = []
   try {
     const result = await getNextSongQuery(
       sessionHistory ?? [],
@@ -169,6 +170,7 @@ export async function POST(req: NextRequest) {
     )
     songs = result.songs
     profile = result.profile
+    suggestedArtists = result.suggestedArtists ?? []
     const llmProvider = provider ?? 'deepseek'
     const llmModelId = getLLMModelApiId(llmProvider)
     const idsFromLlm = songs.filter(s => normalizeSpotifyTrackId(s.spotifyId)).length
@@ -189,7 +191,7 @@ export async function POST(req: NextRequest) {
 
   // ── Profile-only path: return LLM suggestions without any track lookup ──
   if (profileOnly) {
-    return Response.json({ songs, profile })
+    return Response.json({ songs, profile, suggestedArtists })
   }
 
   // ── YouTube resolve path ──────────────────────────────────────────────────
@@ -204,7 +206,12 @@ export async function POST(req: NextRequest) {
     if (ytSongs.length === 0) {
       return Response.json({ error: 'no_tracks_found' }, { status: 404 })
     }
-    return Response.json({ songs: ytSongs, profile, ytSearchesRemaining: getYouTubeSearchesRemaining() })
+    return Response.json({
+      songs: ytSongs,
+      profile,
+      suggestedArtists,
+      ytSearchesRemaining: getYouTubeSearchesRemaining(),
+    })
   }
 
   // ── Spotify resolve path ─────────────────────────────────────────────────
@@ -246,7 +253,7 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'no_tracks_found' }, { status: 404 })
   }
 
-  return Response.json({ songs: foundSongs, profile })
+  return Response.json({ songs: foundSongs, profile, suggestedArtists })
 }
 
 type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }

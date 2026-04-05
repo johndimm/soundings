@@ -10,7 +10,7 @@ import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
-import YoutubePlayer from './YoutubePlayer'
+import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
@@ -42,6 +42,9 @@ interface Channel {
   playbackTrackUri?: string
   /** Which audio source this channel uses. Defaults to 'spotify'. */
   source?: PlaybackSource
+  /** User-selected artist names (from LLM quick-picks + free text). */
+  artists?: string[]
+  artistText?: string
 }
 
 function genChannelId() {
@@ -114,6 +117,8 @@ function normalizeImportedChannel(raw: unknown): Channel | null {
     discovery: typeof o.discovery === 'number' ? o.discovery : undefined,
     playbackPositionMs: typeof o.playbackPositionMs === 'number' ? o.playbackPositionMs : undefined,
     playbackTrackUri: typeof o.playbackTrackUri === 'string' ? o.playbackTrackUri : undefined,
+    artists: Array.isArray(o.artists) ? (o.artists as string[]) : undefined,
+    artistText: typeof o.artistText === 'string' ? o.artistText : undefined,
   }
 }
 
@@ -153,6 +158,8 @@ export interface CommittedSettings {
   timePeriod: string
   genres: string[]
   regions: string[]
+  artists: string[]
+  artistText: string
   popularity: number
   discovery: number
 }
@@ -163,6 +170,8 @@ interface SavedSettings {
   timePeriod?: string
   notes?: string
   regions?: string[]
+  artists?: string[]
+  artistText?: string
   popularity?: number
   provider?: LLMProvider
   discovery?: number
@@ -196,6 +205,8 @@ function djSettingsMatchCommitted(
   timePeriod: string,
   genres: string[],
   regions: string[],
+  artists: string[],
+  artistText: string,
   popularity: number,
   discovery: number
 ): boolean {
@@ -203,14 +214,22 @@ function djSettingsMatchCommitted(
     c.notes !== notes ||
     c.genreText !== genreText ||
     c.timePeriod !== timePeriod ||
+    c.artistText !== artistText ||
     c.popularity !== popularity ||
     c.discovery !== discovery
   ) {
     return false
   }
-  if (c.genres.length !== genres.length || c.regions.length !== regions.length) return false
+  if (
+    c.genres.length !== genres.length ||
+    c.regions.length !== regions.length ||
+    c.artists.length !== artists.length
+  ) {
+    return false
+  }
   for (let i = 0; i < genres.length; i++) if (c.genres[i] !== genres[i]) return false
   for (let i = 0; i < regions.length; i++) if (c.regions[i] !== regions[i]) return false
+  for (let i = 0; i < artists.length; i++) if (c.artists[i] !== artists[i]) return false
   return true
 }
 
@@ -323,11 +342,87 @@ function formatMs(ms: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 }
 
-function buildCombinedNotes(genres: string[], genreText: string, timePeriod: string, notes: string, popularity: number, regions: string[]): string {
+/** Matches buildCombinedNotes: 41–59 = no popularity constraint in the prompt. */
+function popularityCountsAsExplicitChoice(p: number): boolean {
+  return p <= 40 || p >= 60
+}
+
+/** Matches SessionPanel discovery labels: 41–60 = "Balanced" (no strong preference). */
+function discoveryCountsAsExplicitChoice(d: number): boolean {
+  return d <= 40 || d > 60
+}
+
+/** True if the user has changed any DJ constraint from defaults (genres, regions, text, sliders, etc.). */
+function hasUserChosenDjSettings(
+  genres: string[],
+  genreText: string,
+  regions: string[],
+  artists: string[],
+  artistText: string,
+  notes: string,
+  timePeriod: string,
+  popularity: number,
+  discovery: number
+): boolean {
+  if (genres.length > 0) return true
+  if (genreText.trim()) return true
+  if (regions.length > 0) return true
+  if (artists.length > 0) return true
+  if (artistText.trim()) return true
+  if (notes.trim()) return true
+  if (timePeriod.trim()) return true
+  if (popularityCountsAsExplicitChoice(popularity)) return true
+  if (discoveryCountsAsExplicitChoice(discovery)) return true
+  return false
+}
+
+/** Empty channel (no Heard yet): skip LLM until the user makes an explicit DJ choice. */
+function shouldDeferLlmUntilDjChoice(
+  cardHistoryLen: number,
+  genres: string[],
+  genreText: string,
+  regions: string[],
+  artists: string[],
+  artistText: string,
+  notes: string,
+  timePeriod: string,
+  popularity: number,
+  discovery: number
+): boolean {
+  if (cardHistoryLen > 0) return false
+  return !hasUserChosenDjSettings(
+    genres,
+    genreText,
+    regions,
+    artists,
+    artistText,
+    notes,
+    timePeriod,
+    popularity,
+    discovery
+  )
+}
+
+function buildCombinedNotes(
+  genres: string[],
+  genreText: string,
+  timePeriod: string,
+  notes: string,
+  popularity: number,
+  regions: string[],
+  artists: string[],
+  artistText: string
+): string {
   const parts: string[] = []
   if (genres.length > 0) parts.push(`Genres: ${genres.join(', ')}`)
   if (regions.length > 0) parts.push(`World region: ${regions.join(', ')}`)
   if (genreText.trim()) parts.push(`Style: ${genreText.trim()}`)
+  if (artists.length > 0) {
+    parts.push(
+      `Favor these artists when compatible with the 3-slot batch rules (different artists per batch): ${artists.join(', ')}`
+    )
+  }
+  if (artistText.trim()) parts.push(`More artist hints: ${artistText.trim()}`)
   if (timePeriod.trim()) parts.push(`Time period: ${timePeriod.trim()}`)
   if (notes.trim()) parts.push(notes.trim())
   if (popularity <= 20) parts.push('Popularity: obscure hidden gems only — avoid anything well-known or mainstream')
@@ -456,6 +551,10 @@ export default function PlayerClient({
   const [genres, setGenres] = useState<string[]>([])
   const [genreText, setGenreText] = useState('')
   const [regions, setRegions] = useState<string[]>([])
+  const [artists, setArtists] = useState<string[]>([])
+  const [artistText, setArtistText] = useState('')
+  /** Names from the latest LLM response (`suggested_artists`); not persisted per channel. */
+  const [llmSuggestedArtists, setLlmSuggestedArtists] = useState<string[]>([])
   const [timePeriod, setTimePeriod] = useState('')
   const [popularity, setPopularity] = useState(50)
   const [discovery, setDiscovery] = useState(50)
@@ -467,6 +566,10 @@ export default function PlayerClient({
   const [gradePercent, setGradePercent] = useState(50)
   const [hasRated, setHasRated] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
+  /** False until loadSettings runs — prevents persist effects from overwriting localStorage with empty defaults on first paint. */
+  const [settingsHydrated, setSettingsHydrated] = useState(false)
+  /** Bumps when user presses Next (etc.) so the play effect re-runs even if the next track has the same URI as before. */
+  const [playGeneration, setPlayGeneration] = useState(0)
   /** LLM suggestions not yet looked up on Spotify — resolved one-at-a-time when filling Up Next or starting playback. */
   const [suggestionBuffer, setSuggestionBuffer] = useState<SongSuggestion[]>([])
   const [submittedUris, setSubmittedUris] = useState<Set<string>>(new Set())
@@ -483,6 +586,8 @@ export default function PlayerClient({
     timePeriod: '',
     genres: [],
     regions: [],
+    artists: [],
+    artistText: '',
     popularity: 50,
     discovery: 50,
   })
@@ -527,6 +632,7 @@ export default function PlayerClient({
     window.location.href = '/api/auth/login'
   }
   const playerRef = useRef<SpotifyPlayer | null>(null)
+  const youtubePlayerRef = useRef<YoutubePlayerHandle | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sdkReadyRef = useRef(false)
   const isSeekingRef = useRef(false)
@@ -538,6 +644,8 @@ export default function PlayerClient({
   const genresRef = useRef<string[]>([])
   const genreTextRef = useRef('')
   const regionsRef = useRef<string[]>([])
+  const artistsRef = useRef<string[]>([])
+  const artistTextRef = useRef('')
   const timePeriodRef = useRef('')
   const popularityRef = useRef(50)
   const providerRef = useRef<LLMProvider>('deepseek')
@@ -625,6 +733,11 @@ export default function PlayerClient({
     genreTextRef.current = demo.genreText
     setRegions(demo.regions)
     regionsRef.current = demo.regions
+    setArtists(demo.artists)
+    artistsRef.current = demo.artists
+    setArtistText(demo.artistText)
+    artistTextRef.current = demo.artistText
+    setLlmSuggestedArtists(demo.llmSuggestedArtists)
     setTimePeriod(demo.timePeriod)
     timePeriodRef.current = demo.timePeriod
     setPopularity(demo.popularity)
@@ -654,6 +767,7 @@ export default function PlayerClient({
     playedUrisRef.current = new Set(demo.cardHistory.map(entry => entry.uri ?? '').filter(Boolean))
     settingsInitRef.current = true
     setSettingsDirty(demo.settingsDirty)
+    setSettingsHydrated(true)
   }, [guideDemo])
 
   const snapshotCurrentChannel = useCallback((): Channel[] => {
@@ -678,6 +792,8 @@ export default function PlayerClient({
         timePeriod: timePeriodRef.current,
         notes: notesRef.current,
         regions: regionsRef.current,
+        artists: artistsRef.current,
+        artistText: artistTextRef.current,
         popularity: popularityRef.current,
         discovery: exploreModeRef.current,
         playbackTrackUri: uri,
@@ -726,8 +842,14 @@ export default function PlayerClient({
     const tp = ch.timePeriod ?? ''; setTimePeriod(tp); timePeriodRef.current = tp
     const n = ch.notes ?? ''; setNotes(n); notesRef.current = n
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
+    const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
+    const at = ch.artistText ?? ''; setArtistText(at); artistTextRef.current = at
     const pop = ch.popularity ?? 50; setPopularity(pop); popularityRef.current = pop
     const disc = ch.discovery ?? 50; setDiscovery(disc); exploreModeRef.current = disc
+
+    setLlmSuggestedArtists([])
+
+    setLoadingQueue(false)
 
     const nextCommitted: CommittedSettings = {
       notes: n,
@@ -735,6 +857,8 @@ export default function PlayerClient({
       timePeriod: tp,
       genres: [...g],
       regions: [...r],
+      artists: [...ar],
+      artistText: at,
       popularity: pop,
       discovery: disc,
     }
@@ -746,6 +870,20 @@ export default function PlayerClient({
     localStorage.setItem(ACTIVE_CHANNEL_KEY, ch.id)
   }, [dedupeHistory])
 
+  /** Fade out whatever is playing (YouTube iframe or Spotify Web Playback) before switching channels. */
+  const fadeOutCurrentPlayback = useCallback(async () => {
+    if (isGuideDemo) return
+    const cur = currentCardRef.current
+    if (!cur) return
+    if ((cur.track.source as string) === 'youtube') {
+      await youtubePlayerRef.current?.fadeOut()
+    } else if (playerRef.current) {
+      await fadeVolume(playerRef.current, 1, 0)
+      await playerRef.current.pause()
+      isPausedRef.current = true
+    }
+  }, [isGuideDemo])
+
   const switchChannel = useCallback(
     async (id: string) => {
       if (id === activeChannelIdRef.current) return
@@ -756,9 +894,9 @@ export default function PlayerClient({
       try {
         const willPlay = peekNextCard(target) != null
         const hadCurrent = currentCardRef.current != null
-        if (!isGuideDemo && playerRef.current && hadCurrent) {
+        if (!isGuideDemo && hadCurrent) {
           if (willPlay) pendingFadeInRef.current = true
-          await fadeVolume(playerRef.current, 1, 0)
+          await fadeOutCurrentPlayback()
         }
         const saved = snapshotCurrentChannel()
         const t = saved.find(c => c.id === id)
@@ -775,7 +913,7 @@ export default function PlayerClient({
         channelSwitchingRef.current = false
       }
     },
-    [snapshotCurrentChannel, loadChannelIntoState, isGuideDemo]
+    [snapshotCurrentChannel, loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback]
   )
 
   const createChannel = useCallback(async () => {
@@ -795,8 +933,8 @@ export default function PlayerClient({
     const hadCurrent = currentCardRef.current != null
     channelSwitchingRef.current = true
     try {
-      if (!isGuideDemo && playerRef.current && hadCurrent) {
-        await fadeVolume(playerRef.current, 1, 0)
+      if (!isGuideDemo && hadCurrent) {
+        await fadeOutCurrentPlayback()
       }
       const saved = snapshotCurrentChannel()
       const updated = [...saved, fresh]
@@ -804,14 +942,16 @@ export default function PlayerClient({
       channelsRef.current = updated
       saveChannels(updated)
       loadChannelIntoState(fresh)
+      // Empty new channel: stay paused and quiet until the user picks DJ settings and playback starts again.
+      // Do not setVolume(1) here — Spotify would resume the previous track at full volume.
+      // Do set pending fade-in so the first play on this channel runs fade 0→1 (volume was left at 0 after fade-out).
       if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
-        pendingFadeInRef.current = false
-        await playerRef.current.setVolume(1)
+        pendingFadeInRef.current = true
       }
     } finally {
       channelSwitchingRef.current = false
     }
-  }, [snapshotCurrentChannel, loadChannelIntoState, isGuideDemo])
+  }, [snapshotCurrentChannel, loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback])
 
   const deleteChannel = useCallback(
     async (id: string) => {
@@ -848,9 +988,9 @@ export default function PlayerClient({
       try {
         const willPlay = peekNextCard(replacement) != null
         const hadCurrent = currentCardRef.current != null
-        if (!isGuideDemo && playerRef.current && hadCurrent) {
+        if (!isGuideDemo && hadCurrent) {
           if (willPlay) pendingFadeInRef.current = true
-          await fadeVolume(playerRef.current, 1, 0)
+          await fadeOutCurrentPlayback()
         }
         setChannels(updated)
         channelsRef.current = updated
@@ -864,7 +1004,7 @@ export default function PlayerClient({
         channelSwitchingRef.current = false
       }
     },
-    [loadChannelIntoState, isGuideDemo]
+    [loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback]
   )
 
   const renameChannel = useCallback((id: string, name: string) => {
@@ -934,6 +1074,65 @@ export default function PlayerClient({
     [isGuideDemo, loadChannelIntoState]
   )
 
+  /** Clear all channels, legacy history, and global DJ settings; leave one empty channel. */
+  const handleResetAllChannels = useCallback(async () => {
+    if (isGuideDemo) return
+    if (
+      !window.confirm(
+        'Delete all channels and start over? This removes every channel, listen history, and saved DJ settings from this browser. You cannot undo this.'
+      )
+    ) {
+      return
+    }
+    if (channelSwitchingRef.current) return
+    channelSwitchingRef.current = true
+    try {
+      if (!isGuideDemo && currentCardRef.current) {
+        await fadeOutCurrentPlayback()
+        pendingFadeInRef.current = false
+        if (playerRef.current) await playerRef.current.setVolume(1)
+      }
+      try {
+        localStorage.removeItem(CHANNELS_STORAGE_KEY)
+        localStorage.removeItem(ACTIVE_CHANNEL_KEY)
+        localStorage.removeItem(HISTORY_STORAGE_KEY)
+        localStorage.removeItem(SETTINGS_STORAGE_KEY)
+        localStorage.removeItem('spotifyRateLimitUntil')
+      } catch {
+        /* ignore */
+      }
+      setBackoffUntil(null)
+      if (backoffTimerRef.current) {
+        clearTimeout(backoffTimerRef.current)
+        backoffTimerRef.current = null
+      }
+      const fresh: Channel = {
+        id: genChannelId(),
+        name: 'New Channel',
+        isAutoNamed: true,
+        cardHistory: [],
+        sessionHistory: [],
+        profile: '',
+        currentCard: null,
+        queue: [],
+        createdAt: Date.now(),
+      }
+      saveChannels([fresh])
+      try {
+        localStorage.setItem(ACTIVE_CHANNEL_KEY, fresh.id)
+      } catch {
+        /* ignore */
+      }
+      setChannels([fresh])
+      channelsRef.current = [fresh]
+      loadChannelIntoState(fresh)
+      setSubmittedUris(new Set())
+      setError(null)
+    } finally {
+      channelSwitchingRef.current = false
+    }
+  }, [isGuideDemo, loadChannelIntoState, fadeOutCurrentPlayback])
+
   // Restore backoff timer from localStorage on mount
   useEffect(() => {
     if (isGuideDemo) return
@@ -969,6 +1168,14 @@ export default function PlayerClient({
   }, [genreText])
 
   useEffect(() => {
+    artistsRef.current = artists
+  }, [artists])
+
+  useEffect(() => {
+    artistTextRef.current = artistText
+  }, [artistText])
+
+  useEffect(() => {
     timePeriodRef.current = timePeriod
   }, [timePeriod])
 
@@ -987,20 +1194,53 @@ export default function PlayerClient({
   // Persist settings to localStorage whenever they change
   useEffect(() => {
     if (isGuideDemo) return
+    if (!settingsHydrated) return
     try {
-      const s: SavedSettings = { genres, genreText, timePeriod, notes, regions, popularity, provider, discovery, source }
+      const s: SavedSettings = {
+        genres,
+        genreText,
+        timePeriod,
+        notes,
+        regions,
+        artists,
+        artistText,
+        popularity,
+        provider,
+        discovery,
+        source,
+      }
       localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
     } catch {}
-  }, [genres, genreText, timePeriod, notes, regions, popularity, provider, discovery, source, isGuideDemo])
+  }, [
+    genres,
+    genreText,
+    timePeriod,
+    notes,
+    regions,
+    artists,
+    artistText,
+    popularity,
+    provider,
+    discovery,
+    source,
+    isGuideDemo,
+    settingsHydrated,
+  ])
 
   // Load settings from localStorage after mount (safe: avoids SSR/client hydration mismatch)
   useEffect(() => {
+    if (isGuideDemo) {
+      setSettingsHydrated(true)
+      return
+    }
     const s = loadSettings()
     skipNextDirtyRef.current = true
     setNotes(s.notes ?? '')
     setGenres(s.genres ?? [])
     setGenreText(s.genreText ?? '')
     setRegions(s.regions ?? [])
+    setArtists(s.artists ?? [])
+    setArtistText(s.artistText ?? '')
     setTimePeriod(s.timePeriod ?? '')
     setPopularity(s.popularity ?? 50)
     setDiscovery(s.discovery ?? 50)
@@ -1012,6 +1252,8 @@ export default function PlayerClient({
       timePeriod: s.timePeriod ?? '',
       genres: s.genres ?? [],
       regions: s.regions ?? [],
+      artists: s.artists ?? [],
+      artistText: s.artistText ?? '',
       popularity: s.popularity ?? 50,
       discovery: s.discovery ?? 50,
     })
@@ -1022,6 +1264,7 @@ export default function PlayerClient({
         if (until > Date.now()) setBackoffUntil(until)
       }
     } catch {}
+    setSettingsHydrated(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1030,7 +1273,7 @@ export default function PlayerClient({
     if (!settingsInitRef.current) { settingsInitRef.current = true; return }
     if (skipNextDirtyRef.current) { skipNextDirtyRef.current = false; return }
     setSettingsDirty(true)
-  }, [notes, genreText, timePeriod, genres, regions, popularity, discovery])
+  }, [notes, genreText, timePeriod, genres, regions, artists, artistText, popularity, discovery])
 
   // Fetch Spotify user info once on mount
   useEffect(() => {
@@ -1108,6 +1351,8 @@ export default function PlayerClient({
       if (active.timePeriod !== undefined) { setTimePeriod(active.timePeriod); timePeriodRef.current = active.timePeriod }
       if (active.notes !== undefined) { setNotes(active.notes); notesRef.current = active.notes }
       if (active.regions) { setRegions(active.regions); regionsRef.current = active.regions }
+      if (active.artists) { setArtists(active.artists); artistsRef.current = active.artists }
+      if (active.artistText !== undefined) { setArtistText(active.artistText); artistTextRef.current = active.artistText }
       if (active.popularity !== undefined) { setPopularity(active.popularity); popularityRef.current = active.popularity }
       if (active.discovery !== undefined) { setDiscovery(active.discovery); exploreModeRef.current = active.discovery }
 
@@ -1133,33 +1378,35 @@ export default function PlayerClient({
     setHistoryReady(true)
   }, [dedupeHistory, isGuideDemo])
 
-  // ── Persist active channel data on change ─────────────────────────────────
+  // ── Persist active channel data on change (same snapshot as channel switch — includes DJ settings) ──
   useEffect(() => {
     if (isGuideDemo) return
     if (!activeChannelId || typeof window === 'undefined') return
-    setChannels(prev => {
-      const updated = prev.map(ch => {
-        if (ch.id !== activeChannelId) return ch
-        const autoName = deriveChannelName(cardHistory, profile)
-        const name = ch.isAutoNamed && autoName ? autoName : ch.name
-        const oldUri = ch.currentCard?.track.uri
-        const newUri = currentCard?.track.uri
-        const clearPlayback = oldUri !== newUri
-        return {
-          ...ch,
-          name,
-          cardHistory,
-          profile,
-          currentCard,
-          queue,
-          ...(clearPlayback ? { playbackTrackUri: undefined, playbackPositionMs: undefined } : {}),
-        }
-      })
-      channelsRef.current = updated
-      saveChannels(updated)
-      return updated
-    })
-  }, [cardHistory, profile, activeChannelId, currentCard, queue, isGuideDemo])
+    if (!settingsHydrated || !historyReady) return
+    const updated = snapshotCurrentChannel()
+    channelsRef.current = updated
+    saveChannels(updated)
+    setChannels(updated)
+  }, [
+    cardHistory,
+    profile,
+    activeChannelId,
+    currentCard,
+    queue,
+    genres,
+    genreText,
+    timePeriod,
+    notes,
+    regions,
+    artists,
+    artistText,
+    popularity,
+    discovery,
+    isGuideDemo,
+    settingsHydrated,
+    historyReady,
+    snapshotCurrentChannel,
+  ])
 
   // ── Spotify SDK ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1262,7 +1509,17 @@ export default function PlayerClient({
 
   useEffect(() => {
     if (!playbackState || isSeekingRef.current) return
-    durationRef.current = playbackState.duration
+    const sdkTrackId = playbackState.track_window?.current_track?.id
+    const cur = currentCardRef.current
+    if (cur && sdkTrackId && (cur.track.source as string) !== 'youtube') {
+      const curId = normalizeSpotifyTrackId(cur.track.id)
+      if (curId && sdkTrackId !== curId) return
+    }
+    const sdkDur = playbackState.duration
+    const trackDur = cur?.track.durationMs ?? 0
+    // Web Playback SDK often reports duration 0 until the track is ready; use track metadata so the timer can run.
+    const dur = sdkDur > 0 ? sdkDur : trackDur > 0 ? trackDur : sdkDur
+    durationRef.current = dur
     isPausedRef.current = playbackState.paused
     setSliderPosition(playbackState.position)
     sliderRef.current = playbackState.position
@@ -1347,6 +1604,18 @@ export default function PlayerClient({
       setPlayResponse(msg)
     } else {
       setPlayResponse(null)
+      const card = currentCardRef.current
+      if (card?.track.uri === uri && (card.track.source as string) !== 'youtube') {
+        const dm = card.track.durationMs
+        if (Number.isFinite(dm) && dm > 0) {
+          durationRef.current = dm
+        }
+        const startMs = typeof positionMs === 'number' && positionMs > 0 ? positionMs : 0
+        sliderRef.current = startMs
+        setSliderPosition(startMs)
+        // SDK may delay player_state_changed; allow local progress until it arrives.
+        isPausedRef.current = false
+      }
     }
   }, [isGuideDemo])
 
@@ -1396,7 +1665,12 @@ export default function PlayerClient({
         console.error('[play] retry also failed', e)
       )
     })
-  }, [currentCard?.track.uri ?? currentCard?.track.id, deviceId, isGuideDemo]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [
+    currentCard?.track.uri ?? currentCard?.track.id,
+    deviceId,
+    isGuideDemo,
+    playGeneration,
+  ])
 
   // Reset grade slider and rated flag when song changes
   useEffect(() => {
@@ -1404,6 +1678,16 @@ export default function PlayerClient({
     gradeRef.current = 50
     setHasRated(false)
     hasRatedRef.current = false
+  }, [currentCard?.track.uri ?? currentCard?.track.id])
+
+  // Seed duration from Spotify track metadata before the Web Playback SDK reports duration (often 0).
+  useEffect(() => {
+    if (!currentCard) return
+    if ((currentCard.track.source as string) === 'youtube') return
+    const dm = currentCard.track.durationMs
+    if (Number.isFinite(dm) && dm > 0) {
+      durationRef.current = dm
+    }
   }, [currentCard?.track.uri ?? currentCard?.track.id])
 
   // ── LLM batch: suggestions only (no Spotify) ─────────────────────────────
@@ -1414,7 +1698,7 @@ export default function PlayerClient({
       artistConstraint?: string,
       forceTextSearch?: boolean,
       numSongs?: number
-    ): Promise<{ suggestions: SongSuggestion[]; profile?: string }> => {
+    ): Promise<{ suggestions: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> => {
       const cur = currentCardRef.current
       const alreadyHeard = [
         ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
@@ -1434,7 +1718,9 @@ export default function PlayerClient({
           timePeriodRef.current,
           notesRef.current,
           popularityRef.current,
-          regionsRef.current
+          regionsRef.current,
+          artistsRef.current,
+          artistTextRef.current
         ),
         alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
         mode: exploreModeRef.current,
@@ -1481,7 +1767,14 @@ export default function PlayerClient({
       )
       console.info('fetchSuggestions LLM batch', suggestions.length, suggestions.map(s => s.search))
       console.info('fetchSuggestions profile field:', data.profile ? data.profile.slice(0, 80) + '…' : '(none)')
-      return { suggestions, profile: data.profile }
+      const suggestedArtistsRaw = data.suggestedArtists
+      const suggestedArtists = Array.isArray(suggestedArtistsRaw)
+        ? suggestedArtistsRaw
+            .filter((x: unknown): x is string => typeof x === 'string')
+            .map((x: string) => x.trim())
+            .filter(Boolean)
+        : []
+      return { suggestions, profile: data.profile, suggestedArtists }
     },
     []
   )
@@ -1670,7 +1963,9 @@ export default function PlayerClient({
         timePeriodRef.current,
         notesRef.current,
         popularityRef.current,
-        regionsRef.current
+        regionsRef.current,
+        artistsRef.current,
+        artistTextRef.current
       ),
       alreadyHeard: (() => {
         const cur = currentCardRef.current
@@ -1699,6 +1994,13 @@ export default function PlayerClient({
           setPriorProfile(data.profile)
           priorProfileRef.current = data.profile
           setProfile(data.profile)
+        }
+        if (Array.isArray(data.suggestedArtists) && data.suggestedArtists.length > 0) {
+          const sa = data.suggestedArtists
+            .filter((x: unknown): x is string => typeof x === 'string')
+            .map((x: string) => x.trim())
+            .filter(Boolean)
+          if (sa.length > 0) setLlmSuggestedArtists(sa)
         }
         if (Array.isArray(data.songs) && data.songs.length > 0) {
           const incoming = data.songs as SongSuggestion[]
@@ -1744,7 +2046,9 @@ export default function PlayerClient({
       forceTextSearch?: boolean,
       onCards?: (cards: CardState[]) => void,
       force = false,
-      replaceBuffer = false
+      replaceBuffer = false,
+      /** Retry / clear-history: allow LLM with no listen history and no DJ settings. */
+      bypassEmptyChannelGate = false
     ) => {
     // Mutex: never stack LLM calls (constraint/retry use force:true but must still respect in-flight).
     if (fetchingRef.current || resolvingRef.current) {
@@ -1758,6 +2062,26 @@ export default function PlayerClient({
     }
     if (!force && suggestionBufferRef.current.length > 0) {
       console.info('fetchToBuffer: skipping, buffer non-empty', suggestionBufferRef.current.length)
+      return
+    }
+    // Empty channel: do not call the LLM until the user has chosen at least one DJ setting.
+    // Constraint uses force:true — still blocked here unless bypassEmptyChannelGate (retry / clear history).
+    if (
+      !bypassEmptyChannelGate &&
+      shouldDeferLlmUntilDjChoice(
+        cardHistoryRef.current.length,
+        genresRef.current,
+        genreTextRef.current,
+        regionsRef.current,
+        artistsRef.current,
+        artistTextRef.current,
+        notesRef.current,
+        timePeriodRef.current,
+        popularityRef.current,
+        exploreModeRef.current
+      )
+    ) {
+      console.info('fetchToBuffer: skipping — no listen history yet and no DJ settings; choose genres, region, notes, or sliders first')
       return
     }
     if (force) {
@@ -1801,7 +2125,17 @@ export default function PlayerClient({
     fetchingRef.current = true
     lastFetchAtRef.current = Date.now()
     setSettingsDirty(false)
-    setCommittedSettings({ notes, genreText, timePeriod, genres, regions, popularity, discovery })
+    setCommittedSettings({
+      notes,
+      genreText,
+      timePeriod,
+      genres,
+      regions,
+      artists,
+      artistText,
+      popularity,
+      discovery,
+    })
     const gen = ++fetchGenRef.current
     const coldStart =
       queueRef.current.length === 0 && suggestionBufferRef.current.length === 0
@@ -1828,13 +2162,14 @@ export default function PlayerClient({
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
     fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch, numSongs)
-      .then(async ({ suggestions, profile: newProfile }) => {
+      .then(async ({ suggestions, profile: newProfile, suggestedArtists: nextArtists }) => {
         console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
         if (newProfile) {
           setPriorProfile(newProfile)
           priorProfileRef.current = newProfile
           setProfile(newProfile)
         }
+        if (nextArtists.length > 0) setLlmSuggestedArtists(nextArtists)
         setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
 
         if (gen !== fetchGenRef.current) return
@@ -1928,7 +2263,20 @@ export default function PlayerClient({
           setLoadingQueue(false)
         }
       })
-  }, [fetchSuggestions, resolveSuggestionsToCards, fillFromHeardWhenRateLimited])
+  }, [
+    fetchSuggestions,
+    resolveSuggestionsToCards,
+    fillFromHeardWhenRateLimited,
+    notes,
+    genreText,
+    timePeriod,
+    genres,
+    regions,
+    artists,
+    artistText,
+    popularity,
+    discovery,
+  ])
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
   const startPlaybackFromSuggestions = useCallback(async () => {
@@ -2428,6 +2776,23 @@ export default function PlayerClient({
           }
           return
         }
+        if (
+          shouldDeferLlmUntilDjChoice(
+            cardHistoryRef.current.length,
+            genresRef.current,
+            genreTextRef.current,
+            regionsRef.current,
+            artistsRef.current,
+            artistTextRef.current,
+            notesRef.current,
+            timePeriodRef.current,
+            popularityRef.current,
+            exploreModeRef.current
+          )
+        ) {
+          console.info(DJQ, 'auto-fill effect: skipping fetchToBuffer — empty channel, no explicit DJ choice yet')
+          return
+        }
         console.info(DJQ, 'auto-fill effect: calling fetchToBuffer (buffer empty)', {
           queueLen: queue.length,
           queueTarget: QUEUE_TARGET,
@@ -2532,6 +2897,10 @@ export default function PlayerClient({
       if (suggestionBufferRef.current.length === 0) fetchToBuffer()
     }
 
+    // Let the play effect run again when the next row reuses the same URI/id (queue duplicates).
+    setPlayGeneration(g => g + 1)
+    lastPlayedUriRef.current = null
+
     // Advance from queue
     const q = queueRef.current
     if (q.length > 0) {
@@ -2575,7 +2944,7 @@ export default function PlayerClient({
     queueRef.current = []
     setSuggestionBuffer([])
     suggestionBufferRef.current = []
-    fetchToBuffer(undefined, undefined, undefined, true)
+    fetchToBuffer(undefined, undefined, undefined, true, false, true)
   }, [fetchToBuffer])
 
   const handleRateHistoryItem = useCallback((index: number, percent: number) => {
@@ -2632,9 +3001,11 @@ export default function PlayerClient({
         notes,
         popularity,
         regions,
+        artists,
+        artistText,
         discovery,
       }),
-    [isGuideDemo, genres, genreText, timePeriod, notes, popularity, regions, discovery]
+    [isGuideDemo, genres, genreText, timePeriod, notes, popularity, regions, artists, artistText, discovery]
   )
 
   // Deps: single memo key only (constant array length for React). Do not add fetchToBuffer — callback churn would re-fire debounce.
@@ -2647,6 +3018,8 @@ export default function PlayerClient({
     // Debounce: sliders and text fields fire on every tick/keystroke.
     // Wait 600ms of silence before actually fetching.
     if (constraintDebounceRef.current) clearTimeout(constraintDebounceRef.current)
+    // Longer debounce while there is no listen history so the user can adjust several settings in one go.
+    const constraintDebounceMs = cardHistoryRef.current.length === 0 ? 1500 : 600
     constraintDebounceRef.current = setTimeout(() => {
       constraintDebounceRef.current = null
       if (!deviceIdRef.current) return
@@ -2658,6 +3031,8 @@ export default function PlayerClient({
           timePeriodRef.current,
           genresRef.current,
           regionsRef.current,
+          artistsRef.current,
+          artistTextRef.current,
           popularityRef.current,
           exploreModeRef.current
         )
@@ -2665,7 +3040,24 @@ export default function PlayerClient({
         console.info('constraint effect: skipping fetch — settings match last commit (no change)')
         return
       }
-      setLoadingQueue(true)
+      // Same rule as fetchToBuffer: no LLM until the user has chosen a DJ setting (constraint uses force:true).
+      if (
+        shouldDeferLlmUntilDjChoice(
+          cardHistoryRef.current.length,
+          genresRef.current,
+          genreTextRef.current,
+          regionsRef.current,
+          artistsRef.current,
+          artistTextRef.current,
+          notesRef.current,
+          timePeriodRef.current,
+          popularityRef.current,
+          exploreModeRef.current
+        )
+      ) {
+        console.info('constraint effect: skipping — empty channel, no DJ settings yet')
+        return
+      }
       fetchToBuffer(
         undefined,
         undefined,
@@ -2674,9 +3066,10 @@ export default function PlayerClient({
           setLoadingQueue(false)
         },
         true,
-        true
+        true,
+        false
       )
-    }, 600)
+    }, constraintDebounceMs)
   }, [constraintDepsKey])
 
   // ── Grade handler — log rating, start LLM, but stay on current song ──────
@@ -2688,7 +3081,7 @@ export default function PlayerClient({
   const handleRetry = useCallback(() => {
     if (isGuideDemo) return
     setError(null)
-    fetchToBuffer(undefined, true, undefined, true)
+    fetchToBuffer(undefined, true, undefined, true, false, true)
   }, [fetchToBuffer, isGuideDemo])
 
   const handleSpotifyPingRetry = useCallback(async () => {
@@ -2893,6 +3286,14 @@ export default function PlayerClient({
               >
                 Import
               </button>
+              <button
+                type="button"
+                onClick={() => void handleResetAllChannels()}
+                className="px-2 py-1 text-xs text-zinc-600 hover:text-red-400 flex-shrink-0 transition-colors"
+                title="Delete all channels and saved settings; start with one empty channel"
+              >
+                Reset all
+              </button>
             </>
           )}
         </div>
@@ -2943,6 +3344,8 @@ export default function PlayerClient({
           {/* YouTube player */}
           {currentCard && (currentCard.track.source as string) === 'youtube' && (
             <YoutubePlayer
+              key={`${currentCard.track.id}-${playGeneration}`}
+              ref={youtubePlayerRef}
               videoId={currentCard.track.id}
               onEnded={() => advanceRef.current?.(true)}
             />
@@ -2983,8 +3386,8 @@ export default function PlayerClient({
           {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
 
-          {/* Loading — show whenever there's no card and no error */}
-          {!currentCard && !error && (
+          {/* Loading — connecting to Spotify, or actively fetching the next track; otherwise blank (e.g. new channel before DJ settings) */}
+          {!currentCard && !error && (!deviceId || loadingQueue) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-zinc-400">
               <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin" />
               <p className="text-sm">{deviceId ? 'Finding your next song…' : 'Connecting to Spotify…'}</p>
@@ -3178,6 +3581,11 @@ export default function PlayerClient({
             onTimePeriodChange={setTimePeriod}
             regions={regions}
             onRegionsChange={setRegions}
+            llmSuggestedArtists={llmSuggestedArtists}
+            artists={artists}
+            onArtistsChange={setArtists}
+            artistText={artistText}
+            onArtistTextChange={setArtistText}
             popularity={popularity}
             onPopularityChange={setPopularity}
             discovery={discovery}

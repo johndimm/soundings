@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
 
 declare global {
   interface Window {
@@ -21,17 +21,41 @@ interface YTPlayerOptions {
   }
 }
 
+/** iframe API player — volume control used for channel-switch fades */
 interface YTPlayer {
   loadVideoById(videoId: string): void
   destroy(): void
   pauseVideo(): void
   playVideo(): void
+  setVolume(volume: number): void
+  getVolume(): number
+}
+
+const FADE_DURATION_MS = 700
+const FADE_STEPS = 20
+
+async function fadeYoutubeVolume(player: YTPlayer, fromPct: number, toPct: number) {
+  const stepMs = FADE_DURATION_MS / FADE_STEPS
+  for (let i = 1; i <= FADE_STEPS; i++) {
+    const v = fromPct + (toPct - fromPct) * (i / FADE_STEPS)
+    try {
+      player.setVolume(Math.max(0, Math.min(100, Math.round(v))))
+    } catch {
+      /* ignore */
+    }
+    await new Promise(r => setTimeout(r, stepMs))
+  }
 }
 
 interface Props {
   videoId: string
   /** Called when video finishes (auto-advance). */
   onEnded?: () => void
+}
+
+export type YoutubePlayerHandle = {
+  /** Animate volume to 0 then pause (e.g. before switching channel). */
+  fadeOut: () => Promise<void>
 }
 
 let apiLoading = false
@@ -54,12 +78,42 @@ function loadYTApi(onReady: () => void) {
   }
 }
 
-export default function YoutubePlayer({ videoId, onEnded }: Props) {
+const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePlayer(
+  { videoId, onEnded },
+  ref
+) {
   const containerRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<YTPlayer | null>(null)
   const onEndedRef = useRef(onEnded)
   onEndedRef.current = onEnded
   const currentVideoIdRef = useRef(videoId)
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      fadeOut: async () => {
+        const p = playerRef.current
+        if (!p) return
+        try {
+          let start = 100
+          try {
+            start = p.getVolume()
+          } catch {
+            start = 100
+          }
+          await fadeYoutubeVolume(p, start, 0)
+          p.pauseVideo()
+        } catch {
+          try {
+            p.pauseVideo()
+          } catch {
+            /* ignore */
+          }
+        }
+      },
+    }),
+    []
+  )
 
   // When videoId changes while player is alive, load the new video
   useEffect(() => {
@@ -84,13 +138,13 @@ export default function YoutubePlayer({ videoId, onEnded }: Props) {
           playsinline: 1,
         },
         events: {
-          onStateChange: (e) => {
+          onStateChange: e => {
             if (e.data === window.YT?.PlayerState?.ENDED) {
               onEndedRef.current?.()
             }
           },
         },
-      })
+      }) as unknown as YTPlayer
     })
 
     return () => {
@@ -105,4 +159,6 @@ export default function YoutubePlayer({ videoId, onEnded }: Props) {
       <div ref={containerRef} className="w-full h-full" />
     </div>
   )
-}
+})
+
+export default YoutubePlayer

@@ -28,6 +28,8 @@ export interface GuideDemoChannel {
   timePeriod?: string
   notes?: string
   regions?: string[]
+  artists?: string[]
+  artistText?: string
   popularity?: number
   discovery?: number
 }
@@ -66,6 +68,9 @@ export interface GuideDemoState {
   spotifyUser: { id: string; display_name?: string; product?: string }
   settingsDirty: boolean
   backoffUntil: number | null
+  llmSuggestedArtists: string[]
+  artists: string[]
+  artistText: string
 }
 
 const art = (name: string) => `/guide/art/${name}.svg`
@@ -254,6 +259,8 @@ export function getGuideDemoState(scene?: string | null): GuideDemoState {
       timePeriod: '1970s to now',
       notes: 'Keep it nocturnal, melodic, and low on distorted guitars.',
       regions: ['Scandinavia'],
+      artists: [],
+      artistText: '',
       popularity: 45,
       discovery: 72,
     },
@@ -296,6 +303,18 @@ export function getGuideDemoState(scene?: string | null): GuideDemoState {
     regions: ['Scandinavia'],
     popularity: 45,
     discovery: 72,
+    llmSuggestedArtists: [
+      'Miles Davis',
+      'John Coltrane',
+      'Nina Simone',
+      'Brian Eno',
+      'Alice Coltrane',
+      'Bill Evans',
+      'Chet Baker',
+      'Portishead',
+    ],
+    artists: [],
+    artistText: '',
     provider: 'deepseek',
     playbackState: {
       paused: false,

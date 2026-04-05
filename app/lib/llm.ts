@@ -95,8 +95,10 @@ DISLIKE ESCALATION:
 
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints.
 
+Also include "suggested_artists": an array of 8–12 DISTINCT real recording-artist or band names that fit the user's constraints and the taste profile — these power UI quick-pick buttons (exploration anchors). Use canonical names only. They need not appear in the 3 song rows; vary styles. If you cannot name enough confidently, include fewer (minimum 4 when possible) or an empty array.
+
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
+{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
 YOUTUBE (youtube_url or youtube_video_id) — optional; strongly preferred when the listener uses YouTube playback:
@@ -317,7 +319,7 @@ export async function getNextSongQuery(
   alreadyHeard?: string[],
   mode?: ExploreMode,
   numSongs?: number
-): Promise<{ songs: SongSuggestion[]; profile?: string }> {
+): Promise<{ songs: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> {
   const ask = () => {
     switch (provider) {
       case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
@@ -373,6 +375,23 @@ function rawYoutubeVideoIdFromRow(row: Record<string, unknown>): string | undefi
   return undefined
 }
 
+function parseSuggestedArtistsRaw(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const x of raw) {
+    if (typeof x !== 'string') continue
+    const t = x.trim()
+    if (!t || t.length > 160) continue
+    const k = t.toLowerCase()
+    if (seen.has(k)) continue
+    seen.add(k)
+    out.push(t)
+    if (out.length >= 16) break
+  }
+  return out
+}
+
 function parseCoords(raw: unknown): { x: number; y: number; z?: number } | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const c = raw as Record<string, unknown>
@@ -387,7 +406,7 @@ function parseCoords(raw: unknown): { x: number; y: number; z?: number } | undef
   }
 }
 
-function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: string } {
+function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: string; suggestedArtists: string[] } {
   const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim()
   const { payload, start, end } = findJsonObject(cleaned)
   let parsed: Record<string, unknown>
@@ -442,6 +461,9 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
       }))
       .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
     const chosen = songs.slice(0, 10)  // allow up to 10; caller requested numSongs
+    const suggestedArtists = parseSuggestedArtistsRaw(
+      parsed.suggested_artists ?? parsed.suggestedArtists
+    )
     if (songs.length > 0) {
       const withId = chosen.filter(s => s.spotifyId).length
       const withYt = chosen.filter(s => s.youtubeVideoId).length
@@ -457,7 +479,18 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
           ...(s.composed != null ? { composed: s.composed } : {}),
         }))
       )
-      return { songs: chosen, profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }
+      return {
+        songs: chosen,
+        profile: typeof parsed.profile === 'string' ? parsed.profile : undefined,
+        suggestedArtists,
+      }
+    }
+    if (suggestedArtists.length > 0 || typeof parsed.profile === 'string') {
+      return {
+        songs: [],
+        profile: typeof parsed.profile === 'string' ? parsed.profile : undefined,
+        suggestedArtists,
+      }
     }
   }
 
@@ -477,7 +510,14 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
       youtubeVideoId: rawYoutubeVideoIdFromRow(parsed),
       coords: parseCoords(parsed.coords),
     }
-    return { songs: [single], profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }
+    const suggestedArtists = parseSuggestedArtistsRaw(
+      parsed.suggested_artists ?? parsed.suggestedArtists
+    )
+    return {
+      songs: [single],
+      profile: typeof parsed.profile === 'string' ? parsed.profile : undefined,
+      suggestedArtists,
+    }
   }
 
   throw new Error('LLM response format not recognized')

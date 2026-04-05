@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, useMemo, type ReactNode } from 'react'
 import Link from 'next/link'
 import { ListenEvent } from '@/app/lib/llm'
 import { SpotifyTrack } from '@/app/lib/spotify'
@@ -63,6 +63,12 @@ interface Props {
   onTimePeriodChange: (v: string) => void
   regions: string[]
   onRegionsChange: (v: string[]) => void
+  /** Names from the latest LLM response — quick-pick buttons. */
+  llmSuggestedArtists: string[]
+  artists: string[]
+  onArtistsChange: (v: string[]) => void
+  artistText: string
+  onArtistTextChange: (v: string) => void
   popularity: number
   onPopularityChange: (v: number) => void
   discovery: number
@@ -158,6 +164,11 @@ export default function SessionPanel({
   onTimePeriodChange,
   regions,
   onRegionsChange,
+  llmSuggestedArtists,
+  artists,
+  onArtistsChange,
+  artistText,
+  onArtistTextChange,
   popularity,
   onPopularityChange,
   onRemoveMultiple,
@@ -181,7 +192,17 @@ export default function SessionPanel({
 
   const isDirty = (field: keyof CommittedSettings): boolean => {
     if (!settingsDirty || !committedSettings) return false
-    const cur: Record<string, unknown> = { notes, genreText, timePeriod, genres, regions, popularity, discovery }
+    const cur: Record<string, unknown> = {
+      notes,
+      genreText,
+      timePeriod,
+      genres,
+      regions,
+      artists,
+      artistText,
+      popularity,
+      discovery,
+    }
     const committed = committedSettings[field]
     const current = cur[field]
     if (Array.isArray(committed) && Array.isArray(current)) {
@@ -219,6 +240,36 @@ export default function SessionPanel({
       onGenresChange([...genres, g])
     }
   }
+
+  const toggleArtist = (name: string) => {
+    const lower = name.trim().toLowerCase()
+    const existing = artists.find(a => a.trim().toLowerCase() === lower)
+    if (existing) {
+      onArtistsChange(artists.filter(a => a.trim().toLowerCase() !== lower))
+    } else {
+      onArtistsChange([...artists, name.trim()])
+    }
+  }
+
+  /** LLM chips first, then any selected names not in the latest response (stay visible until toggled off). */
+  const artistButtonNames = useMemo(() => {
+    const seen = new Set<string>()
+    const out: string[] = []
+    const add = (raw: string) => {
+      const n = raw.trim()
+      if (!n) return
+      const k = n.toLowerCase()
+      if (seen.has(k)) return
+      seen.add(k)
+      out.push(n)
+    }
+    for (const n of llmSuggestedArtists) add(n)
+    for (const n of artists) add(n)
+    return out
+  }, [llmSuggestedArtists, artists])
+
+  const isArtistButtonSelected = (name: string) =>
+    artists.some(a => a.trim().toLowerCase() === name.trim().toLowerCase())
 
   const toggleRegion = (r: string) => {
     if (regions.includes(r)) {
@@ -419,6 +470,45 @@ export default function SessionPanel({
           value={genreText}
           onChange={e => onGenreTextChange(e.target.value)}
           placeholder="e.g. dreamy shoegaze, dark ambient…"
+          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
+        />
+      </div>
+
+      {/* Artists — names from LLM + free text */}
+      <div className="flex flex-col gap-2">
+        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
+          Artists
+          {(isDirty('artists') || isDirty('artistText')) && (
+            <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>
+          )}
+        </label>
+        {artistButtonNames.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {artistButtonNames.map(name => (
+              <button
+                key={name.toLowerCase()}
+                type="button"
+                onClick={() => toggleArtist(name)}
+                className={`text-xs px-2.5 py-1 rounded-full border transition-colors max-w-full truncate ${
+                  isArtistButtonSelected(name)
+                    ? 'bg-white text-black border-white'
+                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
+                }`}
+                title={name}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="text-zinc-700 text-xs">
+            Artist buttons appear after the DJ returns suggestions (same response as song picks).
+          </p>
+        )}
+        <input
+          value={artistText}
+          onChange={e => onArtistTextChange(e.target.value)}
+          placeholder="e.g. lean Coltrane, avoid smooth jazz…"
           className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
         />
       </div>
