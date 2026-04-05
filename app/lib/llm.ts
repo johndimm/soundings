@@ -15,6 +15,8 @@ export interface SongSuggestion {
   spotifyId?: string
   coords?: { x: number; y: number; z?: number }
   composed?: number
+  /** Performer/ensemble (classical): separate from the composer in `search` */
+  performer?: string
 }
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
@@ -101,28 +103,30 @@ SPOTIFY ID (spotify_id) — conservative but not silent:
 - When unsure between including a questionable id or omitting it, omit it.
 - The "search" field is always required and is the source of truth for lookup; spotify_id is an optional accelerator when trustworthy.
 
-The "composed" field is the year of composition (for classical/jazz standards/etc.) — omit it for contemporary recordings where the release year is meaningful.`
+The "composed" field is the year of composition (for classical/jazz standards/etc.) — omit it for contemporary recordings where the release year is meaningful.
+The "performer" field is for classical pieces only: set it to the performing ensemble or soloist (e.g. "Berlin Philharmonic / Karajan", "Glenn Gould"). The "search" field should include both composer and performer for best lookup results.`
 
 // 0 = pure familiar (exploit liked regions), 100 = pure adventurous (all unexplored)
 export type ExploreMode = number
 
-function slotInstructions(mode: ExploreMode, hasLikes: boolean): string {
+function slotInstructions(mode: ExploreMode, hasLikes: boolean, numSongs: number): string {
+  const extra = numSongs > 3 ? ` For songs beyond the first 3, continue the same distribution pattern — vary positions across the space.` : ''
   if (!hasLikes) {
-    return 'No confirmed likes yet. All 3 slots should explore different unmapped regions — spread across the space.'
+    return `No confirmed likes yet. All ${numSongs} slots should explore different unmapped regions — spread across the space.`
   }
   if (mode <= 20) {
-    return 'FAMILIAR MODE: All 3 slots should be near liked positions (within ~15 coordinate units). Deepen what already works — different songs but same musical neighborhood.'
+    return `FAMILIAR MODE: All ${numSongs} slots should be near liked positions (within ~15 coordinate units). Deepen what already works — different songs but same musical neighborhood.`
   }
   if (mode <= 40) {
-    return 'MOSTLY FAMILIAR: Slot 1 and Slot 2 near liked positions. Slot 3 moderately new territory (20–40 units from nearest liked song).'
+    return `MOSTLY FAMILIAR: Slot 1 and Slot 2 near liked positions. Slot 3 moderately new territory (20–40 units from nearest liked song).${extra}`
   }
   if (mode <= 60) {
-    return 'BALANCED: Apply the 3-slot rule — Slot 1 near a liked region, Slot 2 from unmapped territory (≥40 units from all heard), Slot 3 a genuine wild card surprise.'
+    return `BALANCED: Apply the slot rule — Slot 1 near a liked region, Slot 2 from unmapped territory (≥40 units from all heard), Slot 3 a genuine wild card surprise.${extra}`
   }
   if (mode <= 80) {
-    return 'MOSTLY ADVENTUROUS: Slot 1 at the edge of liked territory (15–30 units out). Slots 2 and 3 in unexplored regions (≥40 units from all heard songs).'
+    return `MOSTLY ADVENTUROUS: Slot 1 at the edge of liked territory (15–30 units out). Slots 2 and 3 in unexplored regions (≥40 units from all heard songs).${extra}`
   }
-  return 'ADVENTURE MODE: All 3 slots in maximally unexplored territory (≥40 units from everything heard). Ignore proximity to liked songs entirely.'
+  return `ADVENTURE MODE: All ${numSongs} slots in maximally unexplored territory (≥40 units from everything heard). Ignore proximity to liked songs entirely.`
 }
 
 function buildUserPrompt(
@@ -131,7 +135,8 @@ function buildUserPrompt(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode: ExploreMode = 50
+  mode: ExploreMode = 50,
+  numSongs = 3
 ): string {
   let prompt = ''
 
@@ -152,8 +157,12 @@ function buildUserPrompt(
     prompt += `Taste profile so far:\n${priorProfile}\n\n`
   }
 
+  if (numSongs !== 3) {
+    prompt += `Provide exactly ${numSongs} song suggestions this turn.\n\n`
+  }
+
   if (sessionHistory.length === 0 && !priorProfile) {
-    prompt += 'FIRST TURN — no history yet. Apply the first-turn rule: 3 songs from maximally distant parts of the space. Match any constraints above.'
+    prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the space. Match any constraints above.`
     return prompt
   }
 
@@ -168,7 +177,7 @@ function buildUserPrompt(
   const hasLikes = sessionHistory.some(e => e.percentListened >= 50) ||
     (priorProfile ? /LIKED:\s*(?!\[none|\[no confirmed|\[nothing)/i.test(priorProfile) : false)
 
-  prompt += slotInstructions(mode, hasLikes)
+  prompt += slotInstructions(mode, hasLikes, numSongs)
 
   return prompt
 }
@@ -179,7 +188,8 @@ async function askAnthropic(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode
+  mode?: ExploreMode,
+  numSongs?: number
 ): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -192,7 +202,7 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }],
+      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -206,7 +216,8 @@ async function askOpenAI(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode
+  mode?: ExploreMode,
+  numSongs?: number
 ): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -219,7 +230,7 @@ async function askOpenAI(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
       ],
     }),
   })
@@ -234,7 +245,8 @@ async function askDeepSeek(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode
+  mode?: ExploreMode,
+  numSongs?: number
 ): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -247,7 +259,7 @@ async function askDeepSeek(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
       ],
     }),
   })
@@ -262,7 +274,8 @@ async function askGemini(
   artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode
+  mode?: ExploreMode,
+  numSongs?: number
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
@@ -272,8 +285,8 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode) }] }],
-        generationConfig: { maxOutputTokens: 512 },
+        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }] }],
+        generationConfig: { maxOutputTokens: 2048 },
       }),
     }
   )
@@ -291,14 +304,15 @@ export async function getNextSongQuery(
   notes?: string,
   priorProfile?: string,
   alreadyHeard?: string[],
-  mode?: ExploreMode
+  mode?: ExploreMode,
+  numSongs?: number
 ): Promise<{ songs: SongSuggestion[]; profile?: string }> {
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
-      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
+      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
     }
   }
 
@@ -368,7 +382,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
 
   // New format: {songs: [{search, reason, category, spotify_id, coords}, ...], profile}
   if (Array.isArray(parsed.songs)) {
-    type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string; coords?: unknown; composed?: unknown }
+    type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string; coords?: unknown; composed?: unknown; performer?: unknown }
     const rawSpotifyIdFromRow = (row: Record<string, unknown>): string | undefined => {
       for (const k of ['spotifyId', 'spotify_id', 'spotify_track_id'] as const) {
         const v = row[k]
@@ -389,9 +403,10 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         spotifyId: normalizeSpotifyTrackId(rawSpotifyIdFromRow(s as unknown as Record<string, unknown>)),
         coords: parseCoords(s.coords),
         composed: typeof s.composed === 'number' && Number.isFinite(s.composed) ? s.composed : undefined,
+        performer: typeof s.performer === 'string' && s.performer.trim() ? s.performer.trim() : undefined,
       }))
       .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
-    const chosen = songs.slice(0, 3)
+    const chosen = songs.slice(0, 10)  // allow up to 10; caller requested numSongs
     if (songs.length > 0) {
       const withId = chosen.filter(s => s.spotifyId).length
       console.log(

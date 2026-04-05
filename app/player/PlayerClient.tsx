@@ -176,6 +176,17 @@ function loadSettings(): SavedSettings {
   return {}
 }
 const RATE_LIMIT_DEFAULT_WAIT_MS = 30_000
+const QUEUE_TARGET = 3   // desired "Up Next" depth
+const BUFFER_TARGET = 3  // desired "DJ Thinking" depth
+
+/** How many LLM songs to request based on current state and historical resolve success rate. */
+function computeNumSongs(queueLen: number, bufferLen: number, successRate: number): number {
+  const needed = Math.max(0, QUEUE_TARGET - queueLen) + Math.max(0, BUFFER_TARGET - bufferLen)
+  if (needed === 0) return 3
+  // Inflate for expected resolve failures; floor at successRate 0.5 to avoid huge requests
+  const inflated = Math.ceil(needed / Math.max(0.5, successRate))
+  return Math.max(3, Math.min(10, inflated))
+}
 
 declare global {
   interface Window {
@@ -228,6 +239,7 @@ interface CardState {
   category?: string
   coords?: { x: number; y: number }
   composed?: number
+  performer?: string
 }
 
 /** Next card that would play (matches loadChannelIntoState queue shift). */
@@ -506,6 +518,12 @@ export default function PlayerClient({
   const cardHistoryRef = useRef<HistoryEntry[]>([])
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suggestionBufferRef = useRef<SongSuggestion[]>([])
+  /** Track resolve success rate to calibrate how many songs to request from LLM. */
+  const resolveStatsRef = useRef({ attempts: 0, successes: 0 })
+  const getResolveSuccessRate = () => {
+    const { attempts, successes } = resolveStatsRef.current
+    return attempts === 0 ? 0.75 : successes / attempts
+  }
   /** Set after `consumeDjSuggestionBuffer` is defined — used from fetchToBuffer before effect runs. */
   const consumeDjSuggestionBufferRef = useRef<
     ((opts?: { userInitiated?: boolean }) => Promise<void>) | null
@@ -1316,7 +1334,13 @@ export default function PlayerClient({
         await playTrack(currentCard.track.uri, resumeMs)
       }
     }
-    doPlay()
+    doPlay().catch(err => {
+      console.error('[play] doPlay failed, retrying once', err)
+      pendingFadeInRef.current = false
+      playTrack(currentCard.track.uri, resumeMs).catch(e =>
+        console.error('[play] retry also failed', e)
+      )
+    })
   }, [currentCard?.track.uri ?? currentCard?.track.id, deviceId, isGuideDemo]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reset grade slider and rated flag when song changes
@@ -1333,7 +1357,8 @@ export default function PlayerClient({
       sessionHist: ListenEvent[],
       profile: string,
       artistConstraint?: string,
-      forceTextSearch?: boolean
+      forceTextSearch?: boolean,
+      numSongs?: number
     ): Promise<{ suggestions: SongSuggestion[]; profile?: string }> => {
       const cur = currentCardRef.current
       const alreadyHeard = [
@@ -1358,6 +1383,7 @@ export default function PlayerClient({
         ),
         alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
         mode: exploreModeRef.current,
+        numSongs,
         profileOnly: true,
       }
       if (forceTextSearch) {
@@ -1394,6 +1420,7 @@ export default function PlayerClient({
           spotifyId: s.spotifyId,
           coords: s.coords,
           composed: s.composed,
+          performer: s.performer,
         })
       )
       console.info('fetchSuggestions LLM batch', suggestions.length, suggestions.map(s => s.search))
@@ -1445,22 +1472,29 @@ export default function PlayerClient({
       setYtSearchesRemaining(data.ytSearchesRemaining)
     }
     const songs = data.songs as
-      | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[]
+      | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[]
       | undefined
+    resolveStatsRef.current.attempts++
     if (!songs?.length) {
       console.warn(DJQ, 'resolveOneSuggestion: empty songs[] in response', s.search.slice(0, 48))
+      const { attempts, successes } = resolveStatsRef.current
+      console.info(DJQ, `resolve stats: ${successes}/${attempts} (${Math.round(successes/attempts*100)}%)`)
       recordFetch(1)
       return null
     }
+    resolveStatsRef.current.successes++
     recordFetch(1)
     const t = songs[0]
-    console.info(DJQ, 'resolveOneSuggestion: ok', t.track.name, '—', t.track.artist)
+    const { attempts, successes } = resolveStatsRef.current
+    console.info(DJQ, 'resolveOneSuggestion: ok', t.track.name, '—', t.track.artist,
+      `| resolve rate: ${successes}/${attempts} (${Math.round(successes/attempts*100)}%)`)
     return {
       track: t.track,
       reason: t.reason,
       category: t.category,
       coords: t.coords,
       composed: t.composed,
+      performer: t.performer,
     }
   }, [])
 
@@ -1684,11 +1718,12 @@ export default function PlayerClient({
     setSettingsDirty(false)
     setCommittedSettings({ notes, genreText, timePeriod, genres, regions, popularity, discovery })
     const gen = ++fetchGenRef.current
-    console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, suggestionLen: suggestionBufferRef.current.length })
+    const numSongs = computeNumSongs(queueRef.current.length, suggestionBufferRef.current.length, getResolveSuccessRate())
+    console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, suggestionLen: suggestionBufferRef.current.length, numSongs, resolveRate: Math.round(getResolveSuccessRate() * 100) + '%' })
     const sentHistory = [...sessionHistoryRef.current]
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
-    fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch)
+    fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch, numSongs)
       .then(async ({ suggestions, profile: newProfile }) => {
         console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
         if (newProfile) {
@@ -2272,7 +2307,8 @@ export default function PlayerClient({
         }
         return
       }
-      if (!loadingQueue && queue.length === 0) {
+      // Call LLM when suggestions are empty and queue is below target
+      if (!loadingQueue && queue.length < QUEUE_TARGET) {
         const retryAfter = djLlmRetryAfterMsRef.current
         if (retryAfter > 0 && Date.now() < retryAfter) {
           const wait = retryAfter - Date.now()
@@ -2287,7 +2323,7 @@ export default function PlayerClient({
           }
           return
         }
-        console.info(DJQ, 'auto-fill effect: calling fetchToBuffer (buffer empty)')
+        console.info(DJQ, 'auto-fill effect: calling fetchToBuffer (queue below target, buffer empty)', { queueLen: queue.length, target: QUEUE_TARGET })
         fetchToBuffer()
       }
     }
@@ -2780,7 +2816,8 @@ export default function PlayerClient({
                 backgroundImage: `url(${currentCard.track.albumArt})`,
                 backgroundSize: 'auto 100%',
                 backgroundRepeat: 'no-repeat',
-                animation: 'albumPan 60s ease-in-out infinite alternate',
+                backgroundPosition: 'center',
+                animation: playbackState?.paused ? 'none' : 'albumPan 60s ease-in-out infinite alternate',
               }}
             />
           )}
@@ -2907,6 +2944,11 @@ export default function PlayerClient({
                     <span className="text-zinc-500 ml-2">{currentCard.composed ?? currentCard.track.releaseYear}</span>
                   )}
                 </p>
+                {currentCard.performer && (
+                  <p className="text-zinc-400 text-xs truncate mt-0.5">
+                    <span className="text-zinc-600">perf. </span>{currentCard.performer}
+                  </p>
+                )}
                 <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
                   {currentCard.reason}
                 </p>

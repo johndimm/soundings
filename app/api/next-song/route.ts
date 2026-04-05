@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
       alreadyHeard?: string[]
       accessToken?: string
       mode?: ExploreMode
+      numSongs?: number
       profileOnly?: boolean
       songsToResolve?: SongSuggestion[]
       source?: PlaybackSource
@@ -157,7 +158,8 @@ export async function POST(req: NextRequest) {
       notes,
       priorProfile,
       alreadyHeard,
-      mode
+      mode,
+      body.numSongs
     )
     songs = result.songs
     profile = result.profile
@@ -241,7 +243,7 @@ export async function POST(req: NextRequest) {
   return Response.json({ songs: foundSongs, profile })
 }
 
-type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }
+type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }
 
 async function resolveYouTubeSongs(
   songs: SongSuggestion[]
@@ -250,7 +252,7 @@ async function resolveYouTubeSongs(
   for (const song of songs) {
     const res = await searchYouTube(song.search)
     if (res.status === 'ok') {
-      results.push({ track: res.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed })
+      results.push({ track: res.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })
     }
     if (res.status === 'quota_exceeded') {
       return { songs: results, quotaExceeded: true }
@@ -265,7 +267,7 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-type FoundSong = { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }
+type FoundSong = { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }
 
 function buildTrackKey(track: SpotifyTrack) {
   return `${track.name.toLowerCase()}|${track.artist.toLowerCase()}`
@@ -294,7 +296,7 @@ function trackIsDuplicate(
 }
 
 async function resolveSongs(
-  songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number }; composed?: number }[],
+  songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
   sessionHistory: ListenEvent[],
@@ -326,6 +328,7 @@ async function resolveSongs(
   const idToCategory = new Map<string, string>()
   const idToCoords = new Map<string, { x: number; y: number }>()
   const idToComposed = new Map<string, number>()
+  const idToPerformer = new Map<string, string>()
   const ids: string[] = []
   const idlessSongs = songs.filter(song => !normalizeSpotifyTrackId(song.spotifyId))
   for (const song of songs) {
@@ -336,6 +339,7 @@ async function resolveSongs(
       if (song.category) idToCategory.set(id, song.category)
       if (song.coords) idToCoords.set(id, song.coords)
       if (song.composed) idToComposed.set(id, song.composed)
+      if (song.performer) idToPerformer.set(id, song.performer)
       ids.push(id)
     }
   }
@@ -395,7 +399,8 @@ async function resolveSongs(
           const category = idToCategory.get(track.id)
           const coords = idToCoords.get(track.id)
           const composed = idToComposed.get(track.id)
-          results.push({ track, reason, category, coords, composed })
+          const performer = idToPerformer.get(track.id)
+          results.push({ track, reason, category, coords, composed, performer })
         })
         if (llmContext) {
           logSpotifyBatchIdOutcome({
@@ -460,7 +465,7 @@ async function resolveSongs(
 }
 
 async function searchSongsSequential(
-  songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number }[],
+  songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
   accessToken: string,
   seenHistory: Set<string>,
   produced: Set<string>,
@@ -488,7 +493,7 @@ async function searchSongsSequential(
       if (trackIsDuplicate(response.track, seenHistory, produced, producedArtists)) {
         continue
       }
-      results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed })
+      results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })
     }
 
     await sleep(SEARCH_DELAY_MS)
