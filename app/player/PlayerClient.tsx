@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
@@ -179,13 +179,50 @@ const RATE_LIMIT_DEFAULT_WAIT_MS = 30_000
 const QUEUE_TARGET = 3   // desired "Up Next" depth
 const BUFFER_TARGET = 3  // desired "DJ Thinking" depth
 
+/** Queue and DJ suggestion buffer both at target — no need for another LLM round-trip. */
+function djInventoryFull(
+  queueLen: number,
+  suggestionLen: number
+): boolean {
+  return queueLen >= QUEUE_TARGET && suggestionLen >= BUFFER_TARGET
+}
+
+/** True when DJ constraint fields match the last committed snapshot (no user edit since last LLM commit). */
+function djSettingsMatchCommitted(
+  c: CommittedSettings,
+  notes: string,
+  genreText: string,
+  timePeriod: string,
+  genres: string[],
+  regions: string[],
+  popularity: number,
+  discovery: number
+): boolean {
+  if (
+    c.notes !== notes ||
+    c.genreText !== genreText ||
+    c.timePeriod !== timePeriod ||
+    c.popularity !== popularity ||
+    c.discovery !== discovery
+  ) {
+    return false
+  }
+  if (c.genres.length !== genres.length || c.regions.length !== regions.length) return false
+  for (let i = 0; i < genres.length; i++) if (c.genres[i] !== genres[i]) return false
+  for (let i = 0; i < regions.length; i++) if (c.regions[i] !== regions[i]) return false
+  return true
+}
+
+const LLM_BATCH_MIN = 3
+const LLM_BATCH_MAX = 10
+
 /** How many LLM songs to request based on current state and historical resolve success rate. */
 function computeNumSongs(queueLen: number, bufferLen: number, successRate: number): number {
   const needed = Math.max(0, QUEUE_TARGET - queueLen) + Math.max(0, BUFFER_TARGET - bufferLen)
-  if (needed === 0) return 3
+  if (needed === 0) return LLM_BATCH_MIN
   // Inflate for expected resolve failures; floor at successRate 0.5 to avoid huge requests
   const inflated = Math.ceil(needed / Math.max(0.5, successRate))
-  return Math.max(3, Math.min(10, inflated))
+  return Math.max(LLM_BATCH_MIN, Math.min(LLM_BATCH_MAX, inflated))
 }
 
 declare global {
@@ -448,6 +485,10 @@ export default function PlayerClient({
     popularity: 50,
     discovery: 50,
   })
+  const committedSettingsRef = useRef<CommittedSettings>(committedSettings)
+  useEffect(() => {
+    committedSettingsRef.current = committedSettings
+  }, [committedSettings])
   const [cooldownTick, setCooldownTick] = useState(0)
   const cooldownRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [spotifyPingInFlight, setSpotifyPingInFlight] = useState(false)
@@ -686,6 +727,19 @@ export default function PlayerClient({
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
     const pop = ch.popularity ?? 50; setPopularity(pop); popularityRef.current = pop
     const disc = ch.discovery ?? 50; setDiscovery(disc); exploreModeRef.current = disc
+
+    const nextCommitted: CommittedSettings = {
+      notes: n,
+      genreText: gt,
+      timePeriod: tp,
+      genres: [...g],
+      regions: [...r],
+      popularity: pop,
+      discovery: disc,
+    }
+    setCommittedSettings(nextCommitted)
+    committedSettingsRef.current = nextCommitted
+    setSettingsDirty(false)
 
     setActiveChannelId(ch.id); activeChannelIdRef.current = ch.id
     localStorage.setItem(ACTIVE_CHANNEL_KEY, ch.id)
@@ -1531,6 +1585,12 @@ export default function PlayerClient({
   const fillFromHeardWhenRateLimited = useCallback(() => {
     if (isGuideDemo) return
     if (sourceRef.current === 'youtube') return
+    // Never fill from Heard while DJ rows are still pending — Spotify backoff skips `consume`, but
+    // Heard must not jump ahead of the suggestion buffer (auto-fill used to run Heard first every tick).
+    if (suggestionBufferRef.current.length > 0) {
+      console.info(DJQ, 'fillFromHeard: skipping — DJ suggestions pending (resolve when rate limit clears)')
+      return
+    }
 
     const ranked = [...cardHistoryRef.current]
       .filter(e => isPositiveHeard(e))
@@ -1585,7 +1645,19 @@ export default function PlayerClient({
 
   // ── Profile-only fetch on rating: updates profile + merges suggestions into buffer ──
   const fetchProfileOnly = useCallback(() => {
+    // Do not call the LLM while DJ suggestions exist — burn those first (same rule as fetchToBuffer).
+    if (suggestionBufferRef.current.length > 0) {
+      console.info(DJQ, 'fetchProfileOnly: skipping (pending suggestions — no LLM until buffer used)', {
+        bufferLen: suggestionBufferRef.current.length,
+      })
+      return
+    }
+    if (fetchingRef.current) {
+      console.info(DJQ, 'fetchProfileOnly: skipping (LLM request already in flight)')
+      return
+    }
     const gen = ++profileGenRef.current
+    fetchingRef.current = true
     const payload: Record<string, unknown> = {
       sessionHistory: sessionHistoryRef.current,
       priorProfile: priorProfileRef.current || undefined,
@@ -1656,6 +1728,9 @@ export default function PlayerClient({
         setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
       })
       .catch(() => {})
+      .finally(() => {
+        fetchingRef.current = false
+      })
   }, [])
 
   // ── Fetch from LLM → suggestion buffer (Spotify only when promoting to queue / now playing) ──
@@ -1667,8 +1742,14 @@ export default function PlayerClient({
       force = false,
       replaceBuffer = false
     ) => {
-    if (!force && (fetchingRef.current || resolvingRef.current)) {
+    // Mutex: never stack LLM calls (constraint/retry use force:true but must still respect in-flight).
+    if (fetchingRef.current || resolvingRef.current) {
       console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
+      return
+    }
+    // Never call the LLM when Up Next + DJ buffer are both at target — even constraint debounce / retry.
+    if (djInventoryFull(queueRef.current.length, suggestionBufferRef.current.length)) {
+      console.info('fetchToBuffer: skipping, queue and suggestions at target', { force })
       return
     }
     if (!force && suggestionBufferRef.current.length > 0) {
@@ -1718,8 +1799,27 @@ export default function PlayerClient({
     setSettingsDirty(false)
     setCommittedSettings({ notes, genreText, timePeriod, genres, regions, popularity, discovery })
     const gen = ++fetchGenRef.current
-    const numSongs = computeNumSongs(queueRef.current.length, suggestionBufferRef.current.length, getResolveSuccessRate())
-    console.info('fetchToBuffer: firing', { force, gen, queueLen: queueRef.current.length, suggestionLen: suggestionBufferRef.current.length, numSongs, resolveRate: Math.round(getResolveSuccessRate() * 100) + '%' })
+    const coldStart =
+      queueRef.current.length === 0 && suggestionBufferRef.current.length === 0
+    const numSongsBase = computeNumSongs(
+      queueRef.current.length,
+      suggestionBufferRef.current.length,
+      getResolveSuccessRate()
+    )
+    // Cold start: top off both queue + DJ buffer targets (~6+) in one round; bias toward ~9–10 when allowed.
+    const numSongs = coldStart
+      ? Math.min(LLM_BATCH_MAX, Math.max(numSongsBase, 9))
+      : numSongsBase
+    console.info('fetchToBuffer: firing', {
+      force,
+      gen,
+      queueLen: queueRef.current.length,
+      suggestionLen: suggestionBufferRef.current.length,
+      numSongs,
+      coldStart,
+      resolveRate: Math.round(getResolveSuccessRate() * 100) + '%',
+      resolveStats: { ...resolveStatsRef.current },
+    })
     const sentHistory = [...sessionHistoryRef.current]
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
@@ -2307,8 +2407,9 @@ export default function PlayerClient({
         }
         return
       }
-      // Call LLM when suggestions are empty and queue is below target
-      if (!loadingQueue && queue.length < QUEUE_TARGET) {
+      // Call LLM only when the suggestion buffer is empty (never while suggestions remain).
+      // Refill both "Up Next" and DJ buffer: either queue is short OR queue is full but we still need DJ rows.
+      if (!loadingQueue && suggestionBuffer.length === 0) {
         const retryAfter = djLlmRetryAfterMsRef.current
         if (retryAfter > 0 && Date.now() < retryAfter) {
           const wait = retryAfter - Date.now()
@@ -2323,7 +2424,11 @@ export default function PlayerClient({
           }
           return
         }
-        console.info(DJQ, 'auto-fill effect: calling fetchToBuffer (queue below target, buffer empty)', { queueLen: queue.length, target: QUEUE_TARGET })
+        console.info(DJQ, 'auto-fill effect: calling fetchToBuffer (buffer empty)', {
+          queueLen: queue.length,
+          queueTarget: QUEUE_TARGET,
+          bufferTarget: BUFFER_TARGET,
+        })
         fetchToBuffer()
       }
     }
@@ -2512,6 +2617,23 @@ export default function PlayerClient({
 
   const constraintDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  /** Single stable dep for constraint LLM effect — avoids a variable-length dependency array (React requires constant length). */
+  const constraintDepsKey = useMemo(
+    () =>
+      JSON.stringify({
+        isGuideDemo,
+        genres,
+        genreText,
+        timePeriod,
+        notes,
+        popularity,
+        regions,
+        discovery,
+      }),
+    [isGuideDemo, genres, genreText, timePeriod, notes, popularity, regions, discovery]
+  )
+
+  // Deps: single memo key only (constant array length for React). Do not add fetchToBuffer — callback churn would re-fire debounce.
   useEffect(() => {
     if (isGuideDemo) return
     if (!constraintInitRef.current) {
@@ -2524,6 +2646,21 @@ export default function PlayerClient({
     constraintDebounceRef.current = setTimeout(() => {
       constraintDebounceRef.current = null
       if (!deviceIdRef.current) return
+      if (
+        djSettingsMatchCommitted(
+          committedSettingsRef.current,
+          notesRef.current,
+          genreTextRef.current,
+          timePeriodRef.current,
+          genresRef.current,
+          regionsRef.current,
+          popularityRef.current,
+          exploreModeRef.current
+        )
+      ) {
+        console.info('constraint effect: skipping fetch — settings match last commit (no change)')
+        return
+      }
       setLoadingQueue(true)
       fetchToBuffer(
         undefined,
@@ -2536,8 +2673,7 @@ export default function PlayerClient({
         true
       )
     }, 600)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [genres, genreText, timePeriod, notes, popularity, regions, isGuideDemo])
+  }, [constraintDepsKey])
 
   // ── Grade handler — log rating, start LLM, but stay on current song ──────
   const handleGradeSubmit = useCallback((value: number) => {

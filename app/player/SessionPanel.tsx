@@ -227,11 +227,11 @@ export default function SessionPanel({
   return (
     <div className="flex flex-col gap-4 text-white w-full">
 
-      {/* Up next */}
+      {/* Up next — playback queue */}
       <div data-guide="up-next" className="flex flex-col gap-1">
         <div className="flex items-center justify-between">
           <label className="text-xs text-zinc-500 uppercase tracking-wide">
-            Up next{queue.length > 0 ? ` (${queue.length})` : ''}
+            Up next — queue{queue.length > 0 ? ` (${queue.length})` : ''}
           </label>
           {loadingNext && (
             <div className="flex items-center gap-1.5 text-zinc-300">
@@ -291,7 +291,7 @@ export default function SessionPanel({
         {pendingSuggestions.length > 0 && (
           <div className="mt-2 border-t border-zinc-800 pt-2">
             <div className="flex items-center justify-between gap-2 mb-1">
-              <div className="text-xs text-zinc-500 uppercase tracking-wider">DJ is thinking…</div>
+              <div className="text-xs text-zinc-500 uppercase tracking-wider">DJ is thinking… (suggestions)</div>
               {promotingDjPending && (
                 <div className="flex items-center gap-1.5 text-zinc-400">
                   <div className="w-3 h-3 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
