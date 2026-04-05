@@ -16,11 +16,13 @@ import {
   isYoutubeResolveTestFixtureSuggestion,
 } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
+import { DEMO_CHANNEL_IMPORT } from '@/app/lib/demoChannel'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
+const DEMO_LOADED_KEY = 'earprint-demo-loaded'
 const CHANNELS_EXPORT_VERSION = 1
 
 interface Channel {
@@ -1168,7 +1170,7 @@ export default function PlayerClient({
         clearTimeout(backoffTimerRef.current)
         backoffTimerRef.current = null
       }
-      const fresh: Channel = {
+      const freshChannels = [{
         id: genChannelId(),
         name: 'New Channel',
         isAutoNamed: true,
@@ -1178,16 +1180,18 @@ export default function PlayerClient({
         currentCard: null,
         queue: [],
         createdAt: Date.now(),
-      }
-      saveChannels([fresh])
+      }]
+      const fresh = freshChannels[0]
+      const freshActive = fresh
+      saveChannels(freshChannels)
       try {
-        localStorage.setItem(ACTIVE_CHANNEL_KEY, fresh.id)
+        localStorage.setItem(ACTIVE_CHANNEL_KEY, freshActive.id)
       } catch {
         /* ignore */
       }
-      setChannels([fresh])
-      channelsRef.current = [fresh]
-      loadChannelIntoState(fresh)
+      setChannels(freshChannels)
+      channelsRef.current = freshChannels
+      loadChannelIntoState(freshActive)
       setSubmittedUris(new Set())
       setError(null)
     } finally {
@@ -1379,21 +1383,57 @@ export default function PlayerClient({
     let chs = loadChannels()
     let activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY) ?? ''
 
-    // Migrate legacy earprint-history into a default channel
-    if (chs.length === 0) {
+    const demoAlreadyLoaded = Boolean(localStorage.getItem(DEMO_LOADED_KEY))
+
+    // Treat a single blank auto-named channel (from old reset) the same as no channels,
+    // but only on true first launch (not after a reset).
+    const isBlankSlate =
+      !demoAlreadyLoaded &&
+      chs.length === 1 &&
+      chs[0].isAutoNamed &&
+      !chs[0].profile &&
+      !chs[0].currentCard &&
+      chs[0].queue.length === 0 &&
+      chs[0].cardHistory.length === 0
+
+    // Migrate legacy earprint-history into a default channel, or load demo on first launch
+    if (chs.length === 0 || isBlankSlate) {
       let legacyHistory: HistoryEntry[] = []
       try {
         const raw = localStorage.getItem(HISTORY_STORAGE_KEY)
         if (raw) legacyHistory = JSON.parse(raw)
       } catch {}
-      const id = genChannelId()
-      const name = deriveChannelName(legacyHistory, '') || 'My Music'
-      const events = legacyHistory.map(({ track, artist, percentListened, reaction, coords }) => ({ track, artist, percentListened, reaction, coords }))
-      const ch: Channel = { id, name, isAutoNamed: true, cardHistory: legacyHistory, sessionHistory: events, profile: '', currentCard: null, queue: [], createdAt: Date.now() }
-      chs = [ch]
+
+      if (legacyHistory.length > 0) {
+        // Existing user with old history format — migrate into a channel
+        const id = genChannelId()
+        const name = deriveChannelName(legacyHistory, '') || 'My Music'
+        const events = legacyHistory.map(({ track, artist, percentListened, reaction, coords }) => ({ track, artist, percentListened, reaction, coords }))
+        const ch: Channel = { id, name, isAutoNamed: true, cardHistory: legacyHistory, sessionHistory: events, profile: '', currentCard: null, queue: [], createdAt: Date.now() }
+        chs = [ch]
+        activeId = id
+      } else if (!demoAlreadyLoaded) {
+        // Brand new user — load the demo channel once
+        const result = parseChannelsImport(DEMO_CHANNEL_IMPORT)
+        if (result) {
+          chs = result.channels
+          activeId = result.activeChannelId ?? chs[0].id
+          localStorage.setItem(DEMO_LOADED_KEY, '1')
+        } else {
+          const id = genChannelId()
+          const ch: Channel = { id, name: 'My Music', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', currentCard: null, queue: [], createdAt: Date.now() }
+          chs = [ch]
+          activeId = id
+        }
+      } else {
+        // Post-reset: demo already shown before, start blank
+        const id = genChannelId()
+        const ch: Channel = { id, name: 'My Music', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', currentCard: null, queue: [], createdAt: Date.now() }
+        chs = [ch]
+        activeId = id
+      }
       saveChannels(chs)
-      activeId = id
-      localStorage.setItem(ACTIVE_CHANNEL_KEY, id)
+      localStorage.setItem(ACTIVE_CHANNEL_KEY, activeId)
     }
 
     if (!activeId || !chs.find(c => c.id === activeId)) {
