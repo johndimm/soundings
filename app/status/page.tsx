@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { readStats, clearStats, type CallStats } from '@/app/lib/callTracker'
 
 type PingResult = { ok: boolean; status: number; latencyMs: number; message: string; retryAfterMs?: number }
+type YTPingResult = { ok: boolean; quotaExceeded: boolean; searchesRemaining: number; retryAfterMs?: number; message: string }
 
 const WINDOW_MS = 30_000
 const SPOTIFY_SAFE_LIMIT = 90
@@ -136,6 +137,8 @@ export default function StatusPage() {
   const [stats, setStats] = useState<CallStats | null>(null)
   const [pinging, setPinging] = useState(false)
   const [pingResult, setPingResult] = useState<PingResult | null>(null)
+  const [ytPinging, setYtPinging] = useState(false)
+  const [ytPingResult, setYtPingResult] = useState<YTPingResult | null>(null)
 
   useEffect(() => {
     setStats(readStats())
@@ -164,6 +167,20 @@ export default function StatusPage() {
       setPingResult({ ok: false, status: 0, latencyMs: 0, message: 'Request failed (network error)' })
     } finally {
       setPinging(false)
+    }
+  }
+
+  const pingYouTube = async () => {
+    setYtPinging(true)
+    setYtPingResult(null)
+    try {
+      const res = await fetch('/api/youtube/ping')
+      const data: YTPingResult = await res.json()
+      setYtPingResult(data)
+    } catch {
+      setYtPingResult({ ok: false, quotaExceeded: false, searchesRemaining: 0, message: 'Request failed (network error)' })
+    } finally {
+      setYtPinging(false)
     }
   }
 
@@ -222,6 +239,34 @@ export default function StatusPage() {
         <p className="text-xs text-zinc-600 mt-2">
           Sends a real <code className="text-zinc-500">GET /v1/search?q=test&amp;limit=1</code> to Spotify.
           If it returns 200, the stored ban is cleared and the player can resume.
+        </p>
+      </section>
+
+      {/* YouTube ping */}
+      <section className="mb-8">
+        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Live YouTube check</h2>
+        <div className="flex items-center gap-4 flex-wrap">
+          <button
+            onClick={pingYouTube}
+            disabled={ytPinging}
+            className="text-xs bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 border border-zinc-700 rounded px-4 py-2 transition-colors"
+          >
+            {ytPinging ? 'Testing…' : 'Test YouTube search now'}
+          </button>
+          {ytPingResult && (
+            <div className={`text-xs px-3 py-2 rounded border ${ytPingResult.ok ? 'border-green-800 bg-green-950 text-green-300' : 'border-red-900 bg-red-950 text-red-300'}`}>
+              <span className="font-bold">{ytPingResult.ok ? '✓' : '✗'}</span>
+              {' · '}
+              {ytPingResult.searchesRemaining} searches remaining today
+              {' · '}
+              {ytPingResult.quotaExceeded
+                ? `Quota exceeded — resets ${ytPingResult.retryAfterMs ? new Date(Date.now() + ytPingResult.retryAfterMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'soon'}`
+                : ytPingResult.message}
+            </div>
+          )}
+        </div>
+        <p className="text-xs text-zinc-600 mt-2">
+          Sends a real YouTube Data API <code className="text-zinc-500">search.list</code> call (costs 100 quota units — free tier is 10,000/day).
         </p>
       </section>
 

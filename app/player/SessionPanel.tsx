@@ -87,6 +87,7 @@ interface Props {
   source: PlaybackSource
   onSourceChange: (v: PlaybackSource) => void
   ytSearchesRemaining?: number | null
+  youtubeOnly?: boolean
   /** Rendered to the right of the Up next queue only (e.g. music map). */
   musicMap?: ReactNode
 }
@@ -186,6 +187,7 @@ export default function SessionPanel({
   source,
   onSourceChange,
   ytSearchesRemaining,
+  youtubeOnly,
   musicMap,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -397,31 +399,33 @@ export default function SessionPanel({
       {profile && <ProfileView profile={profile} onEdit={onProfileChange} />}
 
       {/* Playback source */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">Source</label>
-          {source === 'youtube' && ytSearchesRemaining !== null && ytSearchesRemaining !== undefined && (
-            <span className={`text-xs tabular-nums ${ytSearchesRemaining <= 10 ? 'text-amber-400' : 'text-zinc-500'}`}>
-              {ytSearchesRemaining} searches left today
-            </span>
-          )}
+      {!youtubeOnly && (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-zinc-500 uppercase tracking-wide">Source</label>
+            {source === 'youtube' && ytSearchesRemaining !== null && ytSearchesRemaining !== undefined && (
+              <span className={`text-xs tabular-nums ${ytSearchesRemaining <= 10 ? 'text-amber-400' : 'text-zinc-500'}`}>
+                {ytSearchesRemaining} searches left today
+              </span>
+            )}
+          </div>
+          <div className="flex gap-1.5">
+            {(Object.keys(PLAYBACK_SOURCE_LABELS) as PlaybackSource[]).map(s => (
+              <button
+                key={s}
+                onClick={() => onSourceChange(s)}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
+                  source === s
+                    ? 'bg-white text-black border-white'
+                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
+                }`}
+              >
+                {PLAYBACK_SOURCE_LABELS[s]}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1.5">
-          {(Object.keys(PLAYBACK_SOURCE_LABELS) as PlaybackSource[]).map(s => (
-            <button
-              key={s}
-              onClick={() => onSourceChange(s)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                source === s
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-              }`}
-            >
-              {PLAYBACK_SOURCE_LABELS[s]}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
 
       {/* Discovery slider */}
       <div data-guide="discovery" className="flex flex-col gap-1">

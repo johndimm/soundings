@@ -526,11 +526,14 @@ export default function PlayerClient({
   accessToken: initialAccessToken,
   guideDemo,
   youtubeResolveTestFromServer,
+  youtubeOnly,
 }: {
   accessToken: string
   guideDemo?: string | null
   /** From server env on `/player` — reliable when NEXT_PUBLIC_* is missing from the client bundle. */
   youtubeResolveTestFromServer: boolean
+  /** No Spotify token — force YouTube source and skip Spotify SDK. */
+  youtubeOnly?: boolean
 }) {
   const isGuideDemo = Boolean(guideDemo)
 
@@ -612,7 +615,7 @@ export default function PlayerClient({
   const [popularity, setPopularity] = useState(50)
   const [discovery, setDiscovery] = useState(50)
   const [provider, setProvider] = useState<LLMProvider>('deepseek')
-  const [source, setSource] = useState<PlaybackSource>(DEFAULT_PLAYBACK_SOURCE)
+  const [source, setSource] = useState<PlaybackSource>(youtubeOnly ? 'youtube' : DEFAULT_PLAYBACK_SOURCE)
   const [ytSearchesRemaining, setYtSearchesRemaining] = useState<number | null>(null)
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
@@ -921,7 +924,7 @@ export default function PlayerClient({
     committedSettingsRef.current = nextCommitted
     setSettingsDirty(false)
 
-    const nextSource = ch.source ?? DEFAULT_PLAYBACK_SOURCE
+    const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? DEFAULT_PLAYBACK_SOURCE)
     setSource(nextSource)
     sourceRef.current = nextSource
 
@@ -1316,7 +1319,7 @@ export default function PlayerClient({
     setPopularity(s.popularity ?? 50)
     setDiscovery(s.discovery ?? 50)
     setProvider(s.provider ?? 'deepseek')
-    setSource(s.source ?? DEFAULT_PLAYBACK_SOURCE)
+    setSource(youtubeOnly ? 'youtube' : (s.source ?? DEFAULT_PLAYBACK_SOURCE))
     setCommittedSettings({
       notes: s.notes ?? '',
       genreText: s.genreText ?? '',
@@ -1349,6 +1352,7 @@ export default function PlayerClient({
   // Fetch Spotify user info once on mount
   useEffect(() => {
     if (isGuideDemo) return
+    if (youtubeOnly) return
     let canceled = false
     const fetchUser = async () => {
       try {
@@ -1482,6 +1486,7 @@ export default function PlayerClient({
   // ── Spotify SDK ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (isGuideDemo) return
+    if (youtubeOnly) return
     if (sdkReadyRef.current) return
     sdkReadyRef.current = true
 
@@ -2345,7 +2350,7 @@ export default function PlayerClient({
             setError(null)
             try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
           }, waitMs)
-          setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+          setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
           return
         }
@@ -2421,7 +2426,7 @@ export default function PlayerClient({
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
           console.warn(DJQ, 'startPlaybackFromSuggestions: RateLimitError', waitMs)
           setBackoffUntil(Date.now() + waitMs)
-          setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+          setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
         } else if (e instanceof AuthError) {
           console.warn(DJQ, 'startPlaybackFromSuggestions: AuthError')
@@ -2472,7 +2477,7 @@ export default function PlayerClient({
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
           console.warn(DJQ, 'topUpQueueFromSuggestions: RateLimitError', waitMs)
           setBackoffUntil(Date.now() + waitMs)
-          setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+          setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
         } else if (e instanceof AuthError) {
           console.warn(DJQ, 'topUpQueueFromSuggestions: AuthError')
@@ -2545,7 +2550,7 @@ export default function PlayerClient({
         console.warn(DJQ, 'promoteDjPendingByIdOnly: HTTP 429', errBody)
         const waitMs = (retryMs ?? 60_000) + 5_000
         setBackoffUntil(Date.now() + waitMs)
-        setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+        setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
         fillFromHeardWhenRateLimited()
         return 'rate_limited'
       }
@@ -2679,7 +2684,7 @@ export default function PlayerClient({
       if (backoffActive) {
         console.info(DJQ, 'consume: skipped (Spotify backoff active)', label)
         if (userInitiated) {
-          setError('Spotify is rate-limited — try again after the cooldown.')
+          setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate-limited — try again after the cooldown.`)
         }
         return
       }
@@ -2721,7 +2726,7 @@ export default function PlayerClient({
               console.warn(DJQ, 'consume: promote returned HTTP 429', { loop })
               if (userInitiated) {
                 setError(
-                  'Spotify is rate-limited — try again after the cooldown.'
+                  `${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate-limited — try again after the cooldown.`
                 )
               }
               break
@@ -2775,7 +2780,7 @@ export default function PlayerClient({
           isSpotifyBackoffActive() &&
           suggestionBufferRef.current.length > 0
         ) {
-          setError('Spotify is rate-limited — try again after the cooldown.')
+          setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate-limited — try again after the cooldown.`)
         }
 
         console.info(DJQ, 'consume: end', label, {
@@ -2810,8 +2815,8 @@ export default function PlayerClient({
       }
       return
     }
-    // Spotify backoff: fill from Heard without API calls, but do NOT exit — LLM (profileOnly)
-    // must still run to refill the DJ buffer when empty.
+    // Backoff active: fill from Heard. For YouTube-only (no Spotify token at all) stop here;
+    // for Spotify, the LLM profileOnly path must still run to refill the buffer — do NOT return.
     if (backoffUntil && backoffUntil > Date.now()) {
       if (!fetchingRef.current && !resolvingRef.current) {
         resolvingRef.current = true
@@ -2821,6 +2826,7 @@ export default function PlayerClient({
           resolvingRef.current = false
         }
       }
+      if (youtubeOnly) return
     }
     if (fetchingRef.current) {
       console.info(DJQ, 'auto-fill effect: skipped (fetchToBuffer in flight)')
@@ -3221,6 +3227,22 @@ export default function PlayerClient({
     }
   }, [])
 
+  const handleYoutubePingRetry = useCallback(async () => {
+    setSpotifyPingInFlight(true)
+    try {
+      const res = await fetch('/api/youtube/ping').then(r => r.json()).catch(() => null)
+      if (res?.ok) {
+        setBackoffUntil(null)
+        setError(null)
+        if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
+      } else if (res?.retryAfterMs) {
+        setBackoffUntil(Date.now() + res.retryAfterMs + 5_000)
+      }
+    } finally {
+      setSpotifyPingInFlight(false)
+    }
+  }, [])
+
   const playUri = useCallback(async (uri: string | null, label: string): Promise<boolean> => {
     if (isGuideDemo) {
       setPlayResponse(`Guide demo mode: playback disabled for ${label}.`)
@@ -3287,7 +3309,7 @@ export default function PlayerClient({
 
   const spotifyStatusMessage =
     backoffUntil && backoffUntil > Date.now()
-      ? `Spotify rate-limited until ${new Date(backoffUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      ? `${source === 'youtube' ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(backoffUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : null
 
   return (
@@ -3426,7 +3448,7 @@ export default function PlayerClient({
               type="button"
               disabled={spotifyPingInFlight}
               className="underline text-yellow-200 hover:text-yellow-50 disabled:opacity-60 disabled:cursor-wait"
-              onClick={handleSpotifyPingRetry}
+              onClick={source === 'youtube' ? handleYoutubePingRetry : handleSpotifyPingRetry}
             >
               {spotifyPingInFlight ? 'Checking…' : 'Try now'}
             </button>
@@ -3547,19 +3569,21 @@ export default function PlayerClient({
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6">
               <p className="text-red-400 text-sm text-center">{error}</p>
               <div className="flex flex-wrap items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={e => {
-                    e.stopPropagation()
-                    try {
-                      sessionStorage.removeItem(SPOTIFY_AUTH_REDIRECT_ONCE_KEY)
-                    } catch {}
-                    window.location.href = '/api/auth/login'
-                  }}
-                  className="text-sm bg-green-700 px-4 py-2 rounded-full hover:bg-green-600 text-white"
-                >
-                  Sign in with Spotify
-                </button>
+                {!youtubeOnly && (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      try {
+                        sessionStorage.removeItem(SPOTIFY_AUTH_REDIRECT_ONCE_KEY)
+                      } catch {}
+                      window.location.href = '/api/auth/login'
+                    }}
+                    className="text-sm bg-green-700 px-4 py-2 rounded-full hover:bg-green-600 text-white"
+                  >
+                    Sign in with Spotify
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={e => {
@@ -3784,6 +3808,7 @@ export default function PlayerClient({
               setSource(s)
             }}
             ytSearchesRemaining={ytSearchesRemaining}
+            youtubeOnly={youtubeOnly}
             musicMap={
               <MusicMap
                 history={cardHistory}

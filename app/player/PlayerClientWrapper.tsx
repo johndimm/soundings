@@ -8,17 +8,19 @@ export default function PlayerClientWrapper({
   accessToken,
   guideDemo,
   youtubeResolveTestFromServer,
+  youtubeOnly,
 }: {
   accessToken: string
   guideDemo?: string | null
-  /** Read from server env at request time — does not rely on NEXT_PUBLIC in the client bundle. */
   youtubeResolveTestFromServer: boolean
+  youtubeOnly?: boolean
 }) {
   return (
     <PlayerClient
       accessToken={accessToken}
       guideDemo={guideDemo}
       youtubeResolveTestFromServer={youtubeResolveTestFromServer}
+      youtubeOnly={youtubeOnly}
     />
   )
 }

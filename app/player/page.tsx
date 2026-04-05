@@ -12,10 +12,11 @@ export default async function PlayerPage({
 }) {
   const params = await searchParams
   const guideDemo = typeof params['guide-demo'] === 'string' ? params['guide-demo'] : null
+  const youtubeOnly = params['youtube'] === '1'
   const cookieStore = await cookies()
   const accessToken = cookieStore.get('spotify_access_token')?.value
 
-  if (!accessToken && !guideDemo) {
+  if (!accessToken && !guideDemo && !youtubeOnly) {
     const base = getBaseUrl()
     const loginUrl = base ? `${base}/api/auth/login` : '/api/auth/login'
     return (
@@ -43,6 +44,7 @@ export default async function PlayerPage({
         accessToken={accessToken ?? ''}
         guideDemo={guideDemo}
         youtubeResolveTestFromServer={youtubeResolveTestFromServer}
+        youtubeOnly={youtubeOnly}
       />
     </>
   )

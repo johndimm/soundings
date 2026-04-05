@@ -131,9 +131,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!accessToken) {
+  // YouTube source (LLM + resolve) never needs a Spotify token.
+  if (!accessToken && rawSource !== 'youtube') {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
+  // For all Spotify paths below, accessToken is guaranteed to be present.
+  const spotifyToken: string = accessToken ?? ''
 
   const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
 
@@ -169,7 +172,7 @@ export async function POST(req: NextRequest) {
     }
     const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
       songsToResolve,
-      accessToken,
+      spotifyToken,
       forceTextSearch,
       sessionHistory ?? [],
       undefined
@@ -271,7 +274,7 @@ export async function POST(req: NextRequest) {
   const llmLog = { provider: provider ?? 'deepseek', modelId: getLLMModelApiId(provider ?? 'deepseek') }
   const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
     songs,
-    accessToken,
+    spotifyToken,
     forceTextSearch,
     sessionHistory ?? [],
     llmLog
