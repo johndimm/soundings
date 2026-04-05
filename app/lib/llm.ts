@@ -1,4 +1,5 @@
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
+import { extractYoutubeVideoId } from '@/app/lib/youtubeVideoId'
 
 export interface ListenEvent {
   track: string
@@ -13,6 +14,8 @@ export interface SongSuggestion {
   reason: string
   category?: string
   spotifyId?: string
+  /** When set, YouTube resolve skips search.list (saves Data API quota). Parsed from LLM youtube_url / youtube_video_id. */
+  youtubeVideoId?: string
   coords?: { x: number; y: number; z?: number }
   composed?: number
   /** Performer/ensemble (classical): separate from the composer in `search` */
@@ -95,6 +98,14 @@ If the user provides explicit constraints (genres, eras, styles), follow them st
 Respond with ONLY a JSON object:
 {"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'"}
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
+
+YOUTUBE (youtube_url or youtube_video_id) — optional; strongly preferred when the listener uses YouTube playback:
+- You do NOT have live YouTube Data API access from this chat. Each song we must look up by search string costs heavy API quota; giving a direct link or 11-character video id avoids that.
+- When you know the exact YouTube video for the recording (same as "search"), include either:
+  - "youtube_url": full https://www.youtube.com/watch?v=… or https://youtu.be/… or music.youtube.com/watch?v=…
+  - OR "youtube_video_id": the 11-character id only.
+- Do NOT invent fake ids or URLs. If you only know title and artist, omit youtube fields — we will fall back to search.
+- The "search" field remains required for display and fallback lookup.
 
 SPOTIFY ID (spotify_id) — conservative but not silent:
 - You do NOT have live Spotify API access. Never invent random-looking 22-character strings; wrong IDs break playback.
@@ -352,6 +363,16 @@ function findJsonObject(text: string): { payload: string; start: number; end: nu
   throw new Error('JSON object not terminated')
 }
 
+function rawYoutubeVideoIdFromRow(row: Record<string, unknown>): string | undefined {
+  for (const k of ['youtubeVideoId', 'youtube_video_id', 'youtube_url', 'youtubeUrl'] as const) {
+    const v = row[k]
+    if (typeof v !== 'string' || !v.trim()) continue
+    const id = extractYoutubeVideoId(v.trim())
+    if (id) return id
+  }
+  return undefined
+}
+
 function parseCoords(raw: unknown): { x: number; y: number; z?: number } | undefined {
   if (!raw || typeof raw !== 'object') return undefined
   const c = raw as Record<string, unknown>
@@ -380,9 +401,22 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
     throw err
   }
 
-  // New format: {songs: [{search, reason, category, spotify_id, coords}, ...], profile}
+  // New format: {songs: [{search, reason, category, spotify_id, youtube_url, coords}, ...], profile}
   if (Array.isArray(parsed.songs)) {
-    type LLMRow = { search: string; reason: string; category?: string; spotify_id?: string; spotifyId?: string; coords?: unknown; composed?: unknown; performer?: unknown }
+    type LLMRow = {
+      search: string
+      reason: string
+      category?: string
+      spotify_id?: string
+      spotifyId?: string
+      youtube_url?: string
+      youtubeUrl?: string
+      youtube_video_id?: string
+      youtubeVideoId?: string
+      coords?: unknown
+      composed?: unknown
+      performer?: unknown
+    }
     const rawSpotifyIdFromRow = (row: Record<string, unknown>): string | undefined => {
       for (const k of ['spotifyId', 'spotify_id', 'spotify_track_id'] as const) {
         const v = row[k]
@@ -401,6 +435,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         reason: s.reason,
         category: typeof s.category === 'string' ? s.category : undefined,
         spotifyId: normalizeSpotifyTrackId(rawSpotifyIdFromRow(s as unknown as Record<string, unknown>)),
+        youtubeVideoId: rawYoutubeVideoIdFromRow(s as unknown as Record<string, unknown>),
         coords: parseCoords(s.coords),
         composed: typeof s.composed === 'number' && Number.isFinite(s.composed) ? s.composed : undefined,
         performer: typeof s.performer === 'string' && s.performer.trim() ? s.performer.trim() : undefined,
@@ -409,14 +444,16 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
     const chosen = songs.slice(0, 10)  // allow up to 10; caller requested numSongs
     if (songs.length > 0) {
       const withId = chosen.filter(s => s.spotifyId).length
+      const withYt = chosen.filter(s => s.youtubeVideoId).length
       console.log(
-        `LLM songs: ${chosen.length} tracks, ${withId} with spotifyId, ${chosen.length - withId} search-only (no id — normal)`
+        `LLM songs: ${chosen.length} tracks, ${withId} with spotifyId, ${withYt} with youtubeVideoId, ${chosen.length - withId - withYt} search-only`
       )
       console.log(
         chosen.map((s: SongSuggestion) => ({
           search: s.search,
           coords: s.coords,
           ...(s.spotifyId ? { spotifyId: s.spotifyId } : {}),
+          ...(s.youtubeVideoId ? { youtubeVideoId: s.youtubeVideoId } : {}),
           ...(s.composed != null ? { composed: s.composed } : {}),
         }))
       )
@@ -437,6 +474,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
       search: parsed.search,
       reason: parsed.reason,
       spotifyId,
+      youtubeVideoId: rawYoutubeVideoIdFromRow(parsed),
       coords: parseCoords(parsed.coords),
     }
     return { songs: [single], profile: typeof parsed.profile === 'string' ? parsed.profile : undefined }

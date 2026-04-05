@@ -33,6 +33,8 @@ We do **not** use the Data API to read or modify user-owned YouTube data, channe
   - **Base:** `https://www.googleapis.com/youtube/v3/search`  
   - **Implementation:** `app/lib/youtube.ts` (`searchYouTube`)
 
+**Optional zero-quota path:** When the LLM includes a trustworthy **`youtube_url`** or **`youtube_video_id`** on a song (parsed in `app/lib/llm.ts` into `youtubeVideoId`), resolution uses **`youtubeTrackFromVideoId`** in `app/lib/youtube.ts` — **no Data API call** (public thumbnail URL + IFrame playback). **`search.list`** is used only as a **fallback** when the LLM omits a video id (same as title-only resolution).
+
 ### 3.2 Request parameters (fixed set)
 
 | Parameter | Value | Purpose |

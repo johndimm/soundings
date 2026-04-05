@@ -15,7 +15,13 @@ import {
 } from '@/app/lib/llmSpotifyIdLog'
 import { enrichAlbumArtIfMissing, getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
-import { searchYouTube, isYouTubeQuotaExceeded, getYouTubeQuotaWaitMs, getYouTubeSearchesRemaining } from '@/app/lib/youtube'
+import {
+  searchYouTube,
+  isYouTubeQuotaExceeded,
+  getYouTubeQuotaWaitMs,
+  getYouTubeSearchesRemaining,
+  youtubeTrackFromVideoId,
+} from '@/app/lib/youtube'
 import type { PlaybackSource } from '@/app/lib/playback/types'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -250,6 +256,18 @@ async function resolveYouTubeSongs(
 ): Promise<{ songs: YTFoundSong[]; quotaExceeded: boolean }> {
   const results: YTFoundSong[] = []
   for (const song of songs) {
+    if (song.youtubeVideoId) {
+      const track = youtubeTrackFromVideoId(song.youtubeVideoId, song.search)
+      results.push({
+        track,
+        reason: song.reason,
+        category: song.category,
+        coords: song.coords,
+        composed: song.composed,
+        performer: song.performer,
+      })
+      continue
+    }
     const res = await searchYouTube(song.search)
     if (res.status === 'ok') {
       results.push({ track: res.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })

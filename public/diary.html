@@ -20,6 +20,37 @@
 <body>
 <h1>Earprint Dev Diary</h1>
 
+<h2>2026-04-04</h2>
+
+<h3>Music map beside Up next only</h3>
+<ul>
+  <li class="fix">The map had been in a second column next to the entire session sidebar. Moved it so it sits only to the right of the <strong>Up next</strong> block (the three queued tracks).</li>
+  <li class="fix"><code>SessionPanel</code> accepts optional <code>musicMap</code> (React node). <code>PlayerClient</code> passes a compact <code>MusicMap</code> there and uses a single session column again.</li>
+</ul>
+
+<h3>“Now playing” on the map</h3>
+<ul>
+  <li class="fix"><code>MusicMap</code>: props <code>currentPlaying</code> and <code>hasRatedCurrent</code>. Until the user rates, the current track is drawn as a larger amber marker with a white ring (distinct from green/red/gray history dots).</li>
+  <li class="fix">After rating, that position uses the normal history styling only. If the same song is already in history (replay), the old history dot is hidden until rated so two markers don’t stack.</li>
+  <li class="fix">Tooltip for the live marker: “Now playing · rate to save.” Full <code>/map</code> page unchanged (no deck props).</li>
+</ul>
+
+<h3>Embedded map chrome</h3>
+<ul>
+  <li class="fix">Removed the small dot legend under the embedded map on the main player. The standalone <code>/map</code> page still shows the full legend.</li>
+</ul>
+
+<h3>Documentation</h3>
+<ul>
+  <li class="fix"><code>docs/llm-dj-queue-and-suggestions.md</code> — How LLM batches feed the DJ suggestion buffer vs <strong>Up next</strong>, <code>profileOnly</code> vs resolve-only paths, queue targets, and guard rules (points at <code>PlayerClient.tsx</code> / <code>next-song/route.ts</code>).</li>
+  <li class="fix"><code>docs/youtube-data-api-services-design.md</code> — YouTube Data API v3 usage for reviewers: <code>search.list</code> vs zero-quota video-id path, IFrame playback, key handling, quota justification.</li>
+</ul>
+
+<h3>Dev diary</h3>
+<ul>
+  <li class="fix">Added this <strong>2026-04-04</strong> block; moved the music-map notes here from the prior day so the log matches when the work landed.</li>
+</ul>
+
 <h2>2026-04-03</h2>
 
 <h3>Problem: "Joseph Haydn 2021" — release year meaningless for classical music</h3>

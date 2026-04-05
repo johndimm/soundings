@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
+import MusicMap from './MusicMap'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
@@ -1472,6 +1473,7 @@ export default function PlayerClient({
           reason: s.reason,
           category: s.category,
           spotifyId: s.spotifyId,
+          youtubeVideoId: s.youtubeVideoId,
           coords: s.coords,
           composed: s.composed,
           performer: s.performer,
@@ -1710,8 +1712,10 @@ export default function PlayerClient({
                 reason: s.reason,
                 category: s.category,
                 spotifyId: s.spotifyId,
+                youtubeVideoId: s.youtubeVideoId,
                 coords: s.coords,
                 composed: s.composed,
+                performer: s.performer,
               })
               seen.add(s.search)
             }
@@ -2780,7 +2784,7 @@ export default function PlayerClient({
       : null
 
   return (
-    <div data-guide="full-player" className="min-h-screen min-w-[900px] bg-black text-white flex flex-col">
+    <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-900">
         <h1 className="text-xl font-bold">Earprint</h1>
@@ -3153,9 +3157,7 @@ export default function PlayerClient({
 
         {/* Right column: session panel */}
         <div className="flex-1 flex flex-col gap-4 min-w-0">
-
-          {/* Session panel */}
-          <div data-guide="sidebar" className="flex-1 px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950 min-w-0">
+          <div data-guide="sidebar" className="flex-1 min-w-0 px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950">
           <SessionPanel
             history={cardHistory}
             queue={queue}
@@ -3211,6 +3213,26 @@ export default function PlayerClient({
             source={source}
             onSourceChange={setSource}
             ytSearchesRemaining={ytSearchesRemaining}
+            musicMap={
+              <MusicMap
+                history={cardHistory}
+                embedded
+                width={280}
+                height={200}
+                currentPlaying={
+                  currentCard
+                    ? {
+                        uri: currentCard.track.uri,
+                        track: currentCard.track.name,
+                        artist: currentCard.track.artist,
+                        coords: currentCard.coords,
+                        category: currentCard.category,
+                      }
+                    : null
+                }
+                hasRatedCurrent={hasRated}
+              />
+            }
           />
           </div>
         </div>

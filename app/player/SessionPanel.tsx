@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
+import Link from 'next/link'
 import { ListenEvent } from '@/app/lib/llm'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
@@ -80,6 +81,8 @@ interface Props {
   source: PlaybackSource
   onSourceChange: (v: PlaybackSource) => void
   ytSearchesRemaining?: number | null
+  /** Rendered to the right of the Up next queue only (e.g. music map). */
+  musicMap?: ReactNode
 }
 
 const SECTION_STYLES: Record<string, { label: string; labelColor: string; textColor: string; border: string }> = {
@@ -172,6 +175,7 @@ export default function SessionPanel({
   source,
   onSourceChange,
   ytSearchesRemaining,
+  musicMap,
 }: Props) {
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
@@ -227,67 +231,91 @@ export default function SessionPanel({
   return (
     <div className="flex flex-col gap-4 text-white w-full">
 
-      {/* Up next — playback queue */}
+      {/* Up next — queue row with optional map to the right */}
       <div data-guide="up-next" className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">
-            Up next — queue{queue.length > 0 ? ` (${queue.length})` : ''}
-          </label>
-          {loadingNext && (
-            <div className="flex items-center gap-1.5 text-zinc-300">
-              <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
-              <span className="text-xs">Asking the DJ…</span>
+        <div className="flex flex-row gap-3 items-start">
+          <div className="flex-1 min-w-0 flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-zinc-500 uppercase tracking-wide">
+                Up next — queue{queue.length > 0 ? ` (${queue.length})` : ''}
+              </label>
+              {loadingNext && (
+                <div className="flex items-center gap-1.5 text-zinc-300">
+                  <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
+                  <span className="text-xs">Asking the DJ…</span>
+                </div>
+              )}
+            </div>
+
+            {loadingNext && queue.length === 0 && (
+              <div className="flex items-center gap-2 text-zinc-500 text-xs py-2 italic">
+                Searching for songs…
+              </div>
+            )}
+
+            {queue.length === 0 && !loadingNext && (
+              <p className="text-zinc-700 text-xs">Nothing queued yet.</p>
+            )}
+
+            <div className="flex flex-col gap-1">
+              {queue.map((card, i) => (
+                <div key={card.track.uri} className="flex items-center gap-1">
+                  <button
+                    onClick={() => onPlayQueueItem(i)}
+                    className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
+                  >
+                    <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
+                    {card.track.albumArt ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={card.track.albumArt}
+                        alt={card.track.album}
+                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                        <span className="text-lg">♪</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
+                      <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => onRemoveQueueItem(i)}
+                    className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
+                    title="Remove from queue"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {musicMap && (
+            <div
+              data-guide="music-map"
+              className="flex-shrink-0 w-[min(300px,42vw)] max-w-[320px] self-stretch flex flex-col border-l border-zinc-800 pl-3 -mr-1"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
+                <Link
+                  href="/map"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  Open ↗
+                </Link>
+              </div>
+              {musicMap}
             </div>
           )}
         </div>
 
-        {loadingNext && queue.length === 0 && (
-          <div className="flex items-center gap-2 text-zinc-500 text-xs py-2 italic">
-            Searching for songs…
-          </div>
-        )}
-
-        {queue.length === 0 && !loadingNext && (
-          <p className="text-zinc-700 text-xs">Nothing queued yet.</p>
-        )}
-
-        <div className="flex flex-col gap-1">
-          {queue.map((card, i) => (
-            <div key={card.track.uri} className="flex items-center gap-1">
-              <button
-                onClick={() => onPlayQueueItem(i)}
-                className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
-              >
-                <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
-                {card.track.albumArt ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={card.track.albumArt}
-                    alt={card.track.album}
-                    className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                    <span className="text-lg">♪</span>
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
-                  <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
-                </div>
-              </button>
-              <button
-                onClick={() => onRemoveQueueItem(i)}
-                className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
-                title="Remove from queue"
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-
-        {/* DJ's pending suggestions — feed into Up Next from below */}
+        {/* DJ's pending suggestions — below Up next + map */}
         {pendingSuggestions.length > 0 && (
           <div className="mt-2 border-t border-zinc-800 pt-2">
             <div className="flex items-center justify-between gap-2 mb-1">

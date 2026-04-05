@@ -66,6 +66,32 @@ export type YouTubeSearchResult =
   | { status: 'error'; message: string }
   | { status: 'quota_exceeded' }
 
+export { extractYoutubeVideoId } from '@/app/lib/youtubeVideoId'
+
+/**
+ * Build a playable track from a known video id without calling the Data API (0 quota).
+ * Thumbnail uses YouTube's public i.ytimg.com pattern; title/artist come from the LLM search hint.
+ */
+export function youtubeTrackFromVideoId(videoId: string, searchHint: string): YouTubeTrack {
+  let name = searchHint.trim() || 'Unknown track'
+  let artist = 'Unknown'
+  const dashIdx = name.indexOf(' - ')
+  if (dashIdx !== -1) {
+    artist = name.slice(0, dashIdx).trim()
+    name = name.slice(dashIdx + 3).trim()
+  }
+  return {
+    id: videoId,
+    videoId,
+    source: 'youtube',
+    name,
+    artist,
+    album: '',
+    albumArt: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    durationMs: 0,
+  }
+}
+
 function getApiKey(): string | null {
   return process.env.YOUTUBE_API_KEY ?? null
 }
