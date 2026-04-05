@@ -10,6 +10,11 @@ import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
+import { isYoutubeResolveTestClientEnabled } from '@/app/lib/youtubeResolveTestClient'
+import {
+  getYoutubeResolveTestFixtureSuggestion,
+  isYoutubeResolveTestFixtureSuggestion,
+} from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
@@ -233,16 +238,10 @@ function djSettingsMatchCommitted(
   return true
 }
 
-const LLM_BATCH_MIN = 3
-const LLM_BATCH_MAX = 10
-
-/** How many LLM songs to request based on current state and historical resolve success rate. */
-function computeNumSongs(queueLen: number, bufferLen: number, successRate: number): number {
+/** How many LLM songs to request: exactly what's needed to fill queue + buffer, capped at 6. */
+function computeNumSongs(queueLen: number, bufferLen: number): number {
   const needed = Math.max(0, QUEUE_TARGET - queueLen) + Math.max(0, BUFFER_TARGET - bufferLen)
-  if (needed === 0) return LLM_BATCH_MIN
-  // Inflate for expected resolve failures; floor at successRate 0.5 to avoid huge requests
-  const inflated = Math.ceil(needed / Math.max(0.5, successRate))
-  return Math.max(LLM_BATCH_MIN, Math.min(LLM_BATCH_MAX, inflated))
+  return Math.max(3, Math.min(6, needed))
 }
 
 declare global {
@@ -515,14 +514,60 @@ function trySpotifyRedirect(
   window.location.href = '/api/auth/login'
 }
 
+/** Set by inline script in `app/player/page.tsx` before the client bundle loads. */
+function readWindowYtResolveTestFlag(): boolean {
+  if (typeof window === 'undefined') return false
+  return (
+    (window as unknown as { __EP_YT_RESOLVE_TEST__?: boolean }).__EP_YT_RESOLVE_TEST__ === true
+  )
+}
+
 export default function PlayerClient({
   accessToken: initialAccessToken,
   guideDemo,
+  youtubeResolveTestFromServer,
 }: {
   accessToken: string
   guideDemo?: string | null
+  /** From server env on `/player` — reliable when NEXT_PUBLIC_* is missing from the client bundle. */
+  youtubeResolveTestFromServer: boolean
 }) {
   const isGuideDemo = Boolean(guideDemo)
+
+  /** null = still fetching `/api/player-config` when server + NEXT_PUBLIC + window flag are all false. */
+  const [playerConfigDj, setPlayerConfigDj] = useState<boolean | null>(() => {
+    if (youtubeResolveTestFromServer) return true
+    if (isYoutubeResolveTestClientEnabled()) return true
+    if (readWindowYtResolveTestFlag()) return true
+    return null
+  })
+
+  useEffect(() => {
+    if (playerConfigDj !== null) return
+    let cancelled = false
+    fetch('/api/player-config')
+      .then(r => (r.ok ? r.json() : null))
+      .then((data: { youtubeResolveTestDj?: boolean } | null) => {
+        if (cancelled || !data) return
+        setPlayerConfigDj(Boolean(data.youtubeResolveTestDj))
+      })
+      .catch(() => {
+        if (!cancelled) setPlayerConfigDj(false)
+      })
+    const t = setTimeout(() => {
+      if (!cancelled) setPlayerConfigDj(prev => (prev === null ? false : prev))
+    }, 8000)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [playerConfigDj])
+
+  const youtubeResolveTestActive =
+    youtubeResolveTestFromServer ||
+    isYoutubeResolveTestClientEnabled() ||
+    playerConfigDj === true
+
   // ── React state ──────────────────────────────────────────────────────────
   const [deviceId, setDeviceId] = useState<string | null>(null)
   const [currentCard, setCurrentCard] = useState<CardState | null>(null)
@@ -547,6 +592,14 @@ export default function PlayerClient({
 
   const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
   const [playResponse, setPlayResponse] = useState<string | null>(null)
+  /** Inline message for channel import/parse errors (no window.alert). */
+  const [channelsNotice, setChannelsNotice] = useState<string | null>(null)
+  /** Modal: confirm channel import or full reset (no window.confirm). */
+  const [channelsDialog, setChannelsDialog] = useState<
+    | null
+    | { kind: 'import'; data: { channels: Channel[]; activeChannelId?: string } }
+    | { kind: 'reset' }
+  >(null)
   const [notes, setNotes] = useState('')
   const [genres, setGenres] = useState<string[]>([])
   const [genreText, setGenreText] = useState('')
@@ -781,7 +834,9 @@ export default function PlayerClient({
       const playbackPositionMs =
         cur && uri && dur > 0 ? clampPlaybackOffsetMs(sliderRef.current, dur) : undefined
       return {
-        ...ch, name,
+        ...ch,
+        name,
+        source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
         cardHistory: cardHistoryRef.current,
         sessionHistory: sessionHistoryRef.current,
         profile: priorProfileRef.current,
@@ -865,6 +920,10 @@ export default function PlayerClient({
     setCommittedSettings(nextCommitted)
     committedSettingsRef.current = nextCommitted
     setSettingsDirty(false)
+
+    const nextSource = ch.source ?? DEFAULT_PLAYBACK_SOURCE
+    setSource(nextSource)
+    sourceRef.current = nextSource
 
     setActiveChannelId(ch.id); activeChannelIdRef.current = ch.id
     localStorage.setItem(ACTIVE_CHANNEL_KEY, ch.id)
@@ -1034,57 +1093,57 @@ export default function PlayerClient({
     URL.revokeObjectURL(url)
   }, [isGuideDemo, snapshotCurrentChannel])
 
+  const applyImportedChannels = useCallback(
+    (result: { channels: Channel[]; activeChannelId?: string }) => {
+      saveChannels(result.channels)
+      channelsRef.current = result.channels
+      setChannels(result.channels)
+      const activeId =
+        result.activeChannelId && result.channels.some(c => c.id === result.activeChannelId)
+          ? result.activeChannelId
+          : result.channels[0].id
+      const active = result.channels.find(c => c.id === activeId) ?? result.channels[0]
+      loadChannelIntoState(active)
+      setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
+      setError(null)
+      setChannelsNotice(null)
+      setChannelsDialog(null)
+    },
+    [loadChannelIntoState]
+  )
+
   const handleImportChannelsFile = useCallback(
     async (e: ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0]
       e.target.value = ''
       if (!file || isGuideDemo) return
+      setChannelsNotice(null)
       try {
         const text = await file.text()
         const parsed: unknown = JSON.parse(text)
         const result = parseChannelsImport(parsed)
         if (!result) {
-          window.alert(
+          setChannelsNotice(
             'Could not read channels from this file. Expected a JSON object with a "channels" array, or a JSON array of channels.'
           )
           return
         }
-        if (
-          !window.confirm(
-            `Replace all ${channelsRef.current.length} channel(s) with ${result.channels.length} imported channel(s)? Your current channels will be overwritten.`
-          )
-        ) {
-          return
-        }
-        saveChannels(result.channels)
-        channelsRef.current = result.channels
-        setChannels(result.channels)
-        const activeId =
-          result.activeChannelId && result.channels.some(c => c.id === result.activeChannelId)
-            ? result.activeChannelId
-            : result.channels[0].id
-        const active = result.channels.find(c => c.id === activeId) ?? result.channels[0]
-        loadChannelIntoState(active)
-        setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
-        setError(null)
+        setChannelsDialog({
+          kind: 'import',
+          data: { channels: result.channels, activeChannelId: result.activeChannelId },
+        })
       } catch (err) {
-        window.alert(err instanceof SyntaxError ? 'Invalid JSON file.' : (err as Error).message)
+        setChannelsNotice(err instanceof SyntaxError ? 'Invalid JSON file.' : (err as Error).message)
       }
     },
-    [isGuideDemo, loadChannelIntoState]
+    [isGuideDemo]
   )
 
   /** Clear all channels, legacy history, and global DJ settings; leave one empty channel. */
-  const handleResetAllChannels = useCallback(async () => {
+  const performResetAllChannels = useCallback(async () => {
     if (isGuideDemo) return
-    if (
-      !window.confirm(
-        'Delete all channels and start over? This removes every channel, listen history, and saved DJ settings from this browser. You cannot undo this.'
-      )
-    ) {
-      return
-    }
     if (channelSwitchingRef.current) return
+    setChannelsDialog(null)
     channelSwitchingRef.current = true
     try {
       if (!isGuideDemo && currentCardRef.current) {
@@ -1154,6 +1213,18 @@ export default function PlayerClient({
   useEffect(() => {
     sourceRef.current = source
   }, [source])
+
+  /** Test mode: show a DJ suggestion immediately when switching to YouTube (no genre click required). */
+  useEffect(() => {
+    if (isGuideDemo) return
+    if (!youtubeResolveTestActive) return
+    if (source !== 'youtube') return
+    if (!historyReady) return
+    if (suggestionBufferRef.current.length > 0) return
+    const fixture = getYoutubeResolveTestFixtureSuggestion()
+    suggestionBufferRef.current = [fixture]
+    setSuggestionBuffer([fixture])
+  }, [source, youtubeResolveTestActive, historyReady, isGuideDemo])
 
   useEffect(() => {
     genresRef.current = genres
@@ -1699,6 +1770,17 @@ export default function PlayerClient({
       forceTextSearch?: boolean,
       numSongs?: number
     ): Promise<{ suggestions: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> => {
+      if (youtubeResolveTestActive) {
+        console.info(
+          DJQ,
+          'fetchSuggestions: YOUTUBE_RESOLVE_TEST — skipping LLM; one fixture suggestion only'
+        )
+        return {
+          suggestions: [getYoutubeResolveTestFixtureSuggestion()],
+          profile: undefined,
+          suggestedArtists: [],
+        }
+      }
       const cur = currentCardRef.current
       const alreadyHeard = [
         ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
@@ -1735,7 +1817,12 @@ export default function PlayerClient({
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...payload, accessToken: accessTokenRef.current, source: sourceRef.current }),
+        body: JSON.stringify({
+          ...payload,
+          accessToken: accessTokenRef.current,
+          source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
+          youtubeResolveTest: youtubeResolveTestActive,
+        }),
       })
 
       if (res.status === 429) {
@@ -1776,14 +1863,21 @@ export default function PlayerClient({
         : []
       return { suggestions, profile: data.profile, suggestedArtists }
     },
-    []
+    [youtubeResolveTestActive]
   )
 
   /** Single Spotify search when a suggestion is promoted to Up Next / now playing. */
   const resolveOneSuggestion = useCallback(async (s: SongSuggestion): Promise<CardState | null> => {
     // Do not preflight on client backoff — stale localStorage spotifyRateLimitUntil can block all
     // resolves while LLM (profileOnly) still works. Rely on HTTP 429 to set backoff.
-    const res = await fetch('/api/next-song', {
+    const ytResolveTest =
+      youtubeResolveTestActive &&
+      (sourceRef.current === 'youtube' || isYoutubeResolveTestFixtureSuggestion(s))
+    const resolveUrl = ytResolveTest ? '/api/youtube-resolve-test' : '/api/next-song'
+    if (ytResolveTest) {
+      console.info(DJQ, 'resolveOneSuggestion: using /api/youtube-resolve-test (fixture, no search quota)')
+    }
+    const res = await fetch(resolveUrl, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
@@ -1793,7 +1887,8 @@ export default function PlayerClient({
         accessToken: accessTokenRef.current,
         // Prefer GET /v1/tracks?ids= when LLM supplies an id (not Search); fall back to search if no id or lookup fails.
         forceTextSearch: !normalizeSpotifyTrackId(s.spotifyId),
-        source: sourceRef.current,
+        source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
+        youtubeResolveTest: youtubeResolveTestActive,
       }),
     })
 
@@ -1845,7 +1940,7 @@ export default function PlayerClient({
       composed: t.composed,
       performer: t.performer,
     }
-  }, [])
+  }, [youtubeResolveTestActive])
 
   /** Resolve up to `max` suggestions in order (constraint / replace flows). Skips failed lookups. */
   const resolveSuggestionsToCards = useCallback(
@@ -1940,6 +2035,17 @@ export default function PlayerClient({
 
   // ── Profile-only fetch on rating: updates profile + merges suggestions into buffer ──
   const fetchProfileOnly = useCallback(() => {
+    if (
+      playerConfigDj === null &&
+      !youtubeResolveTestFromServer &&
+      !isYoutubeResolveTestClientEnabled()
+    ) {
+      return
+    }
+    if (youtubeResolveTestActive) {
+      console.info(DJQ, 'fetchProfileOnly: skipped (YOUTUBE_RESOLVE_TEST — no LLM)')
+      return
+    }
     // Do not call the LLM while DJ suggestions exist — burn those first (same rule as fetchToBuffer).
     if (suggestionBufferRef.current.length > 0) {
       console.info(DJQ, 'fetchProfileOnly: skipping (pending suggestions — no LLM until buffer used)', {
@@ -1980,6 +2086,8 @@ export default function PlayerClient({
       mode: exploreModeRef.current,
       profileOnly: true,
       accessToken: accessTokenRef.current,
+      source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
+      youtubeResolveTest: youtubeResolveTestActive,
     }
     fetch('/api/next-song', {
       method: 'POST',
@@ -2037,7 +2145,7 @@ export default function PlayerClient({
       .finally(() => {
         fetchingRef.current = false
       })
-  }, [])
+  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer])
 
   // ── Fetch from LLM → suggestion buffer (Spotify only when promoting to queue / now playing) ──
   const fetchToBuffer = useCallback(
@@ -2053,6 +2161,15 @@ export default function PlayerClient({
     // Mutex: never stack LLM calls (constraint/retry use force:true but must still respect in-flight).
     if (fetchingRef.current || resolvingRef.current) {
       console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
+      return
+    }
+    // Wait until we know if YOUTUBE_RESOLVE_TEST is on (avoids a real LLM call on first Jazz click).
+    if (
+      playerConfigDj === null &&
+      !youtubeResolveTestFromServer &&
+      !isYoutubeResolveTestClientEnabled()
+    ) {
+      console.info('fetchToBuffer: skipping until /api/player-config (test mode detection)')
       return
     }
     // Never call the LLM when Up Next + DJ buffer are both at target — even constraint debounce / retry.
@@ -2139,15 +2256,10 @@ export default function PlayerClient({
     const gen = ++fetchGenRef.current
     const coldStart =
       queueRef.current.length === 0 && suggestionBufferRef.current.length === 0
-    const numSongsBase = computeNumSongs(
+    const numSongs = computeNumSongs(
       queueRef.current.length,
       suggestionBufferRef.current.length,
-      getResolveSuccessRate()
     )
-    // Cold start: top off both queue + DJ buffer targets (~6+) in one round; bias toward ~9–10 when allowed.
-    const numSongs = coldStart
-      ? Math.min(LLM_BATCH_MAX, Math.max(numSongsBase, 9))
-      : numSongsBase
     console.info('fetchToBuffer: firing', {
       force,
       gen,
@@ -2276,6 +2388,8 @@ export default function PlayerClient({
     artistText,
     popularity,
     discovery,
+    playerConfigDj,
+    youtubeResolveTestFromServer,
   ])
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
@@ -3288,7 +3402,7 @@ export default function PlayerClient({
               </button>
               <button
                 type="button"
-                onClick={() => void handleResetAllChannels()}
+                onClick={() => setChannelsDialog({ kind: 'reset' })}
                 className="px-2 py-1 text-xs text-zinc-600 hover:text-red-400 flex-shrink-0 transition-colors"
                 title="Delete all channels and saved settings; start with one empty channel"
               >
@@ -3325,9 +3439,35 @@ export default function PlayerClient({
           </span>
         </div>
       )}
+      {channelsNotice && (
+        <div
+          role="alert"
+          className="px-6 py-2.5 bg-red-950/90 border-b border-red-900/50 text-red-100 text-sm flex flex-wrap items-center justify-between gap-3"
+        >
+          <span className="min-w-0">{channelsNotice}</span>
+          <button
+            type="button"
+            className="shrink-0 text-red-300 hover:text-white underline text-xs"
+            onClick={() => setChannelsNotice(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {playResponse && (
         <div className="px-6 py-3 border-b border-zinc-900">
           <p className="text-xs text-zinc-400 truncate">{playResponse}</p>
+        </div>
+      )}
+      {youtubeResolveTestActive && (
+        <div
+          role="status"
+          className="px-6 py-2 bg-emerald-950/90 border-b border-emerald-800/60 text-emerald-100 text-xs text-center leading-relaxed"
+        >
+          YouTube resolve test mode: <strong>no LLM</strong>, one fixture suggestion, resolves via{' '}
+          <strong>/api/youtube-resolve-test</strong> (no YouTube search quota). Restart{' '}
+          <code className="text-emerald-300/90">next dev</code> after editing{' '}
+          <code className="text-emerald-300/90">.env.local</code>.
         </div>
       )}
 
@@ -3348,6 +3488,14 @@ export default function PlayerClient({
               ref={youtubePlayerRef}
               videoId={currentCard.track.id}
               onEnded={() => advanceRef.current?.(true)}
+              onPlayerError={code => {
+                const isEmbed = code === 101 || code === 150 || code === 153
+                setError(
+                  isEmbed
+                    ? 'This video cannot play in the embedded player here (embedding/autoplay limits). Use the player unmute control, or open on YouTube.'
+                    : `YouTube player error (code ${code}).`
+                )
+              }}
             />
           )}
 
@@ -3365,8 +3513,8 @@ export default function PlayerClient({
             />
           )}
 
-          {/* Play/pause hover overlay */}
-          {currentCard && (
+          {/* Play/pause hover overlay (Spotify only — YouTube uses the iframe controls) */}
+          {currentCard && (currentCard.track.source as string) !== 'youtube' && (
             <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-200 bg-black/30 z-10 pointer-events-none">
               <span className="text-white text-2xl font-semibold tracking-wide select-none">
                 {playbackState?.paused ? 'play' : 'pause'}
@@ -3374,8 +3522,8 @@ export default function PlayerClient({
             </div>
           )}
 
-          {/* Persistent play/pause indicator */}
-          {currentCard && (
+          {/* Persistent play/pause indicator (Spotify SDK state only) */}
+          {currentCard && (currentCard.track.source as string) !== 'youtube' && (
             <div className="absolute top-3 right-3 z-20 pointer-events-none">
               <span className="text-white text-xl select-none drop-shadow-lg">
                 {playbackState?.paused ? '⏸' : '▶'}
@@ -3383,8 +3531,8 @@ export default function PlayerClient({
             </div>
           )}
 
-          {/* Gradient overlay */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
+          {/* Decorative gradient — must not block iframe pointer events (YouTube) */}
+          <div className="absolute inset-0 z-[5] bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none" />
 
           {/* Loading — connecting to Spotify, or actively fetching the next track; otherwise blank (e.g. new channel before DJ settings) */}
           {!currentCard && !error && (!deviceId || loadingQueue) && (
@@ -3428,10 +3576,14 @@ export default function PlayerClient({
 
           {currentCard && (
             <>
+              {/*
+                YouTube iframe is z-[6]; these controls are z-10. Without pointer-events-none on the
+                bottom panel, the large pt-16 hit area blocks all clicks to the video (play, unmute).
+              */}
               {/* Vertical grade slider — right side, aligned with Next button */}
               <div
                 data-guide="grade-slider"
-                className="absolute right-4 bottom-5 flex flex-col items-center gap-2 z-10"
+                className="absolute right-4 bottom-5 flex flex-col items-center gap-2 z-10 pointer-events-auto"
                 onClick={e => e.stopPropagation()}
               >
                 <span className="text-white text-xs font-bold tabular-nums bg-black/40 px-1 rounded">
@@ -3465,9 +3617,16 @@ export default function PlayerClient({
               {/* Bottom controls */}
               <div
                 data-guide="track-info"
-                className="absolute bottom-0 left-0 right-14 px-5 pb-5 pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent"
+                className={`absolute bottom-0 left-0 right-14 px-5 pb-5 pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
+                  (currentCard.track.source as string) === 'youtube' ? 'pointer-events-none' : ''
+                }`}
                 onClick={e => e.stopPropagation()}
               >
+                <div
+                  className={
+                    (currentCard.track.source as string) === 'youtube' ? 'pointer-events-auto' : undefined
+                  }
+                >
                 {/* Track info */}
                 <a
                   href={(currentCard.track.source as string) === 'youtube'
@@ -3553,6 +3712,7 @@ export default function PlayerClient({
                     </div>
                   )}
                 </div>
+                </div>
               </div>
             </>
           )}
@@ -3619,7 +3779,10 @@ export default function PlayerClient({
             }}
             onPlayHistoryItem={handlePlayHistoryItem}
             source={source}
-            onSourceChange={setSource}
+            onSourceChange={(s: PlaybackSource) => {
+              sourceRef.current = s
+              setSource(s)
+            }}
             ytSearchesRemaining={ytSearchesRemaining}
             musicMap={
               <MusicMap
@@ -3645,6 +3808,79 @@ export default function PlayerClient({
           </div>
         </div>
       </div>
+
+      {channelsDialog && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4"
+          role="presentation"
+          onClick={e => {
+            if (e.target === e.currentTarget) setChannelsDialog(null)
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="channels-dialog-title"
+            className="bg-zinc-900 border border-zinc-600 rounded-xl p-6 max-w-md w-full shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {channelsDialog.kind === 'import' && (
+              <>
+                <h2 id="channels-dialog-title" className="text-lg font-semibold text-white mb-2">
+                  Replace all channels?
+                </h2>
+                <p className="text-sm text-zinc-300 mb-6">
+                  Replace all {channels.length} channel(s) with {channelsDialog.data.channels.length} imported
+                  channel(s)? Your current channels will be overwritten.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm rounded-lg border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
+                    onClick={() => setChannelsDialog(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm rounded-lg bg-amber-700 hover:bg-amber-600 text-white"
+                    onClick={() => applyImportedChannels(channelsDialog.data)}
+                  >
+                    Replace channels
+                  </button>
+                </div>
+              </>
+            )}
+            {channelsDialog.kind === 'reset' && (
+              <>
+                <h2 id="channels-dialog-title" className="text-lg font-semibold text-white mb-2">
+                  Reset all channels?
+                </h2>
+                <p className="text-sm text-zinc-300 mb-6">
+                  Delete all channels and start over? This removes every channel, listen history, and saved DJ
+                  settings from this browser. You cannot undo this.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm rounded-lg border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
+                    onClick={() => setChannelsDialog(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 text-sm rounded-lg bg-red-800 hover:bg-red-700 text-white"
+                    onClick={() => void performResetAllChannels()}
+                  >
+                    Delete all
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1,6 +1,12 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 import type { Track } from '@/app/lib/playback/types'
+import { isYoutubeResolveTestServerEnabled } from '@/app/lib/youtubeResolveTestEnv'
+import {
+  YOUTUBE_RESOLVE_TEST_SEARCH_HINT,
+  YOUTUBE_RESOLVE_TEST_VIDEO_ID,
+} from '@/app/lib/youtubeResolveTestDefaults'
+import { extractYoutubeVideoId, extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
@@ -66,13 +72,25 @@ export type YouTubeSearchResult =
   | { status: 'error'; message: string }
   | { status: 'quota_exceeded' }
 
-export { extractYoutubeVideoId } from '@/app/lib/youtubeVideoId'
+export { extractYoutubeVideoId, extractYoutubeVideoIdLoose }
+
+/** Prefer remaining text after stripping URLs for title/artist; else generic. */
+function searchHintForResolvedQuery(query: string, id: string): string {
+  const q = query.trim()
+  if (q === id) return 'Unknown track'
+  if (/^https?:\/\//i.test(q) || /youtube\.com|youtu\.be/i.test(q)) return 'Unknown track'
+  const stripped = q.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim()
+  return stripped.length >= 3 ? stripped : 'Unknown track'
+}
 
 /**
  * Build a playable track from a known video id without calling the Data API (0 quota).
+ * Accepts an 11-character id, a full URL, or prose containing a YouTube link (see {@link extractYoutubeVideoIdLoose}).
  * Thumbnail uses YouTube's public i.ytimg.com pattern; title/artist come from the LLM search hint.
  */
-export function youtubeTrackFromVideoId(videoId: string, searchHint: string): YouTubeTrack {
+export function youtubeTrackFromVideoId(videoId: string, searchHint: string): YouTubeTrack | null {
+  const id = extractYoutubeVideoIdLoose(videoId.trim())
+  if (!id) return null
   let name = searchHint.trim() || 'Unknown track'
   let artist = 'Unknown'
   const dashIdx = name.indexOf(' - ')
@@ -81,13 +99,13 @@ export function youtubeTrackFromVideoId(videoId: string, searchHint: string): Yo
     name = name.slice(dashIdx + 3).trim()
   }
   return {
-    id: videoId,
-    videoId,
+    id,
+    videoId: id,
     source: 'youtube',
     name,
     artist,
     album: '',
-    albumArt: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    albumArt: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
     durationMs: 0,
   }
 }
@@ -96,7 +114,77 @@ function getApiKey(): string | null {
   return process.env.YOUTUBE_API_KEY ?? null
 }
 
+/** true / 1 / yes / on → true; false / 0 / no / off → false; unset → defaultVal */
+function envBool(name: string, defaultVal: boolean): boolean {
+  const raw = process.env[name]
+  if (raw == null || String(raw).trim() === '') return defaultVal
+  const v = String(raw).trim().toLowerCase()
+  if (['1', 'true', 'yes', 'on'].includes(v)) return true
+  if (['0', 'false', 'no', 'off'].includes(v)) return false
+  return defaultVal
+}
+
+/**
+ * After search.list, call videos.list to prefer embeddable:true (costs +1 quota unit).
+ * On by default — YouTube's videoEmbeddable search filter is unreliable (error 101/150).
+ * Set YOUTUBE_EMBED_CHECK=0 to disable.
+ */
+function shouldRunVideosListEmbedCheck(): boolean {
+  return envBool('YOUTUBE_EMBED_CHECK', true)
+}
+
+/**
+ * search.list's videoEmbeddable filter is not enough — many results still fail in the IFrame API
+ * with error 101/150 (embedding disabled). Prefer videos the Data API marks embeddable.
+ * One videos.list call per search (+1 quota unit vs 100 for search).
+ */
+async function pickBestEmbeddableVideoId(
+  videoIds: string[],
+  apiKey: string
+): Promise<string | null> {
+  if (videoIds.length === 0) return null
+  const uniq = [...new Set(videoIds)].slice(0, 50)
+  const params = new URLSearchParams({
+    part: 'status',
+    id: uniq.join(','),
+    key: apiKey,
+  })
+  let res: Response
+  try {
+    res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+  } catch (err) {
+    console.warn('[youtube] videos.list network error — skipping non-embeddable candidates', err)
+    return videoIds[0] ?? null
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
+    return null
+  }
+  const data = (await res.json()) as {
+    items?: Array<{ id: string; status?: { embeddable?: boolean } }>
+  }
+  const statusById = new Map<string, boolean | undefined>()
+  for (const it of data.items ?? []) {
+    statusById.set(it.id, it.status?.embeddable)
+  }
+  // Preserve search ranking: first hit that is not explicitly non-embeddable
+  for (const vid of videoIds) {
+    const emb = statusById.get(vid)
+    if (emb === false) continue
+    return vid
+  }
+  return null
+}
+
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult> {
+  if (isYoutubeResolveTestServerEnabled()) {
+    console.info('[youtube] searchYouTube: YOUTUBE_RESOLVE_TEST — skipping Data API, using fixture')
+    return {
+      status: 'ok',
+      track: youtubeTrackFromVideoId(YOUTUBE_RESOLVE_TEST_VIDEO_ID, YOUTUBE_RESOLVE_TEST_SEARCH_HINT)!,
+    }
+  }
   if (isYouTubeQuotaExceeded()) {
     console.warn(`[youtube] quota backoff active (${Math.round(getYouTubeQuotaWaitMs() / 60000)}m remaining)`)
     return { status: 'quota_exceeded' }
@@ -109,6 +197,21 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     return { status: 'ok', track: cached }
   }
 
+  const qTrim = query.trim()
+  const idFromQuery = extractYoutubeVideoIdLoose(qTrim)
+  if (idFromQuery) {
+    const hint = searchHintForResolvedQuery(qTrim, idFromQuery)
+    const track = youtubeTrackFromVideoId(idFromQuery, hint)
+    if (track) {
+      searchCache.set(cacheKey, track)
+      persistCache(searchCache)
+      const how =
+        idFromQuery === qTrim ? 'bare id' : extractYoutubeVideoId(qTrim) ? 'URL' : 'URL in text'
+      console.info(`[youtube] zero-quota resolve (no search.list): ${idFromQuery} (${how})`)
+      return { status: 'ok', track }
+    }
+  }
+
   const apiKey = getApiKey()
   if (!apiKey) {
     return { status: 'error', message: 'YOUTUBE_API_KEY not configured' }
@@ -119,7 +222,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     q: query,
     type: 'video',
     videoEmbeddable: 'true',
-    maxResults: '1',
+    maxResults: '25',
     key: apiKey,
   })
 
@@ -151,25 +254,32 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   }
 
   const data = await res.json()
-  const item = data.items?.[0]
-  if (!item) {
+  const items: Array<{ id?: { videoId?: string }; snippet?: Record<string, unknown> }> = data.items ?? []
+  if (items.length === 0) {
     console.info(`[youtube] no results for: "${query}"`)
     return { status: 'not_found' }
   }
 
-  const videoId: string = item.id?.videoId
-  if (!videoId) {
+  const orderedIds = items.map(i => i.id?.videoId).filter((id): id is string => Boolean(id))
+  const runEmbedCheck = shouldRunVideosListEmbedCheck()
+  const chosenId = runEmbedCheck
+    ? await pickBestEmbeddableVideoId(orderedIds, apiKey)
+    : orderedIds[0] ?? null
+  console.info(`[youtube] videos.list embed check: ${runEmbedCheck ? 'on' : 'off (first search hit only)'}`)
+  if (!chosenId) {
     return { status: 'not_found' }
   }
+  const item = items.find(i => i.id?.videoId === chosenId) ?? items[0]
+  const videoId: string = chosenId
 
-  const snippet = item.snippet ?? {}
-  const title: string = snippet.title ?? query
-  const channelTitle: string = snippet.channelTitle ?? 'Unknown'
-  const thumbnailUrl: string =
-    snippet.thumbnails?.high?.url ??
-    snippet.thumbnails?.medium?.url ??
-    snippet.thumbnails?.default?.url ??
-    null
+  const snippet = (item.snippet ?? {}) as Record<string, unknown>
+  const title: string = (snippet.title as string) ?? query
+  const channelTitle: string = (snippet.channelTitle as string) ?? 'Unknown'
+  const thumbs = snippet.thumbnails as
+    | { high?: { url?: string }; medium?: { url?: string }; default?: { url?: string } }
+    | undefined
+  const thumbnailUrl: string | null =
+    thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbs?.default?.url ?? null
 
   // Parse "Artist - Title" from the video title when possible; otherwise use channel as artist
   let name = title

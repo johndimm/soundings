@@ -1,162 +1,54 @@
 'use client'
-import { useEffect, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useMemo } from 'react'
+import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 
-declare global {
-  interface Window {
-    YT: {
-      Player: new (el: HTMLElement, opts: YTPlayerOptions) => YTPlayer
-      PlayerState: { ENDED: number; PLAYING: number; PAUSED: number; BUFFERING: number }
-    }
-    onYouTubeIframeAPIReady?: () => void
-  }
-}
-
-interface YTPlayerOptions {
-  videoId: string
-  playerVars?: Record<string, number | string>
-  events?: {
-    onReady?: () => void
-    onStateChange?: (e: { data: number }) => void
-    onError?: (e: { data: number }) => void
-  }
-}
-
-/** iframe API player — volume control used for channel-switch fades */
-interface YTPlayer {
-  loadVideoById(videoId: string): void
-  destroy(): void
-  pauseVideo(): void
-  playVideo(): void
-  setVolume(volume: number): void
-  getVolume(): number
-}
-
-const FADE_DURATION_MS = 700
-const FADE_STEPS = 20
-
-async function fadeYoutubeVolume(player: YTPlayer, fromPct: number, toPct: number) {
-  const stepMs = FADE_DURATION_MS / FADE_STEPS
-  for (let i = 1; i <= FADE_STEPS; i++) {
-    const v = fromPct + (toPct - fromPct) * (i / FADE_STEPS)
-    try {
-      player.setVolume(Math.max(0, Math.min(100, Math.round(v))))
-    } catch {
-      /* ignore */
-    }
-    await new Promise(r => setTimeout(r, stepMs))
-  }
-}
+const IFRAME_ALLOW =
+  'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
 
 interface Props {
   videoId: string
-  /** Called when video finishes (auto-advance). */
   onEnded?: () => void
+  onPlayerError?: (errorCode: number) => void
 }
 
 export type YoutubePlayerHandle = {
-  /** Animate volume to 0 then pause (e.g. before switching channel). */
   fadeOut: () => Promise<void>
 }
 
-let apiLoading = false
-
-function loadYTApi(onReady: () => void) {
-  if (window.YT?.Player) {
-    onReady()
-    return
-  }
-  const prev = window.onYouTubeIframeAPIReady
-  window.onYouTubeIframeAPIReady = () => {
-    prev?.()
-    onReady()
-  }
-  if (!apiLoading) {
-    apiLoading = true
-    const tag = document.createElement('script')
-    tag.src = 'https://www.youtube.com/iframe_api'
-    document.head.appendChild(tag)
-  }
+function buildEmbedSrc(videoId: string): string {
+  return `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?autoplay=1`
 }
 
 const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePlayer(
-  { videoId, onEnded },
+  { videoId },
   ref
 ) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const playerRef = useRef<YTPlayer | null>(null)
-  const onEndedRef = useRef(onEnded)
-  onEndedRef.current = onEnded
-  const currentVideoIdRef = useRef(videoId)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+  const normalizedId = useMemo(() => extractYoutubeVideoIdLoose(videoId) ?? null, [videoId])
+  const embedSrc = useMemo(() => (normalizedId ? buildEmbedSrc(normalizedId) : ''), [normalizedId])
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      fadeOut: async () => {
-        const p = playerRef.current
-        if (!p) return
-        try {
-          let start = 100
-          try {
-            start = p.getVolume()
-          } catch {
-            start = 100
-          }
-          await fadeYoutubeVolume(p, start, 0)
-          p.pauseVideo()
-        } catch {
-          try {
-            p.pauseVideo()
-          } catch {
-            /* ignore */
-          }
-        }
-      },
-    }),
-    []
-  )
+  useImperativeHandle(ref, () => ({ fadeOut: async () => {} }), [])
 
-  // When videoId changes while player is alive, load the new video
-  useEffect(() => {
-    currentVideoIdRef.current = videoId
-    if (playerRef.current) {
-      playerRef.current.loadVideoById(videoId)
-    }
-  }, [videoId])
-
-  // Mount / unmount: create the YT.Player once
-  useEffect(() => {
-    let destroyed = false
-
-    loadYTApi(() => {
-      if (destroyed || !containerRef.current) return
-      playerRef.current = new window.YT.Player(containerRef.current, {
-        videoId: currentVideoIdRef.current,
-        playerVars: {
-          autoplay: 1,
-          modestbranding: 1,
-          rel: 0,
-          playsinline: 1,
-        },
-        events: {
-          onStateChange: e => {
-            if (e.data === window.YT?.PlayerState?.ENDED) {
-              onEndedRef.current?.()
-            }
-          },
-        },
-      }) as unknown as YTPlayer
-    })
-
-    return () => {
-      destroyed = true
-      playerRef.current?.destroy()
-      playerRef.current = null
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!normalizedId) {
+    return (
+      <div className="absolute inset-0 z-[6] flex items-center justify-center bg-zinc-950 text-zinc-500 text-sm px-4 text-center">
+        Invalid or missing YouTube video id
+      </div>
+    )
+  }
 
   return (
-    <div className="absolute inset-0 z-0">
-      <div ref={containerRef} className="w-full h-full" />
+    <div className="absolute inset-0 z-[6]">
+      <iframe
+        key={embedSrc}
+        ref={iframeRef}
+        title="YouTube video player"
+        src={embedSrc}
+        allow={IFRAME_ALLOW}
+        referrerPolicy="strict-origin-when-cross-origin"
+        allowFullScreen
+        className="absolute inset-0 h-full w-full border-0"
+      />
     </div>
   )
 })

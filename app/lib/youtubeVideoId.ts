@@ -27,3 +27,20 @@ export function extractYoutubeVideoId(input: string): string | null {
   }
   return null
 }
+
+/** Like {@link extractYoutubeVideoId}, but also finds the first YouTube URL inside surrounding text. */
+export function extractYoutubeVideoIdLoose(input: string): string | null {
+  const direct = extractYoutubeVideoId(input)
+  if (direct) return direct
+  const s = input.trim()
+  if (!s) return null
+  const re = /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/[^\s]+|youtu\.be\/[^\s]+)/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(s)) !== null) {
+    const raw = m[0]
+    const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    const id = extractYoutubeVideoId(candidate)
+    if (id) return id
+  }
+  return null
+}

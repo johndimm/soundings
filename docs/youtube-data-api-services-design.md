@@ -111,18 +111,54 @@ Per Google’s instructions: provide a **detailed screencast** that shows, for t
 
 ---
 
-## 8. File reference (for reviewers / maintainers)
+## 8. Spotify IDs vs YouTube suggestions (why “promote” paths differ)
+
+DJ suggestions are **text-first**: every row has a required **`search`** string (title / artist for lookup). Optional accelerators are **source-specific**:
+
+| Field | Spotify | YouTube |
+|--------|---------|---------|
+| **`spotifyId`** (optional) | When present and trusted, the client can batch-resolve via Spotify Web API **track ids** (`promoteDjPendingByIdOnly` in `PlayerClient.tsx`) without a text search. | **Not used.** YouTube playback does not use Spotify track ids. |
+| **`youtubeVideoId`** / URL (optional) | N/A | When present, **`resolveYouTubeSongs`** uses **`youtubeTrackFromVideoId`** — **no Data API search**, **0 quota** for that row. |
+| **Neither id** | Server falls back to **Spotify search** from `search`. | Server falls back to **`search.list`** via **`searchYouTube`** (costs quota; cached in `.youtube-cache.json`). |
+
+So: **YouTube suggestions do not have a Spotify id**, and they are not expected to. Promotion from the suggestion buffer to the queue still goes through **`resolveOneSuggestion`** → POST **`/api/next-song`** with **`songsToResolve`** and **`source: 'youtube'`**, which either attaches a known **`youtubeVideoId`** or performs one **YouTube search** per row.
+
+---
+
+## 9. Debug endpoint: resolve without Data API quota
+
+For stepping through the client with a **fixed** resolved track (same response shape as the real resolve path, **no** `search.list` call):
+
+- **Route:** `POST /api/youtube-resolve-test`
+- **Enable:** `NODE_ENV=development` **or** set **`YOUTUBE_RESOLVE_TEST=1`** on the server.
+- **Optional body:** `{ "youtubeVideoId": "11chars", "search": "hint for title/artist split", "reason": "…", "category": "…" }` — defaults to a single well-known example video id.
+- **`GET /api/youtube-resolve-test`** (when enabled) returns a short JSON description and a sample `curl`.
+
+**Testing promotion to “Up next” / now playing (no YouTube search quota, no LLM):**
+
+1. **Server:** `YOUTUBE_RESOLVE_TEST=1` (or `NODE_ENV=development`) so **`GET`/`POST /api/youtube-resolve-test`** is enabled, and **`POST /api/next-song`** with **`profileOnly: true`** and **`source: 'youtube'`** **never calls the LLM** — it returns the single fixture suggestion.
+2. **Client (optional):** **`NEXT_PUBLIC_YOUTUBE_RESOLVE_TEST=1`** short-circuits **`fetchSuggestions`** locally (no HTTP) when **Source** is **YouTube**. **`fetchProfileOnly`** is skipped in test mode. **`resolveOneSuggestion`** uses **`/api/youtube-resolve-test`** (no **`search.list`**).
+3. Switch **Source** to **Spotify** for normal LLM + Spotify again.
+4. **Player:** Open **`/player`**, choose **YouTube**, make a DJ choice so suggestions can fill. Leave **room** in Up next to promote.
+5. **What happens:** **`consumeDjSuggestionBuffer`** runs **`resolveOneSuggestion`**. With test mode, resolves use the fixture — see **`[dj-queue]`** logs; dedupe may show only one copy in the queue.
+
+If you prefer not to use the env flag, you can point **`resolveOneSuggestion`** at **`/api/youtube-resolve-test`** only while debugging (then revert).
+
+---
+
+## 10. File reference (for reviewers / maintainers)
 
 | Area | Path |
 |------|------|
 | Data API search + cache + quota handling | `app/lib/youtube.ts` |
 | HTTP API route (resolve LLM suggestions to tracks) | `app/api/next-song/route.ts` (`resolveYouTubeSongs`, `source === 'youtube'` branches) |
+| Zero-quota debug resolve (fixture response) | `app/api/youtube-resolve-test/route.ts` |
 | IFrame player (client) | `app/player/YoutubePlayer.tsx` |
 | Player shell / link to youtube.com | `app/player/PlayerClient.tsx` |
 
 ---
 
-## 9. Contact
+## 11. Contact
 
 Update this section with your legal / technical contact for the product submitted to Google.
 

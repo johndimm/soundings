@@ -1,5 +1,5 @@
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
-import { extractYoutubeVideoId } from '@/app/lib/youtubeVideoId'
+import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 
 export interface ListenEvent {
   track: string
@@ -369,7 +369,7 @@ function rawYoutubeVideoIdFromRow(row: Record<string, unknown>): string | undefi
   for (const k of ['youtubeVideoId', 'youtube_video_id', 'youtube_url', 'youtubeUrl'] as const) {
     const v = row[k]
     if (typeof v !== 'string' || !v.trim()) continue
-    const id = extractYoutubeVideoId(v.trim())
+    const id = extractYoutubeVideoIdLoose(v.trim())
     if (id) return id
   }
   return undefined

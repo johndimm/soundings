@@ -22,6 +22,13 @@ import {
   getYouTubeSearchesRemaining,
   youtubeTrackFromVideoId,
 } from '@/app/lib/youtube'
+import { isYoutubeResolveTestServerEnabled } from '@/app/lib/youtubeResolveTestEnv'
+import {
+  getYoutubeResolveTestFixtureSuggestion,
+  isYoutubeResolveTestFixtureSuggestion,
+  YOUTUBE_RESOLVE_TEST_SEARCH_HINT,
+  YOUTUBE_RESOLVE_TEST_VIDEO_ID,
+} from '@/app/lib/youtubeResolveTestDefaults'
 import type { PlaybackSource } from '@/app/lib/playback/types'
 import {
   ACCESS_TOKEN_COOKIE_NAME,
@@ -56,6 +63,8 @@ export async function POST(req: NextRequest) {
       profileOnly?: boolean
       songsToResolve?: SongSuggestion[]
       source?: PlaybackSource
+      /** Client echoes test mode (dev fallback if server env is missing in the route bundle). */
+      youtubeResolveTest?: boolean
     }>,
   ])
 
@@ -72,13 +81,27 @@ export async function POST(req: NextRequest) {
   const hasResolveOnly = Boolean(body.songsToResolve && body.songsToResolve.length > 0)
   const llmOnlyNoSpotify = body.profileOnly === true && !hasResolveOnly
 
+  /** Normalized playback source — JSON may omit `source` (undefined strips in some clients). */
+  const rawSource =
+    typeof body.source === 'string' ? body.source.trim().toLowerCase() : ''
+
+  /** YouTube resolve test: profile-only batch skips LLM. Env + dev-only body echo (see PlayerClient). */
+  const youtubeResolveTestEffective =
+    isYoutubeResolveTestServerEnabled() ||
+    (process.env.NODE_ENV === 'development' && body.youtubeResolveTest === true)
+
+  const youtubeTestProfileOnly =
+    body.profileOnly === true && !hasResolveOnly && youtubeResolveTestEffective
+
   /**
    * `songsToResolve` must bypass the outer gate so resolve runs (with its own offline checks).
    * Profile-only LLM (DJ buffer) skips Spotify on the server but still needs Spotify to be up for
    * IDs to matter — when `isSpotifyOffline()`, do not call the LLM (same gate as full next-song).
    */
   const skipGlobalSpotifyGate =
-    hasResolveOnly || (llmOnlyNoSpotify && !isSpotifyOffline())
+    hasResolveOnly ||
+    (llmOnlyNoSpotify && !isSpotifyOffline()) ||
+    youtubeTestProfileOnly
 
   if (!skipGlobalSpotifyGate && !isSpotifyAvailable()) {
     const waitMs = isSpotifyOffline() ? getSpotifyOfflineWaitMs() : getRateLimitRemainingMs()
@@ -121,11 +144,17 @@ export async function POST(req: NextRequest) {
       forceTextSearch: forceTextSearch ?? DEFAULT_FORCE_TEXT_SEARCH,
     })
 
-    if (source === 'youtube') {
+    const resolveAsYouTube =
+      rawSource === 'youtube' ||
+      (youtubeResolveTestEffective && songsToResolve.every(isYoutubeResolveTestFixtureSuggestion))
+
+    if (resolveAsYouTube) {
       if (isYouTubeQuotaExceeded()) {
         return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
       }
-      const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songsToResolve)
+      const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songsToResolve, {
+        useTestFixture: youtubeResolveTestEffective,
+      })
       if (quotaExceeded) {
         return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
       }
@@ -152,6 +181,18 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: 'no_tracks_found' }, { status: 404 })
     }
     return Response.json({ songs: foundSongs })
+  }
+
+  if (profileOnly === true && youtubeResolveTestEffective && !hasResolveOnly) {
+    console.info('[next-song] YOUTUBE_RESOLVE_TEST: skipping LLM — fixture suggestion only', {
+      rawSource: rawSource || '(missing)',
+      devBodyFallback: !isYoutubeResolveTestServerEnabled() && body.youtubeResolveTest === true,
+    })
+    return Response.json({
+      songs: [getYoutubeResolveTestFixtureSuggestion()],
+      profile: undefined,
+      suggestedArtists: [],
+    })
   }
 
   let songs: SongSuggestion[]
@@ -199,7 +240,9 @@ export async function POST(req: NextRequest) {
     if (isYouTubeQuotaExceeded()) {
       return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
     }
-    const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songs)
+    const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songs, {
+      useTestFixture: youtubeResolveTestEffective,
+    })
     if (quotaExceeded) {
       return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
     }
@@ -259,22 +302,28 @@ export async function POST(req: NextRequest) {
 type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }
 
 async function resolveYouTubeSongs(
-  songs: SongSuggestion[]
+  songs: SongSuggestion[],
+  opts?: { useTestFixture?: boolean }
 ): Promise<{ songs: YTFoundSong[]; quotaExceeded: boolean }> {
-  const results: YTFoundSong[] = []
-  for (const song of songs) {
-    if (song.youtubeVideoId) {
-      const track = youtubeTrackFromVideoId(song.youtubeVideoId, song.search)
-      results.push({
+  const useFixture = opts?.useTestFixture ?? isYoutubeResolveTestServerEnabled()
+  if (useFixture) {
+    console.info('[next-song] resolveYouTubeSongs: YOUTUBE_RESOLVE_TEST — fixture only, no search')
+    const track = youtubeTrackFromVideoId(YOUTUBE_RESOLVE_TEST_VIDEO_ID, YOUTUBE_RESOLVE_TEST_SEARCH_HINT)!
+    return {
+      songs: songs.map(song => ({
         track,
         reason: song.reason,
         category: song.category,
         coords: song.coords,
         composed: song.composed,
         performer: song.performer,
-      })
-      continue
+      })),
+      quotaExceeded: false,
     }
+  }
+  const results: YTFoundSong[] = []
+  for (const song of songs) {
+    // Always search — LLM-provided video IDs are often hallucinated or non-embeddable.
     const res = await searchYouTube(song.search)
     if (res.status === 'ok') {
       results.push({ track: res.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })

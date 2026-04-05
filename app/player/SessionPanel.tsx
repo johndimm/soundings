@@ -310,7 +310,10 @@ export default function SessionPanel({
 
             <div className="flex flex-col gap-1">
               {queue.map((card, i) => (
-                <div key={card.track.uri} className="flex items-center gap-1">
+                <div
+                  key={`${card.track.uri ?? card.track.id}-${i}`}
+                  className="flex items-center gap-1"
+                >
                   <button
                     onClick={() => onPlayQueueItem(i)}
                     className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"

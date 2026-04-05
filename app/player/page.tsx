@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import PlayerClientWrapper from './PlayerClientWrapper'
 import { getBaseUrl } from '@/app/lib/baseUrl'
+import { isYoutubeResolveTestServerEnabled } from '@/app/lib/youtubeResolveTestEnv'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,5 +30,20 @@ export default async function PlayerPage({
     )
   }
 
-  return <PlayerClientWrapper accessToken={accessToken ?? ''} guideDemo={guideDemo} />
+  const youtubeResolveTestFromServer = isYoutubeResolveTestServerEnabled()
+
+  return (
+    <>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: `window.__EP_YT_RESOLVE_TEST__=${JSON.stringify(youtubeResolveTestFromServer)}`,
+        }}
+      />
+      <PlayerClientWrapper
+        accessToken={accessToken ?? ''}
+        guideDemo={guideDemo}
+        youtubeResolveTestFromServer={youtubeResolveTestFromServer}
+      />
+    </>
+  )
 }
