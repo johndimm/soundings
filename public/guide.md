@@ -1,12 +1,32 @@
 # Earprint User Guide
 
-Earprint is a music discovery app that uses an AI DJ to learn your taste and find music you don't know yet. It plays directly through Spotify — you need a Spotify Premium account.
+Earprint is a music discovery app that uses an AI DJ to learn your taste and find music you don't know yet. It works in two modes — pick the one that suits you:
+
+| Mode | Requirement | Playback |
+|------|-------------|---------|
+| **Spotify** | Spotify Premium account | Full audio, seekable |
+| **YouTube** | No account needed | Embedded YouTube video |
 
 ---
 
 ## How it works, in one paragraph
 
-When you open earprint, the AI DJ picks three songs from very different parts of the musical map and lines them up. As you listen and react, the DJ builds a picture of your taste and uses it to choose what comes next. The more you interact, the more accurate it gets. Everything is saved in your browser — no account needed.
+When you open earprint, the AI DJ picks songs from very different parts of the musical map and lines them up. As you listen and react, the DJ builds a picture of your taste and uses it to choose what comes next. The more you interact, the more accurate it gets. Everything is saved in your browser — no server account needed.
+
+---
+
+## Choosing a mode
+
+On the login page you'll see two options:
+
+- **Spotify** — logs you in with OAuth and streams audio through the Spotify Web Playback SDK. Requires a Premium subscription.
+- **YouTube** — goes straight to the player with no login. Songs play as embedded YouTube videos.
+
+Both modes use the same AI DJ and channels system. You can maintain independent channels in each mode.
+
+### YouTube quota
+
+The YouTube Data API has a daily search quota. The free tier allows roughly **100 song lookups per day**. When the quota is exhausted the player shows a yellow banner and the DJ will hold suggestions until the next day (quota resets at midnight Pacific time). The **Status** page shows how many searches remain.
 
 ---
 
@@ -14,21 +34,28 @@ When you open earprint, the AI DJ picks three songs from very different parts of
 
 [Screenshot: the full player — album art on the left, sidebar on the right]
 
-### Album art panel
+### Album art panel (Spotify mode)
 
-The left side is the album art, which slowly pans across the image while a song plays.
+The left side shows the album art, which slowly pans across the image while a song plays.
 
 - **Click anywhere on the art** to pause or resume playback.
-- **▶ / ⏸ indicator** — a small icon in the top-right corner of the art tells you at a glance whether the song is playing or paused.
+- **▶ / ⏸ indicator** — a small icon in the top-right corner tells you at a glance whether the song is playing or paused.
 - **Hover** over the art to see "play" or "pause" as text over a dim overlay.
 
 [Screenshot: album art with ▶ indicator in top-right corner]
+
+### YouTube video panel (YouTube mode)
+
+In YouTube mode the album art panel is replaced by an embedded YouTube video. The video autoplays when a song loads. Use the YouTube player controls (volume, fullscreen, etc.) directly within the embed.
+
+- The rating slider and Next button work the same as in Spotify mode.
+- Because playback is inside an iframe, the app's seek bar reflects the elapsed time but does not control the YouTube player directly.
 
 ### Track info
 
 At the bottom of the art panel:
 
-- **Song title** — click it to open the track in Spotify.
+- **Song title** — click it to open the track in Spotify or YouTube (depending on mode).
 - **Artist** and **year** — for contemporary recordings this is the release year; for classical music and jazz standards it shows the year of composition (e.g. "1791" for Mozart, not the CD release date).
 - **DJ's reason** — a one-sentence note explaining why this song was picked (slot role, musical position, connection to your history).
 
@@ -37,8 +64,6 @@ At the bottom of the art panel:
 ### Progress bar
 
 Below the track info is a scrubber. Drag it to seek. If you drag it all the way to the end, the app advances to the next song (same as pressing Next).
-
-[Screenshot: progress bar with timestamps]
 
 ### Next button
 
@@ -60,11 +85,6 @@ There are **four ways** to rate:
 [Screenshot: vertical slider on right side of album art, showing "72%" and "rated" in green]
 
 A vertical slider lives on the right edge of the album art. Drag it up to say you liked the song, down to say you didn't. The percentage shown is the rating. When you release, the rating is locked in and "rated" turns green. You can adjust it multiple times — only the last value counts.
-
-The slider color reflects the rating:
-- **Red** — low (disliked)
-- **Neutral** — middle
-- **Green** — (see Heard section below)
 
 ### 2. Pressing Next without rating
 
@@ -115,7 +135,7 @@ The sidebar to the right of the album art is divided into sections from top to b
 
 Shows the songs queued for playback. Click any song to jump to it immediately. Click **×** next to a song to remove it from the queue.
 
-Below the confirmed queue, a **"DJ is thinking…"** section may appear, showing song names and reasons the DJ has suggested but hasn't yet resolved to Spotify tracks. These become clickable entries once the Spotify lookup finishes.
+Below the confirmed queue, a **"DJ is thinking…"** section may appear, showing song names and reasons the DJ has suggested but hasn't yet resolved to tracks. These become clickable entries once the lookup finishes.
 
 [Screenshot: Up next section with one confirmed track and two pending suggestions below]
 
@@ -182,7 +202,7 @@ The full listen history for the current channel, newest first. Each entry shows:
 - Track name and artist
 - A rating slider with label (liked / ok / nope) and percentage
 
-**Playing a past song:** click the row to play it again via Spotify.
+**Playing a past song:** click the row to play it again.
 
 **Deleting entries:** check one or more entries using the checkboxes on the left, then click **Delete N** to remove them. Removing entries also removes them from the session history the DJ uses — useful for resetting a direction that isn't working.
 
@@ -223,10 +243,6 @@ Click the name of the **active** channel tab. It becomes an editable text field.
 
 Click the **×** on a channel tab. You cannot delete the last remaining channel.
 
-### Migration from a single session
-
-If you used earprint before channels were added, your existing history is automatically imported as the first channel when you open the app.
-
 ---
 
 ## The taste space
@@ -256,15 +272,18 @@ Each dot is a song. Colored labels mark broad genre regions. The map is for expl
 
 [Screenshot: yellow banner showing "Spotify unavailable until 8:14 PM — Try now | stats"]
 
-Earprint makes calls to both Spotify and an AI service. Occasionally:
+Earprint calls both a music service (Spotify or YouTube) and an AI service. Occasionally:
 
 - **Spotify rate limiting** — Spotify has throttled the app. A yellow banner appears at the top with an estimated wait time.
   - Click **Try now** to immediately ping Spotify. If it responds successfully, the ban is cleared and music resumes.
   - Click **stats** to see a detailed breakdown of API call counts.
 
+- **YouTube quota** — the YouTube Data API has a daily search limit (roughly 100 lookups/day on the free tier). When it's exhausted the player pauses new suggestions. The quota resets at midnight Pacific time.
+  - The **Status** page has a **Test YouTube search now** button that shows how many searches remain today.
+
 - **"Asking the DJ…"** spinner — the AI is generating suggestions. This is normal; it takes a few seconds.
 
-- **"LLM may be unavailable. Will retry."** — the AI service returned an error. The app will automatically retry after 30 seconds without treating it as a Spotify issue.
+- **"LLM may be unavailable. Will retry."** — the AI service returned an error. The app will automatically retry after 30 seconds.
 
 ---
 
