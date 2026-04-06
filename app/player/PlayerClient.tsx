@@ -2607,7 +2607,7 @@ export default function PlayerClient({
         console.warn(DJQ, 'promoteDjPendingByIdOnly: HTTP 429', errBody)
         const waitMs = (retryMs ?? 60_000) + 5_000
         setBackoffUntil(Date.now() + waitMs)
-        setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+        setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
         fillFromHeardWhenRateLimited()
         return 'rate_limited'
       }
