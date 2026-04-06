@@ -628,8 +628,10 @@ export default function SessionPanel({
           {[...history].reverse().map((entry, i) => {
             const realIndex = history.length - 1 - i
             const isSelected = selected.has(realIndex)
-            const isPending = !submittedUris.has(entry.uri ?? '')
+            // Only show as pending if we have a URI to look up — YouTube entries have no URI
+            const isPending = entry.uri ? !submittedUris.has(entry.uri) : false
             const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
+            const canPlay = Boolean(playableTrackId) && entry.source !== 'youtube'
             return (
               <div
                 key={realIndex}
@@ -644,11 +646,11 @@ export default function SessionPanel({
                 />
                 <button
                   type="button"
-                  onClick={() => onPlayHistoryItem(entry)}
-                  disabled={!playableTrackId}
-                  className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl px-2 py-1 text-left transition-colors disabled:opacity-50"
+                  onClick={() => canPlay && onPlayHistoryItem(entry)}
+                  disabled={false}
+                  className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl px-2 py-1 text-left transition-colors"
                   style={{
-                    cursor: playableTrackId ? 'pointer' : 'not-allowed',
+                    cursor: canPlay ? 'pointer' : 'default',
                     touchAction: 'manipulation',
                   }}
                 >
