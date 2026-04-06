@@ -16,13 +16,14 @@ import {
   isYoutubeResolveTestFixtureSuggestion,
 } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
-import { DEMO_CHANNEL_IMPORT } from '@/app/lib/demoChannel'
+import { DEMO_CHANNEL_IMPORT, YOUTUBE_DEMO_CHANNEL_IMPORT } from '@/app/lib/demoChannel'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
 const DEMO_LOADED_KEY = 'earprint-demo-loaded'
+const YT_DEMO_LOADED_KEY = 'earprint-yt-demo-loaded'
 const CHANNELS_EXPORT_VERSION = 1
 
 interface Channel {
@@ -1353,6 +1354,16 @@ export default function PlayerClient({
     setSettingsDirty(true)
   }, [notes, genreText, timePeriod, genres, regions, artists, artistText, popularity, discovery])
 
+  // Proactively refresh Spotify token on mount so LLM-resolve calls don't use an expired initial token
+  useEffect(() => {
+    if (isGuideDemo) return
+    if (youtubeOnly) return
+    fetch('/api/spotify/token', { credentials: 'same-origin', cache: 'no-store' })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.accessToken) accessTokenRef.current = d.accessToken })
+      .catch(() => {})
+  }, [isGuideDemo])
+
   // Fetch Spotify user info once on mount
   useEffect(() => {
     if (isGuideDemo) return
@@ -1383,7 +1394,9 @@ export default function PlayerClient({
     let chs = loadChannels()
     let activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY) ?? ''
 
-    const demoAlreadyLoaded = Boolean(localStorage.getItem(DEMO_LOADED_KEY))
+    const demoLoadedKey = youtubeOnly ? YT_DEMO_LOADED_KEY : DEMO_LOADED_KEY
+    const demoAlreadyLoaded = Boolean(localStorage.getItem(demoLoadedKey))
+    const demoImport = youtubeOnly ? YOUTUBE_DEMO_CHANNEL_IMPORT : DEMO_CHANNEL_IMPORT
 
     // Treat a single blank auto-named channel (from old reset) the same as no channels,
     // but only on true first launch (not after a reset).
@@ -1413,12 +1426,12 @@ export default function PlayerClient({
         chs = [ch]
         activeId = id
       } else if (!demoAlreadyLoaded) {
-        // Brand new user — load the demo channel once
-        const result = parseChannelsImport(DEMO_CHANNEL_IMPORT)
+        // Brand new user — load the mode-appropriate demo channel once
+        const result = parseChannelsImport(demoImport)
         if (result) {
           chs = result.channels
           activeId = result.activeChannelId ?? chs[0].id
-          localStorage.setItem(DEMO_LOADED_KEY, '1')
+          localStorage.setItem(demoLoadedKey, '1')
         } else {
           const id = genChannelId()
           const ch: Channel = { id, name: 'My Music', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', currentCard: null, queue: [], createdAt: Date.now() }
@@ -2538,6 +2551,10 @@ export default function PlayerClient({
   const promoteDjPendingByIdOnly = useCallback(async (): Promise<PromoteDjResult> => {
     if (isGuideDemo) {
       console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (guide demo)')
+      return 'noop'
+    }
+    if (sourceRef.current === 'youtube') {
+      console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (YouTube mode — use text resolve)')
       return 'noop'
     }
     const needCurrent = !currentCardRef.current

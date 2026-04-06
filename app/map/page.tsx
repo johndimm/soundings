@@ -21,11 +21,17 @@ export default function MapPage() {
     }
     function load() {
       try {
-        const raw = localStorage.getItem('earprint-history')
-        if (!raw) {
-          setHistory([])
+        // Channels system: history lives inside each channel in earprint-channels
+        const rawChannels = localStorage.getItem('earprint-channels')
+        if (rawChannels) {
+          const channels = JSON.parse(rawChannels) as { cardHistory?: HistoryEntry[] }[]
+          const combined = channels.flatMap(ch => ch.cardHistory ?? [])
+          setHistory(combined)
           return
         }
+        // Legacy fallback
+        const raw = localStorage.getItem('earprint-history')
+        if (!raw) { setHistory([]); return }
         setHistory(JSON.parse(raw) as HistoryEntry[])
       } catch {
         /* ignore */
