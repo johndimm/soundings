@@ -1393,8 +1393,8 @@ export default function PlayerClient({
       chs[0].isAutoNamed &&
       !chs[0].profile &&
       !chs[0].currentCard &&
-      chs[0].queue.length === 0 &&
-      chs[0].cardHistory.length === 0
+      (chs[0].queue?.length ?? 0) === 0 &&
+      (chs[0].cardHistory?.length ?? 0) === 0
 
     // Migrate legacy earprint-history into a default channel, or load demo on first launch
     if (chs.length === 0 || isBlankSlate) {
