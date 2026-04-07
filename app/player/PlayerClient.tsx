@@ -1612,8 +1612,36 @@ export default function PlayerClient({
     }
   }, [isGuideDemo])
 
-  // ── Local progress animation (no Spotify API calls) ──────────────────────
+  // ── YouTube progress poll — reads position/duration from YT IFrame API ──────
   const autoAdvanceRef = useRef(false)
+  useEffect(() => {
+    if (isGuideDemo) return
+    if ((currentCard?.track.source as string | undefined) !== 'youtube') return
+    const TICK = 250
+    const interval = setInterval(() => {
+      const ytRef = youtubePlayerRef.current
+      if (!ytRef || !currentCardRef.current) return
+      const currentTimeSec = ytRef.getCurrentTime()
+      const durationSec = ytRef.getDuration()
+      if (durationSec > 0) durationRef.current = durationSec * 1000
+      if (currentTimeSec >= 0) {
+        sliderRef.current = currentTimeSec * 1000
+        setSliderPosition(currentTimeSec * 1000)
+      }
+      const endThreshold = Math.max(1000, durationRef.current * 0.98)
+      if (durationRef.current > 0 && sliderRef.current >= endThreshold) {
+        if (!autoAdvanceRef.current) {
+          autoAdvanceRef.current = true
+          advanceRef.current?.(true)
+        }
+      } else if (sliderRef.current < endThreshold - 1000) {
+        autoAdvanceRef.current = false
+      }
+    }, TICK)
+    return () => clearInterval(interval)
+  }, [currentCard, isGuideDemo])
+
+  // ── Local progress animation (no Spotify API calls) ──────────────────────
   useEffect(() => {
     if (isGuideDemo) return
     if (!deviceId) return
@@ -1773,8 +1801,14 @@ export default function PlayerClient({
     playedUrisRef.current.add(key)
     const resumeMs = pendingPlaybackPositionMsRef.current
     pendingPlaybackPositionMsRef.current = undefined
-    // YouTube playback handled by the YouTube player (Phase 2) — skip Spotify playTrack
-    if ((currentCard.track.source as string) === 'youtube') return
+    // YouTube playback handled by the YouTube iframe — reset slider and skip Spotify playTrack
+    if ((currentCard.track.source as string) === 'youtube') {
+      sliderRef.current = 0
+      setSliderPosition(0)
+      durationRef.current = 0
+      autoAdvanceRef.current = false
+      return
+    }
     const doPlay = async () => {
       const player = playerRef.current
       if (pendingFadeInRef.current && player) {
