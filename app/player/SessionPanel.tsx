@@ -600,24 +600,26 @@ export default function SessionPanel({
           <label className="text-xs text-zinc-500 uppercase tracking-wide">
             Heard ({history.length})
           </label>
-          {history.length > 0 && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={selectAll}
-                className="text-xs text-zinc-500 hover:text-white transition-colors"
-              >
-                {selected.size === history.length && history.length > 0 ? 'Deselect all' : 'Select all'}
-              </button>
-              {selected.size > 0 && (
+          <div className="flex items-center gap-2">
+            {history.length > 0 && (
+              <>
                 <button
-                  onClick={deleteSelected}
-                  className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                  onClick={selectAll}
+                  className="text-xs text-zinc-500 hover:text-white transition-colors"
                 >
-                  Delete {selected.size}
+                  {selected.size === history.length && history.length > 0 ? 'Deselect all' : 'Select all'}
                 </button>
-              )}
-            </div>
-          )}
+                {selected.size > 0 && (
+                  <button
+                    onClick={deleteSelected}
+                    className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                  >
+                    Delete {selected.size}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         {history.length === 0 && (

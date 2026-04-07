@@ -41,12 +41,13 @@ export async function GET(req: NextRequest) {
     return Response.redirect(`${getBaseUrl() || baseUrl}/?error=token_exchange_failed`, 302)
   }
 
-  const tokens = (await response.json()) as SpotifyTokenResponse
+  const tokens = (await response.json()) as SpotifyTokenResponse & { scope?: string }
   const requestIsHttps = req.nextUrl.protocol === 'https:'
   console.info('callback: token exchange result', {
     has_access_token: Boolean(tokens.access_token),
     has_refresh_token: Boolean(tokens.refresh_token),
     expires_in: tokens.expires_in,
+    scope: tokens.scope,
   })
 
   const base = getBaseUrl() || req.nextUrl.origin

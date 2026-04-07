@@ -3373,6 +3373,7 @@ export default function PlayerClient({
     }
   }, [isGuideDemo])
 
+
   const handlePlayHistoryItem = useCallback(
     async (entry: HistoryEntry) => {
       const track = historyEntryToTrack(entry)
@@ -4003,6 +4004,8 @@ export default function PlayerClient({
           </div>
         </div>
       )}
+
+
     </div>
   )
 }
