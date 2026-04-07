@@ -3770,19 +3770,20 @@ export default function PlayerClient({
                   {currentCard.reason}
                 </p>
 
-                {/* Play time slider — Spotify only */}
-                <div className="flex items-center gap-2 mt-3" style={{ visibility: (currentCard.track.source as string) === 'youtube' ? 'hidden' : 'visible' }}>
+                {/* Play time slider */}
+                <div className="flex items-center gap-2 mt-3">
                   <span className="text-zinc-400 text-xs w-8 text-right tabular-nums">
                     {formatMs(sliderPosition)}
                   </span>
                   <input
                     type="range"
                     min={0}
-                    max={duration}
+                    max={duration || 1}
                     value={sliderPosition}
-                    onMouseDown={() => { isSeekingRef.current = true }}
-                    onTouchStart={() => { isSeekingRef.current = true }}
+                    onMouseDown={() => { if ((currentCard.track.source as string) !== 'youtube') isSeekingRef.current = true }}
+                    onTouchStart={() => { if ((currentCard.track.source as string) !== 'youtube') isSeekingRef.current = true }}
                     onChange={e => {
+                      if ((currentCard.track.source as string) === 'youtube') return
                       const v = Number(e.currentTarget.value)
                       setSliderPosition(v)
                       sliderRef.current = v
@@ -3790,6 +3791,7 @@ export default function PlayerClient({
                     onMouseUp={e => {
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
+                      if ((currentCard.track.source as string) === 'youtube') return
                       if (duration > 0 && v >= duration * 0.98) {
                         advanceWithFade()
                       } else {
@@ -3799,13 +3801,15 @@ export default function PlayerClient({
                     onTouchEnd={e => {
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
+                      if ((currentCard.track.source as string) === 'youtube') return
                       if (duration > 0 && v >= duration * 0.98) {
                         advanceWithFade()
                       } else {
                         playerRef.current?.seek(v)
                       }
                     }}
-                    className="flex-1 accent-[#1DB954] cursor-pointer"
+                    className="flex-1 accent-red-400 cursor-pointer"
+                    style={(currentCard.track.source as string) === 'youtube' ? { pointerEvents: 'none' } : {}}
                   />
                   <span className="text-zinc-400 text-xs w-8 tabular-nums">
                     {formatMs(duration)}
