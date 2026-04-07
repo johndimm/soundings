@@ -622,6 +622,7 @@ export default function PlayerClient({
   const [ytSearchesRemaining, setYtSearchesRemaining] = useState<number | null>(null)
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
+  const [youtubeDuration, setYoutubeDuration] = useState(0)
   const [gradePercent, setGradePercent] = useState(50)
   const [hasRated, setHasRated] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
@@ -1623,7 +1624,7 @@ export default function PlayerClient({
       if (!ytRef || !currentCardRef.current) return
       const currentTimeSec = ytRef.getCurrentTime()
       const durationSec = ytRef.getDuration()
-      if (durationSec > 0) durationRef.current = durationSec * 1000
+      if (durationSec > 0) { durationRef.current = durationSec * 1000; setYoutubeDuration(durationSec * 1000) }
       if (currentTimeSec >= 0) {
         sliderRef.current = currentTimeSec * 1000
         setSliderPosition(currentTimeSec * 1000)
@@ -1806,6 +1807,7 @@ export default function PlayerClient({
       sliderRef.current = 0
       setSliderPosition(0)
       durationRef.current = 0
+      setYoutubeDuration(0)
       autoAdvanceRef.current = false
       return
     }
@@ -3778,7 +3780,7 @@ export default function PlayerClient({
                   <input
                     type="range"
                     min={0}
-                    max={duration || 1}
+                    max={(currentCard.track.source as string) === 'youtube' ? (youtubeDuration || 1) : (duration || 1)}
                     value={sliderPosition}
                     onMouseDown={() => { if ((currentCard.track.source as string) !== 'youtube') isSeekingRef.current = true }}
                     onTouchStart={() => { if ((currentCard.track.source as string) !== 'youtube') isSeekingRef.current = true }}
@@ -3808,11 +3810,11 @@ export default function PlayerClient({
                         playerRef.current?.seek(v)
                       }
                     }}
-                    className="flex-1 accent-red-400 cursor-pointer"
+                    className={`flex-1 cursor-pointer ${(currentCard.track.source as string) === 'youtube' ? 'accent-red-400' : 'accent-[#1DB954]'}`}
                     style={(currentCard.track.source as string) === 'youtube' ? { pointerEvents: 'none' } : {}}
                   />
                   <span className="text-zinc-400 text-xs w-8 tabular-nums">
-                    {formatMs(duration)}
+                    {formatMs((currentCard.track.source as string) === 'youtube' ? youtubeDuration : duration)}
                   </span>
                 </div>
 
