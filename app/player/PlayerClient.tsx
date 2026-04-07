@@ -3409,7 +3409,7 @@ export default function PlayerClient({
   return (
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-900">
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-4 border-b border-zinc-900 flex-wrap">
         <h1 className="text-xl font-bold">Earprint</h1>
         <div className="flex items-center gap-2">
           <label className="text-xs text-zinc-500">LLM</label>
@@ -3425,17 +3425,16 @@ export default function PlayerClient({
           </select>
         </div>
         {spotifyUser && (
-          <div className="text-xs text-zinc-400">
-            Logged in as {spotifyUser.display_name ?? spotifyUser.id}
-            {spotifyUser.product ? ` (${spotifyUser.product})` : ''}
+          <div className="text-xs text-zinc-400 hidden sm:block">
+            {spotifyUser.display_name ?? spotifyUser.id}
           </div>
         )}
-        <div className="flex gap-3 items-center">
-          <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Map ↗</Link>
-          <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Status</a>
-          <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Guide</a>
-          <a href="/diary.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Diary</a>
-<a href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</a>
+        <div className="flex gap-2 sm:gap-3 items-center">
+          <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Map ↗</Link>
+          <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Status</a>
+          <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Guide</a>
+          <a href="/diary.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Diary</a>
+          <a href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</a>
         </div>
       </div>
       {/* Channel tabs */}
@@ -3588,13 +3587,13 @@ export default function PlayerClient({
       )}
 
       {/* Body */}
-      <div className="flex flex-row gap-4 p-4 items-start overflow-y-auto flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 p-2 sm:p-4 items-start overflow-y-auto flex-1">
 
         {/* Player panel — full-bleed album art or YouTube player */}
         <div
           data-guide="album-panel"
-          className="relative rounded-2xl overflow-hidden flex-shrink-0 w-[340px] bg-zinc-900"
-          style={{ height: 580, cursor: currentCard && (currentCard.track.source as string) !== 'youtube' ? 'pointer' : 'default' }}
+          className="relative rounded-2xl overflow-hidden flex-shrink-0 w-full sm:w-[340px] h-64 sm:h-[580px] bg-zinc-900"
+          style={{ cursor: currentCard && (currentCard.track.source as string) !== 'youtube' ? 'pointer' : 'default' }}
           onClick={currentCard && (currentCard.track.source as string) !== 'youtube' ? togglePlayback : undefined}
         >
           {/* YouTube player */}
@@ -3715,7 +3714,7 @@ export default function PlayerClient({
                   style={{
                     writingMode: 'vertical-lr' as const,
                     direction: 'rtl' as const,
-                    height: 180,
+                    height: 'clamp(80px, 30vh, 180px)',
                     accentColor: '#ff5f5f',
                     cursor: 'pointer',
                   }}
@@ -3735,7 +3734,7 @@ export default function PlayerClient({
               {/* Bottom controls */}
               <div
                 data-guide="track-info"
-                className={`absolute bottom-0 left-0 right-14 px-5 pb-5 pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
+                className={`absolute bottom-0 left-0 right-14 px-3 sm:px-5 pb-3 sm:pb-5 pt-8 sm:pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
                   (currentCard.track.source as string) === 'youtube' ? 'pointer-events-none' : ''
                 }`}
                 onClick={e => e.stopPropagation()}
@@ -3769,12 +3768,12 @@ export default function PlayerClient({
                     <span className="text-zinc-600">perf. </span>{currentCard.performer}
                   </p>
                 )}
-                <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
+                <p className="hidden sm:block text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
                   {currentCard.reason}
                 </p>
 
                 {/* Play time slider */}
-                <div className="flex items-center gap-2 mt-3">
+                <div className="flex items-center gap-2 mt-1 sm:mt-3">
                   <span className="text-zinc-400 text-xs w-8 text-right tabular-nums">
                     {formatMs(sliderPosition)}
                   </span>
@@ -3820,10 +3819,10 @@ export default function PlayerClient({
                 </div>
 
                 {/* Next button */}
-                <div className="flex items-center gap-4 mt-4">
+                <div className="flex items-center gap-4 mt-2 sm:mt-4">
                   <button
                     onClick={() => advanceWithFade()}
-                    className="flex-1 py-4 text-xl font-bold bg-white/20 hover:bg-white/30 active:bg-white/40 text-white rounded-2xl transition-colors"
+                    className="flex-1 py-2 sm:py-4 text-xl font-bold bg-white/20 hover:bg-white/30 active:bg-white/40 text-white rounded-2xl transition-colors"
                   >
                     Next
                   </button>
