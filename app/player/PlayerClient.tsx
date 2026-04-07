@@ -3407,7 +3407,7 @@ export default function PlayerClient({
       : null
 
   return (
-    <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col">
+    <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
       {/* Header */}
       <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-4 border-b border-zinc-900 flex-wrap">
         <h1 className="text-xl font-bold">Earprint</h1>

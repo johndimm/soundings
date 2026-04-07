@@ -353,7 +353,7 @@ export default function SessionPanel({
           {musicMap && (
             <div
               data-guide="music-map"
-              className="flex-shrink-0 w-[min(300px,42vw)] max-w-[320px] self-stretch flex flex-col border-l border-zinc-800 pl-3 -mr-1"
+              className="hidden sm:flex flex-shrink-0 w-[min(300px,42vw)] max-w-[320px] self-stretch flex-col border-l border-zinc-800 pl-3 -mr-1"
             >
               <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
@@ -391,6 +391,27 @@ export default function SessionPanel({
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Music map — mobile only, below DJ is thinking */}
+        {musicMap && (
+          <div
+            data-guide="music-map-mobile"
+            className="sm:hidden mt-2 border-t border-zinc-800 pt-2"
+          >
+            <div className="flex items-center justify-between gap-2 mb-1 w-full">
+              <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
+              <Link
+                href="/map"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                Open ↗
+              </Link>
+            </div>
+            {musicMap}
           </div>
         )}
       </div>
