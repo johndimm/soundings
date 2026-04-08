@@ -3587,7 +3587,7 @@ export default function PlayerClient({
       )}
 
       {/* Body */}
-      <div className="flex flex-col sm:flex-row gap-4 p-2 sm:p-4 items-start overflow-y-auto flex-1">
+      <div className="flex flex-col sm:flex-row gap-4 p-2 sm:p-4 sm:items-start overflow-y-auto flex-1">
 
         {/* Player panel — full-bleed album art or YouTube player */}
         <div
@@ -3840,7 +3840,7 @@ export default function PlayerClient({
         </div>
 
         {/* Right column: session panel */}
-        <div className="flex-1 flex flex-col gap-4 min-w-0">
+        <div className="w-full sm:flex-1 flex flex-col gap-4 min-w-0">
           <div data-guide="sidebar" className="flex-1 min-w-0 px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950">
           <SessionPanel
             history={cardHistory}
