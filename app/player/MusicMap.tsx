@@ -224,8 +224,8 @@ export default function MusicMap({
         project(0, 100, pz, rX, rY, W, H),
       ]
       ctx.globalAlpha = alpha
-      ctx.strokeStyle = '#27272a'
-      ctx.lineWidth = 1
+      ctx.strokeStyle = '#52525b'
+      ctx.lineWidth = 1.5
       ctx.beginPath()
       fc.forEach((c, i) => (i === 0 ? ctx.moveTo(c.sx, c.sy) : ctx.lineTo(c.sx, c.sy)))
       ctx.closePath()
@@ -233,11 +233,11 @@ export default function MusicMap({
       ctx.globalAlpha = 1
       return fc
     }
-    const front = face(0, 0.4)
-    const back = face(100, 0.7)
+    const front = face(0, 0.5)
+    const back = face(100, 0.9)
 
-    ctx.strokeStyle = '#1c1c1e'
-    ctx.lineWidth = 1
+    ctx.strokeStyle = '#3f3f46'
+    ctx.lineWidth = 1.5
     for (let i = 0; i < 4; i++) {
       ctx.beginPath()
       ctx.moveTo(front[i].sx, front[i].sy)
@@ -245,8 +245,8 @@ export default function MusicMap({
       ctx.stroke()
     }
 
-    ctx.strokeStyle = '#1c1c1e'
-    ctx.lineWidth = 0.5
+    ctx.strokeStyle = '#3f3f46'
+    ctx.lineWidth = 1
     const vm = [project(50, 0, 50, rX, rY, W, H), project(50, 100, 50, rX, rY, W, H)]
     const hm = [project(0, 50, 50, rX, rY, W, H), project(100, 50, 50, rX, rY, W, H)]
     ctx.beginPath()
@@ -260,7 +260,7 @@ export default function MusicMap({
 
     const labelFont = embedded ? '7px monospace' : '9px monospace'
     ctx.font = labelFont
-    ctx.fillStyle = '#3f3f46'
+    ctx.fillStyle = '#71717a'
     const labelPad = embedded ? 3 : 6
     const [tl, tr, br, bl] = back
     ctx.textAlign = 'left'
@@ -277,7 +277,7 @@ export default function MusicMap({
 
     ctx.textAlign = 'right'
     ctx.textBaseline = 'middle'
-    ctx.fillStyle = '#52525b'
+    ctx.fillStyle = '#71717a'
     ctx.fillText('← underground  mainstream →', front[0].sx - 4, (front[0].sy + back[0].sy) / 2)
 
     if (!embedded) {

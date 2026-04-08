@@ -3432,7 +3432,7 @@ export default function PlayerClient({
         <div className="flex gap-2 sm:gap-3 items-center">
           <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Map ↗</Link>
           <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Status</a>
-          <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Guide</a>
+          <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Guide</a>
           <a href="/diary.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Diary</a>
           <a href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</a>
         </div>
