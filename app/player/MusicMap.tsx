@@ -474,11 +474,17 @@ export default function MusicMap({
   }, [])
 
   const lastTouchRef = useRef({ x: 0, y: 0 })
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
-  }, [])
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
+
+  // Attach touch handlers with { passive: false } so preventDefault() actually works.
+  // React registers touch listeners as passive by default, which silently ignores preventDefault().
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1)
+        lastTouchRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    }
+    const onTouchMove = (e: TouchEvent) => {
       e.preventDefault()
       if (e.touches.length !== 1) return
       const dx = e.touches[0].clientX - lastTouchRef.current.x
@@ -489,9 +495,17 @@ export default function MusicMap({
         y: rotRef.current.y + dx * 0.006,
       }
       draw()
-    },
-    [draw]
-  )
+    }
+    const onTouchEnd = () => { draggingRef.current = false }
+    canvas.addEventListener('touchstart', onTouchStart, { passive: false })
+    canvas.addEventListener('touchmove', onTouchMove, { passive: false })
+    canvas.addEventListener('touchend', onTouchEnd)
+    return () => {
+      canvas.removeEventListener('touchstart', onTouchStart)
+      canvas.removeEventListener('touchmove', onTouchMove)
+      canvas.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [draw])
 
   return (
     <div className={`relative ${className}`}>
@@ -506,11 +520,6 @@ export default function MusicMap({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
           onMouseLeave={handleMouseUp}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={() => {
-            draggingRef.current = false
-          }}
         />
 
         {tooltip &&
