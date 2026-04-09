@@ -29,7 +29,7 @@ export const LLM_MODEL_API_ID: Record<LLMProvider, string> = {
   anthropic: 'claude-opus-4-6',
   openai: 'gpt-4.1',
   deepseek: 'deepseek-chat',
-  gemini: 'gemini-2.5-flash-preview-04-17',
+  gemini: 'gemini-2.0-flash',
 }
 
 export function getLLMModelApiId(provider: LLMProvider): string {
@@ -292,7 +292,7 @@ async function askGemini(
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-04-17:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -303,7 +303,10 @@ async function askGemini(
       }),
     }
   )
-  if (!res.ok) throw new Error(`Gemini responded with ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Gemini responded with ${res.status}: ${body}`)
+  }
   const data = await res.json()
   return data.candidates[0].content.parts[0].text
 }
