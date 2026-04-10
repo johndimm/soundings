@@ -623,7 +623,8 @@ export default function PlayerClient({
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [youtubeDuration, setYoutubeDuration] = useState(0)
-  const [gradePercent, setGradePercent] = useState(50)
+  const [gradePercent, setGradePercent] = useState(0)
+  const [gradeTracking, setGradeTracking] = useState(true)
   const [hasRated, setHasRated] = useState(false)
   const [historyReady, setHistoryReady] = useState(false)
   /** False until loadSettings runs — prevents persist effects from overwriting localStorage with empty defaults on first paint. */
@@ -813,6 +814,7 @@ export default function PlayerClient({
     isPausedRef.current = demo.playbackState.paused
     setGradePercent(demo.gradePercent)
     gradeRef.current = demo.gradePercent
+    setGradeTracking(true)
     setHasRated(demo.hasRated)
     hasRatedRef.current = demo.hasRated
     setHistoryReady(true)
@@ -1839,11 +1841,24 @@ export default function PlayerClient({
 
   // Reset grade slider and rated flag when song changes
   useEffect(() => {
-    setGradePercent(50)
-    gradeRef.current = 50
+    setGradePercent(0)
+    gradeRef.current = 0
+    setGradeTracking(true)
     setHasRated(false)
     hasRatedRef.current = false
   }, [currentCard?.track.uri ?? currentCard?.track.id])
+
+  // While tracking, sync grade slider to play position
+  useEffect(() => {
+    if (!gradeTracking || hasRated) return
+    const dur = (currentCard?.track.source as string) === 'youtube'
+      ? youtubeDuration
+      : durationRef.current
+    if (dur <= 0) return
+    const pct = Math.min(100, (sliderPosition / dur) * 100)
+    setGradePercent(pct)
+    gradeRef.current = pct
+  }, [sliderPosition, gradeTracking, hasRated, youtubeDuration, currentCard?.track.source])
 
   // Seed duration from Spotify track metadata before the Web Playback SDK reports duration (often 0).
   useEffect(() => {
@@ -3718,6 +3733,8 @@ export default function PlayerClient({
                     accentColor: '#ff5f5f',
                     cursor: 'pointer',
                   }}
+                  onMouseDown={() => setGradeTracking(false)}
+                  onTouchStart={() => setGradeTracking(false)}
                   onChange={e => {
                     const v = Number(e.currentTarget.value)
                     setGradePercent(v)

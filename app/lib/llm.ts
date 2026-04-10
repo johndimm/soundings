@@ -83,7 +83,7 @@ ARTIST RULE — strictly enforced:
 THE 3-SLOT RULE — every batch of 3 must serve distinct purposes:
 - Slot 1 — NEARBY: If there are likes, pick something musically adjacent to a liked song (similar instruments, era, energy, or mood). If no likes yet, probe a different corner of the most-visited area.
 - Slot 2 — FAR: Pick from a region of the space that has NOT been visited yet. Maximize musical distance from everything heard. This is mandatory.
-- Slot 3 — WILD CARD: Genuine surprise. Cross musical lines the listener hasn't crossed. Make it interesting.
+- Slot 3 — WILD CARD: Genuine surprise *within the active constraints*. Be unexpected in style, mood, or obscurity — but all constraints (genre, era, region, etc.) still apply. "Wild card" means surprising to the listener, not a licence to ignore what they asked for.
 
 FIRST TURN (no history): Pick 3 songs from maximally distant parts of the space — e.g. something acoustic and calm, something electronic and intense, something in a cultural tradition that is neither.
 
@@ -92,8 +92,13 @@ DISLIKE ESCALATION:
 - 2 dislikes with similar attributes: treat that musical territory as exhausted for this session.
 - NEVER suggest a song with the same primary instruments + energy level as a recently disliked song.
 - A disliked song does NOT blacklist its artist — only its specific sonic territory.
+- If a disliked track is part of a multi-part series (title contains "Part N", "Vol. N", "Chapter N", "Episode N", or a similar numbered suffix), do NOT suggest any other part of that same series — treat the entire series as off-limits for this session.
 
-If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints.
+If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints. This overrides the slot rules: even Slot 3 (wild card) must stay within the stated genre and era.
+
+DATE INTEGRITY — strictly enforced:
+- Never invent or round a date to make a track fit a requested era. Only suggest a track if you are genuinely confident it was recorded or first released within the specified time period.
+- If you cannot find 3 real tracks that authentically fit all constraints, return fewer songs rather than fabricating dates or misattributing eras.
 
 Also include "suggested_artists": an array of 8–12 DISTINCT real recording-artist or band names that fit the user's constraints and the taste profile — these power UI quick-pick buttons (exploration anchors). Use canonical names only. They need not appear in the 3 song rows; vary styles. If you cannot name enough confidently, include fewer (minimum 4 when possible) or an empty array.
 
@@ -191,6 +196,10 @@ function buildUserPrompt(
     (priorProfile ? /LIKED:\s*(?!\[none|\[no confirmed|\[nothing)/i.test(priorProfile) : false)
 
   prompt += slotInstructions(mode, hasLikes, numSongs)
+
+  if (notes?.trim()) {
+    prompt += `\n\nREMINDER — all songs must satisfy: ${notes.trim()}. Do not hallucinate dates or genres to fit this constraint; omit a slot instead.`
+  }
 
   return prompt
 }
@@ -344,13 +353,55 @@ export async function getNextSongQuery(
       continue
     }
     try {
-      return parseLLMResponse(raw)
+      const result = parseLLMResponse(raw)
+      const yearRange = notes ? parseYearRange(notes) : null
+      if (yearRange) {
+        const before = result.songs.length
+        result.songs = result.songs.filter(s => {
+          if (s.composed === undefined) {
+            console.warn('[llm] dropping song with no composed year under year-range constraint:', s.search)
+            return false
+          }
+          const ok = s.composed >= yearRange.min && s.composed <= yearRange.max
+          if (!ok) console.warn(`[llm] dropping "${s.search}" — composed ${s.composed} outside [${yearRange.min}, ${yearRange.max}]`)
+          return ok
+        })
+        if (result.songs.length < before) {
+          console.info(`[llm] year-range filter removed ${before - result.songs.length} song(s) (${before} → ${result.songs.length})`)
+        }
+      }
+      return result
     } catch (err) {
       lastError = err as Error
       if (attempt === MAX_LLM_ATTEMPTS - 1) throw err
     }
   }
   throw lastError ?? new Error('LLM query failed after all attempts')
+}
+
+/**
+ * Parse a loose year-range string into {min, max} bounds (both inclusive).
+ * Handles: "1945-1950", "1940s", "after 2020", "before 1960", bare "1965".
+ * Returns null if no year range is detectable (e.g. "baroque era").
+ */
+export function parseYearRange(notes: string): { min: number; max: number } | null {
+  const s = notes.toLowerCase()
+  // "1945-1950" or "1945–1950"
+  const rangeM = s.match(/\b(\d{4})\s*[-–]\s*(\d{4})\b/)
+  if (rangeM) return { min: parseInt(rangeM[1]), max: parseInt(rangeM[2]) }
+  // "1940s"
+  const decadeM = s.match(/\b(\d{3})0s\b/)
+  if (decadeM) { const d = parseInt(decadeM[1] + '0'); return { min: d, max: d + 9 } }
+  // "after 2020" / "from 2020" / "post-2020"
+  const afterM = s.match(/\b(?:after|from|since|post[-\s]?)(\d{4})\b/)
+  if (afterM) return { min: parseInt(afterM[1]), max: 9999 }
+  // "before 1960" / "pre-1960" / "until 1960"
+  const beforeM = s.match(/\b(?:before|until|up\s*to|pre[-\s]?)(\d{4})\b/)
+  if (beforeM) return { min: 0, max: parseInt(beforeM[1]) }
+  // bare 4-digit year
+  const yearM = s.match(/\b(\d{4})\b/)
+  if (yearM) { const y = parseInt(yearM[1]); if (y >= 1400 && y <= 2100) return { min: y, max: y } }
+  return null
 }
 
 function findJsonObject(text: string): { payload: string; start: number; end: number } {
