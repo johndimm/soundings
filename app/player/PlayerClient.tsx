@@ -3427,7 +3427,7 @@ export default function PlayerClient({
       <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-4 border-b border-zinc-900 flex-wrap">
         <h1 className="text-xl font-bold">Earprint</h1>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-zinc-500">LLM</label>
+          <label className="text-xs text-zinc-400">LLM</label>
           <select
             value={provider}
             onChange={e => setProvider(e.target.value as LLMProvider)}
@@ -3440,16 +3440,16 @@ export default function PlayerClient({
           </select>
         </div>
         {spotifyUser && (
-          <div className="text-xs text-zinc-400 hidden sm:block">
+          <div className="text-xs text-zinc-300 hidden sm:block">
             {spotifyUser.display_name ?? spotifyUser.id}
           </div>
         )}
         <div className="flex gap-2 sm:gap-3 items-center">
-          <Link href="/map" target="earprint-map" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Map ↗</Link>
-          <a href="/status" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Status</a>
-          <a href="/guide.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">Guide</a>
-          <a href="/diary.html" target="_blank" className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors hidden sm:inline">Diary</a>
-          <a href="/api/auth/logout" className="text-xs text-zinc-500 hover:text-white">Logout</a>
+          <Link href="/map" target="earprint-map" className="text-xs text-zinc-300 hover:text-white transition-colors hidden sm:inline">Map ↗</Link>
+          <a href="/status" className="text-xs text-zinc-300 hover:text-white transition-colors hidden sm:inline">Status</a>
+          <a href="/guide.html" target="_blank" className="text-xs text-zinc-300 hover:text-white transition-colors">Guide</a>
+          <a href="/diary.html" target="_blank" className="text-xs text-zinc-300 hover:text-white transition-colors hidden sm:inline">Diary</a>
+          <a href="/api/auth/logout" className="text-xs text-zinc-300 hover:text-white">Logout</a>
         </div>
       </div>
       {/* Channel tabs */}
@@ -3461,7 +3461,7 @@ export default function PlayerClient({
               className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-colors flex-shrink-0 ${
                 ch.id === activeChannelId
                   ? 'bg-zinc-800 border-zinc-600 text-white'
-                  : 'border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600'
+                  : 'border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'
               }`}
             >
               {editingChannelId === ch.id ? (
@@ -3501,7 +3501,7 @@ export default function PlayerClient({
           ))}
           <button
             onClick={createChannel}
-            className="px-2 py-1 text-lg leading-none text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
+            className="px-2 py-1 text-lg leading-none text-zinc-400 hover:text-white flex-shrink-0 transition-colors"
             title="New channel"
           >+</button>
           {!isGuideDemo && (
