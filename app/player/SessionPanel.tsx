@@ -27,12 +27,29 @@ const GENRE_OPTIONS = [
   'Country', 'Folk', 'Metal', 'Soul', 'Blues', 'Reggae', 'Latin', 'Punk',
 ]
 
+const TIME_PERIOD_OPTIONS = [
+  { label: '40s', value: '1940s' },
+  { label: '50s', value: '1950s' },
+  { label: '60s', value: '1960s' },
+  { label: '70s', value: '1970s' },
+  { label: '80s', value: '1980s' },
+  { label: '90s', value: '1990s' },
+  { label: '2000s', value: '2000s' },
+  { label: '2010s', value: '2010s' },
+  { label: 'Recent', value: 'after 2020' },
+  { label: 'Medieval', value: 'medieval era' },
+  { label: 'Renaissance', value: 'Renaissance era' },
+  { label: 'Baroque', value: 'Baroque era' },
+  { label: 'Classical', value: 'Classical era' },
+  { label: 'Romantic', value: 'Romantic era' },
+  { label: '20th C.', value: '20th century classical' },
+]
+
 // Broad musical regions — meaningful traditions without listing every country
 const REGION_OPTIONS = [
-  'US & Canada', 'UK & Ireland', 'Latin America', 'Brazil',
-  'West Africa', 'East Africa', 'North Africa & Middle East',
-  'India', 'East Asia', 'Southeast Asia',
-  'Caribbean', 'Scandinavia', 'Eastern Europe',
+  'US & Canada', 'UK & Ireland', 'Western Europe', 'Scandinavia',
+  'Eastern Europe', 'Latin America', 'Brazil', 'Caribbean',
+  'Africa', 'Middle East', 'India', 'East Asia', 'Southeast Asia',
 ]
 
 function gradeColor(entry: HistoryEntry): string {
@@ -570,6 +587,21 @@ export default function SessionPanel({
           Time period
           {isDirty('timePeriod') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
         </label>
+        <div className="flex flex-wrap gap-1.5">
+          {TIME_PERIOD_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => onTimePeriodChange(timePeriod === opt.value ? '' : opt.value)}
+              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                timePeriod === opt.value
+                  ? 'bg-white text-black border-white'
+                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
         <input
           value={timePeriod}
           onChange={e => onTimePeriodChange(e.target.value)}
