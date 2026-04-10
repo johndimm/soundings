@@ -1592,7 +1592,15 @@ export default function PlayerClient({
         deviceIdRef.current = (s as { device_id: string }).device_id
       })
       p.addListener('player_state_changed', (s: unknown) => {
-        if (s) setPlaybackState(s as SpotifyPlaybackState)
+        if (s) {
+          setPlaybackState(s as SpotifyPlaybackState)
+        } else {
+          // null = SDK lost the active device (another device took over, or SDK disconnected).
+          // Mark paused so the local timer stops and the UI reflects reality.
+          isPausedRef.current = true
+          setPlaybackState(prev => prev ? { ...prev, paused: true } : null)
+          console.info('player_state_changed: null — device lost, marking paused')
+        }
       })
       p.addListener('initialization_error', () => {
         console.error('Spotify SDK: initialization_error')
@@ -1697,23 +1705,41 @@ export default function PlayerClient({
         return
       }
       const dId = deviceIdRef.current
+      const player = playerRef.current
       if (!dId) return
-      // If user clicked the Spotify track link, force reclaim regardless of throttle/pause state
       const forceReclaim = openedSpotifyRef.current
       openedSpotifyRef.current = false
       if (!wasPlayingRef.current && !forceReclaim) return
       const now = Date.now()
       if (!forceReclaim && now - lastReclaimRef.current < 10_000) return
-      setTimeout(() => {
-        if (!isPausedRef.current && !forceReclaim) return
+
+      // Use SDK getCurrentState() (local, no quota) to get ground truth before deciding to reclaim.
+      const check = player ? player.getCurrentState() : Promise.resolve(null)
+      check.then((state: unknown) => {
+        const sdkState = state as SpotifyPlaybackState | null
+        if (sdkState) {
+          // SDK is active — sync local state in case it drifted while tab was hidden.
+          isPausedRef.current = sdkState.paused
+          setPlaybackState(sdkState)
+          if (!sdkState.paused) return // already playing, nothing to do
+        }
+        // SDK null or paused — reclaim and resume.
         lastReclaimRef.current = Date.now()
-        console.info('visibilitychange: reclaiming device', dId, { forceReclaim })
+        console.info('visibilitychange: reclaiming device', dId, { forceReclaim, sdkState: sdkState ? 'paused' : 'null' })
         fetch('https://api.spotify.com/v1/me/player', {
           method: 'PUT',
           headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ device_ids: [dId], play: true }),
         }).catch(() => {})
-      }, 800)
+      }).catch(() => {
+        // getCurrentState failed — fall back to unconditional reclaim
+        lastReclaimRef.current = Date.now()
+        fetch('https://api.spotify.com/v1/me/player', {
+          method: 'PUT',
+          headers: { Authorization: `Bearer ${accessTokenRef.current}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ device_ids: [dId], play: true }),
+        }).catch(() => {})
+      })
     }
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
