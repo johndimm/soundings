@@ -20,6 +20,105 @@
 <body>
 <h1>Earprint Dev Diary</h1>
 
+<h2>2026-04-09</h2>
+
+<h3>Gemini model</h3>
+<ul>
+  <li class="fix">Added <code>gemini-2.0-flash</code> as a selectable LLM provider. Wired up the Gemini REST endpoint (<code>generateContent</code>) with proper error reporting (status + body on non-200).</li>
+</ul>
+
+<h3>Time period quick-pick buttons</h3>
+<ul>
+  <li class="fix">Added toggle buttons below the Time period text field in <code>SessionPanel</code>: decade presets (<strong>40s – Recent</strong>) and classical era presets (<strong>Medieval, Renaissance, Baroque, Classical, Romantic, 20th C.</strong>).</li>
+  <li class="fix">Single-select toggle — clicking a selected button clears the field; clicking another sets it. Custom free-text entry still works alongside the buttons.</li>
+</ul>
+
+<h3>Region list rebalanced</h3>
+<ul>
+  <li class="fix">Region quick-pick had no entry for Western Europe but three for Africa. Replaced <em>West Africa / East Africa / North Africa &amp; Middle East</em> with <em>Africa</em> and <em>Middle East</em> as separate entries; added <em>Western Europe</em>. Final list: US &amp; Canada, UK &amp; Ireland, Western Europe, Scandinavia, Eastern Europe, Latin America, Brazil, Caribbean, Africa, Middle East, India, East Asia, Southeast Asia.</li>
+</ul>
+
+<h3>YouTube HTML entity decoding</h3>
+<ul>
+  <li class="fix">YouTube Data API returns HTML-encoded video titles (e.g. <code>Groovin&#39; High</code> instead of <code>Groovin' High</code>). Added <code>decodeHtmlEntities()</code> in <code>app/lib/youtube.ts</code> and applied it to the raw snippet title before parsing artist / track name.</li>
+</ul>
+
+<h2>2026-04-08</h2>
+
+<h3>Mobile map and guide polish</h3>
+<ul>
+  <li class="fix">Adjusted <code>MusicMap</code> responsive styles so the embedded map renders correctly on small screens.</li>
+  <li class="fix">Guide link visible on mobile.</li>
+</ul>
+
+<h3>Map touch-scroll fix</h3>
+<ul>
+  <li class="problem">On mobile, dragging the music map also scrolled the page — React registers touch listeners as passive by default, so <code>preventDefault()</code> was silently ignored.</li>
+  <li class="fix">Attached <code>touchstart</code> / <code>touchmove</code> / <code>touchend</code> listeners directly on the canvas element with <code>{ passive: false }</code> so <code>preventDefault()</code> works and page scroll is suppressed while panning the map.</li>
+</ul>
+
+<h2>2026-04-07</h2>
+
+<h3>Mobile layout</h3>
+<ul>
+  <li class="fix">Full responsive pass on the player. Top-level layout switches from <code>flex-col</code> to <code>flex-row</code> at the <code>sm</code> breakpoint. Session sidebar hidden on mobile; music map moves below the player on small screens (shown via a dedicated mobile-only block in <code>SessionPanel</code>).</li>
+  <li class="fix"><code>globals.css</code>: <code>overflow-x: hidden</code> on <code>html/body</code>, <code>min-width: 0</code> on inputs to prevent horizontal blowout.</li>
+</ul>
+
+<h2>2026-04-06</h2>
+
+<h3>YouTube playback — progress bar</h3>
+<ul>
+  <li class="fix"><code>YoutubePlayer.tsx</code> now fires <code>onTimeUpdate</code> (current time) and <code>onDurationChange</code> callbacks so <code>PlayerClient</code> can drive the shared progress slider and auto-advance logic — same path as Spotify local timer. Iterated through three commits to get slider syncing right.</li>
+</ul>
+
+<h3>Source toggle hidden when YouTube-only</h3>
+<ul>
+  <li class="fix">When the player is launched in <code>youtubeOnly</code> mode (no Spotify token), the source-picker radio group is hidden in <code>SessionPanel</code> so users aren't shown an irrelevant choice.</li>
+</ul>
+
+<h3>Status page</h3>
+<ul>
+  <li class="fix">Added <code>/status</code> page: shows server-side Spotify and YouTube health at a glance — useful for diagnosing rate-limit and auth issues without digging through logs.</li>
+</ul>
+
+<h3>Guide update</h3>
+<ul>
+  <li class="fix">Refreshed <code>public/guide.html</code> and <code>public/guide.md</code> to cover YouTube source, artist quick-picks, and the music map.</li>
+</ul>
+
+<h2>2026-04-05</h2>
+
+<h3>LLM-suggested artist quick-pick buttons</h3>
+<ul>
+  <li class="fix">Added <code>suggested_artists</code> to the LLM JSON response — 8–12 artist names that fit the user's taste and constraints. Prompt instructs the model to use canonical names, vary styles, and return fewer rather than invent names.</li>
+  <li class="fix"><code>SessionPanel</code>: artist chips rendered as toggle buttons below the Artist section. LLM suggestions appear first; any already-selected names not in the latest response stay visible until toggled off. Clicking adds the artist to the filter; clicking again removes it.</li>
+  <li class="fix">Free-text artist hint field still available for open-ended guidance ("lean Coltrane, avoid smooth jazz").</li>
+</ul>
+
+<h3>YouTube video ID hints in LLM response</h3>
+<ul>
+  <li class="fix">LLM can now include <code>youtube_url</code> or <code>youtube_video_id</code> on any song row. When present, YouTube resolve skips the expensive <code>search.list</code> call (100 quota units) and builds the track directly from the known ID. Prompt warns the model not to invent fake IDs.</li>
+  <li class="fix">Parsing handled by <code>rawYoutubeVideoIdFromRow()</code> in <code>llm.ts</code>, which accepts all four key spellings and runs the result through the existing <code>extractYoutubeVideoId()</code> validator.</li>
+</ul>
+
+<h3>Music map extracted and embedded in main player</h3>
+<ul>
+  <li class="fix">Extracted the map canvas into <code>app/player/MusicMap.tsx</code> (was inlined in <code>/map/page.tsx</code>). <code>SessionPanel</code> accepts an optional <code>musicMap</code> ReactNode and renders it to the right of the Up next queue on desktop.</li>
+  <li class="fix">The standalone <code>/map</code> page still works and shows the full legend.</li>
+</ul>
+
+<h3>Demo Channels</h3>
+<ul>
+  <li class="fix">Added <code>app/lib/demoChannel.ts</code> with pre-populated channel data used by the guide demo. Lets new users experience a working player with history and a profile without needing a Spotify login.</li>
+</ul>
+
+<h3>YouTube playback integration</h3>
+<ul>
+  <li class="fix">Integrated <code>YoutubePlayer.tsx</code> alongside the Spotify Web Playback SDK. When source is <code>youtube</code>, the player loads the IFrame API and plays via an embedded iframe. Crossfade (<code>fadeOut</code> on the <code>YoutubePlayerHandle</code> ref) works across source switches.</li>
+  <li class="fix">Added <code>/api/youtube/ping</code> route for health-check and quota-remaining display.</li>
+</ul>
+
 <h2>2026-04-04</h2>
 
 <h3>Music map beside Up next only</h3>

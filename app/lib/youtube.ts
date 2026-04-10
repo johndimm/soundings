@@ -10,6 +10,17 @@ import { extractYoutubeVideoId, extractYoutubeVideoIdLoose } from '@/app/lib/you
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
+/** The YouTube Data API returns HTML-encoded titles (e.g. &#39; for '). Decode them. */
+function decodeHtmlEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+}
+
 // Each search call costs 100 quota units. Free tier = 10,000/day → 100 searches/day.
 // Cache aggressively to disk so restarts don't re-burn quota.
 const CACHE_FILE = join(process.cwd(), '.youtube-cache.json')
@@ -273,7 +284,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const videoId: string = chosenId
 
   const snippet = (item.snippet ?? {}) as Record<string, unknown>
-  const title: string = (snippet.title as string) ?? query
+  const title: string = decodeHtmlEntities((snippet.title as string) ?? query)
   const channelTitle: string = (snippet.channelTitle as string) ?? 'Unknown'
   const thumbs = snippet.thumbnails as
     | { high?: { url?: string }; medium?: { url?: string }; default?: { url?: string } }

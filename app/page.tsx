@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getBaseUrl } from '@/app/lib/baseUrl'
+import RequestAccessForm from './RequestAccessForm'
 
 export default async function Home({
   searchParams,
@@ -63,6 +64,7 @@ export default async function Home({
               <div className="flex flex-col items-center gap-1">
                 <span className="font-semibold text-white text-base">Spotify</span>
                 <span className="text-zinc-500 text-xs leading-snug">Requires Premium</span>
+                <span className="text-zinc-600 text-xs leading-snug">Email must be on the allowed list</span>
               </div>
             </a>
 
@@ -78,11 +80,14 @@ export default async function Home({
               <div className="flex flex-col items-center gap-1">
                 <span className="font-semibold text-white text-base">YouTube</span>
                 <span className="text-zinc-500 text-xs leading-snug">No account needed</span>
+                <span className="text-zinc-600 text-xs leading-snug">Limited to ~100 searches/day</span>
               </div>
             </a>
 
           </div>
         )}
+
+        {!hasToken && <RequestAccessForm />}
 
         {/* Footer links */}
         <div className="flex gap-4">
