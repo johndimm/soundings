@@ -720,6 +720,7 @@ export default function PlayerClient({
   const importChannelsInputRef = useRef<HTMLInputElement>(null)
   const deviceIdRef = useRef<string | null>(null)
   const lastPlayedUriRef = useRef<string | null>(null)
+  const trackPlayStartAtRef = useRef<number>(0)
   const playedUrisRef = useRef<Set<string>>(new Set())
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
@@ -1593,7 +1594,23 @@ export default function PlayerClient({
       })
       p.addListener('player_state_changed', (s: unknown) => {
         if (s) {
-          setPlaybackState(s as SpotifyPlaybackState)
+          const state = s as SpotifyPlaybackState
+          setPlaybackState(state)
+
+          // Detect natural track end in the background.
+          // When a track ends, the SDK fires paused=true, position=0 for the same track.
+          // The local 250ms timer is frozen by the browser when backgrounded, so this is
+          // the only reliable signal for auto-advance while the app is not visible.
+          if (
+            state.paused &&
+            state.position === 0 &&
+            !autoAdvanceRef.current &&
+            Date.now() - trackPlayStartAtRef.current > 8_000
+          ) {
+            console.info('player_state_changed: track-end detected (background), advancing')
+            autoAdvanceRef.current = true
+            advanceRef.current?.(true)
+          }
         } else {
           // null = SDK lost the active device (another device took over, or SDK disconnected).
           // Mark paused so the local timer stops and the UI reflects reality.
@@ -1801,6 +1818,7 @@ export default function PlayerClient({
         setSliderPosition(startMs)
         // SDK may delay player_state_changed; allow local progress until it arrives.
         isPausedRef.current = false
+        trackPlayStartAtRef.current = Date.now()
       }
     }
   }, [isGuideDemo])
