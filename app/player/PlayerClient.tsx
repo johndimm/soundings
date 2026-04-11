@@ -721,6 +721,7 @@ export default function PlayerClient({
   const deviceIdRef = useRef<string | null>(null)
   const lastPlayedUriRef = useRef<string | null>(null)
   const trackPlayStartAtRef = useRef<number>(0)
+  const expectedTrackEndAtRef = useRef<number>(0)
   const playedUrisRef = useRef<Set<string>>(new Set())
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
@@ -1730,7 +1731,21 @@ export default function PlayerClient({
       const now = Date.now()
       if (!forceReclaim && now - lastReclaimRef.current < 10_000) return
 
-      // Use SDK getCurrentState() (local, no quota) to get ground truth before deciding to reclaim.
+      // Wall-clock check: if enough time has passed for the track to have ended while
+      // backgrounded (JS timer was frozen), advance now rather than reclaiming the old track.
+      if (
+        !autoAdvanceRef.current &&
+        expectedTrackEndAtRef.current > 0 &&
+        Date.now() >= expectedTrackEndAtRef.current
+      ) {
+        console.info('visibilitychange: track ended while backgrounded (wall-clock), advancing')
+        autoAdvanceRef.current = true
+        advanceRef.current?.(true)
+        return
+      }
+
+      // Track hasn't ended — use SDK getCurrentState() (local, no quota) to sync state
+      // and reclaim the device if needed.
       const check = player ? player.getCurrentState() : Promise.resolve(null)
       check.then((state: unknown) => {
         const sdkState = state as SpotifyPlaybackState | null
@@ -1819,6 +1834,7 @@ export default function PlayerClient({
         // SDK may delay player_state_changed; allow local progress until it arrives.
         isPausedRef.current = false
         trackPlayStartAtRef.current = Date.now()
+        expectedTrackEndAtRef.current = Date.now() + (durationRef.current - sliderRef.current)
       }
     }
   }, [isGuideDemo])
@@ -1883,13 +1899,15 @@ export default function PlayerClient({
     playGeneration,
   ])
 
-  // Reset grade slider and rated flag when song changes
+  // Reset grade slider, rated flag, and end-time when song changes
   useEffect(() => {
     setGradePercent(0)
     gradeRef.current = 0
     setGradeTracking(true)
     setHasRated(false)
     hasRatedRef.current = false
+    autoAdvanceRef.current = false
+    expectedTrackEndAtRef.current = 0
   }, [currentCard?.track.uri ?? currentCard?.track.id])
 
   // While tracking, sync grade slider to play position
