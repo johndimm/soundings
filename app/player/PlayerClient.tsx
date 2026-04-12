@@ -722,6 +722,7 @@ export default function PlayerClient({
   const lastPlayedUriRef = useRef<string | null>(null)
   const trackPlayStartAtRef = useRef<number>(0)
   const expectedTrackEndAtRef = useRef<number>(0)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const playedUrisRef = useRef<Set<string>>(new Set())
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
@@ -1776,6 +1777,44 @@ export default function PlayerClient({
     document.addEventListener('visibilitychange', handleVisibility)
     return () => document.removeEventListener('visibilitychange', handleVisibility)
   }, [isGuideDemo])
+
+  // Screen Wake Lock — prevent the device from sleeping while a track is playing.
+  // The lock is automatically released when the tab is hidden; re-acquire on return.
+  const isPausedForWakeLock = playbackState?.paused ?? true
+  useEffect(() => {
+    if (isGuideDemo) return
+    if (!('wakeLock' in navigator)) return
+
+    const acquire = async () => {
+      if (wakeLockRef.current) return
+      try {
+        const lock = await (navigator as Navigator & { wakeLock: { request(type: string): Promise<WakeLockSentinel> } }).wakeLock.request('screen')
+        wakeLockRef.current = lock
+        lock.addEventListener('release', () => { wakeLockRef.current = null })
+      } catch {
+        // Permission denied or not supported — silently ignore
+      }
+    }
+
+    const release = () => {
+      wakeLockRef.current?.release().catch(() => {})
+      wakeLockRef.current = null
+    }
+
+    if (!isPausedForWakeLock) {
+      acquire()
+    } else {
+      release()
+    }
+
+    // Re-acquire after tab returns to foreground (browser releases the lock on hide)
+    const onVisible = () => { if (!document.hidden && !isPausedForWakeLock) acquire() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      release()
+    }
+  }, [isGuideDemo, isPausedForWakeLock])
 
   useEffect(() => {
     return () => {
