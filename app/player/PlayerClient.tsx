@@ -1658,7 +1658,7 @@ export default function PlayerClient({
         sliderRef.current = currentTimeSec * 1000
         setSliderPosition(currentTimeSec * 1000)
       }
-      const endThreshold = Math.max(1000, durationRef.current * 0.98)
+      const endThreshold = Math.max(1000, durationRef.current - 1500)
       if (durationRef.current > 0 && sliderRef.current >= endThreshold) {
         if (!autoAdvanceRef.current) {
           autoAdvanceRef.current = true
@@ -1681,7 +1681,7 @@ export default function PlayerClient({
       const next = Math.min(sliderRef.current + TICK, durationRef.current)
       sliderRef.current = next
       setSliderPosition(next)
-      const endThreshold = Math.max(1000, durationRef.current * 0.98)
+      const endThreshold = Math.max(1000, durationRef.current - 1500)
       if (next >= endThreshold) {
         if (!autoAdvanceRef.current) {
           autoAdvanceRef.current = true
@@ -3247,7 +3247,9 @@ export default function PlayerClient({
     const player = playerRef.current
     if (player) {
       pendingFadeInRef.current = true
-      await fadeVolume(player, 1, 0)
+      // On natural track end the audio will stop on its own — skip the fade-out so
+      // we don't cut off the last seconds. Only fade out on manual Next.
+      if (!playedToEnd) await fadeVolume(player, 1, 0)
     }
     advance(playedToEnd)
   }, [advance])
@@ -3912,7 +3914,7 @@ export default function PlayerClient({
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
                       if ((currentCard.track.source as string) === 'youtube') return
-                      if (duration > 0 && v >= duration * 0.98) {
+                      if (duration > 0 && v >= duration - 1500) {
                         advanceWithFade()
                       } else {
                         playerRef.current?.seek(v)
@@ -3922,7 +3924,7 @@ export default function PlayerClient({
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
                       if ((currentCard.track.source as string) === 'youtube') return
-                      if (duration > 0 && v >= duration * 0.98) {
+                      if (duration > 0 && v >= duration - 1500) {
                         advanceWithFade()
                       } else {
                         playerRef.current?.seek(v)
