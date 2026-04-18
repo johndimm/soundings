@@ -1,23 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Soundings Dev Diary</title>
-<style>
-  body { font-family: monospace; max-width: 800px; margin: 2rem auto; padding: 0 1rem; background: #111; color: #ccc; line-height: 1.6; }
-  h1 { color: #1db954; }
-  h2 { color: #fff; border-bottom: 1px solid #333; padding-bottom: 0.3rem; margin-top: 2rem; }
-  h3 { color: #aaa; }
-  code { background: #222; padding: 0.1em 0.3em; border-radius: 3px; color: #1db954; }
-  ul { padding-left: 1.5rem; }
-  li { margin: 0.3rem 0; }
-  .problem { color: #e55; }
-  .fix { color: #5e5; }
-  .pending { color: #fa0; }
-</style>
-</head>
-<body>
+import AppHeader from '@/app/components/AppHeader'
+
+export default function JournalPage() {
+  return (
+    <div className="min-h-screen bg-white text-black flex flex-col">
+      <AppHeader />
+      <style>{`
+        .journal-body { font-family: monospace; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.6; color: #333; }
+        .journal-body h1 { color: #1db954; }
+        .journal-body h2 { color: #111; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.3rem; margin-top: 2rem; }
+        .journal-body h3 { color: #555; }
+        .journal-body code { background: #f3f4f6; padding: 0.1em 0.3em; border-radius: 3px; color: #059669; }
+        .journal-body ul { padding-left: 1.5rem; }
+        .journal-body li { margin: 0.3rem 0; color: #444; }
+        .problem { color: #dc2626; }
+        .fix { color: #16a34a; }
+        .pending { color: #d97706; }
+      `}</style>
+      <div className="journal-body" dangerouslySetInnerHTML={{ __html: JOURNAL_CONTENT }} />
+    </div>
+  )
+}
+
+const JOURNAL_CONTENT = `
 <h1>Soundings Dev Diary</h1>
 
 <h2>2026-04-09</h2>
@@ -127,11 +131,11 @@
   <li class="fix"><code>SessionPanel</code> accepts optional <code>musicMap</code> (React node). <code>PlayerClient</code> passes a compact <code>MusicMap</code> there and uses a single session column again.</li>
 </ul>
 
-<h3>“Now playing” on the map</h3>
+<h3>"Now playing" on the map</h3>
 <ul>
   <li class="fix"><code>MusicMap</code>: props <code>currentPlaying</code> and <code>hasRatedCurrent</code>. Until the user rates, the current track is drawn as a larger amber marker with a white ring (distinct from green/red/gray history dots).</li>
-  <li class="fix">After rating, that position uses the normal history styling only. If the same song is already in history (replay), the old history dot is hidden until rated so two markers don’t stack.</li>
-  <li class="fix">Tooltip for the live marker: “Now playing · rate to save.” Full <code>/map</code> page unchanged (no deck props).</li>
+  <li class="fix">After rating, that position uses the normal history styling only. If the same song is already in history (replay), the old history dot is hidden until rated so two markers don't stack.</li>
+  <li class="fix">Tooltip for the live marker: "Now playing · rate to save." Full <code>/map</code> page unchanged (no deck props).</li>
 </ul>
 
 <h3>Embedded map chrome</h3>
@@ -238,7 +242,7 @@
 
 <h3 class="problem">Problem: Production build failed — invalid <code>logs</code> symlink</h3>
 <ul>
-  <li class="problem">Turbopack panicked: <em>Symlink <code>logs/llm-spotify-ids.jsonl</code> is invalid, it points out of the filesystem root</em>. Locally <code>logs</code> had been a symlink to Cursor&apos;s <code>terminals</code> folder (outside the repo).</li>
+  <li class="problem">Turbopack panicked: <em>Symlink <code>logs/llm-spotify-ids.jsonl</code> is invalid, it points out of the filesystem root</em>. Locally <code>logs</code> had been a symlink to Cursor's <code>terminals</code> folder (outside the repo).</li>
   <li class="fix">Removed the symlink; use a normal <code>logs/</code> directory inside the project for <code>llmSpotifyIdLog.ts</code> append output. <code>logs</code> remains gitignored.</li>
 </ul>
 
@@ -348,5 +352,4 @@
   <li class="fix">Infinite retry loop: fixed (30-second backoff on all errors; immediate redirect to login on 401).</li>
   <li class="pending">Cookie persistence on Vercel: in progress — testing 200 HTML response approach.</li>
 </ul>
-</body>
-</html>
+`

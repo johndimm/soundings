@@ -8,7 +8,7 @@ export default function SpotifyLinksPage() {
   return (
     <div className="min-h-screen bg-[#040404] text-white flex flex-col items-center justify-center px-6">
       <div className="max-w-lg w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-[0_20px_50px_rgba(0,0,0,0.5)] space-y-6">
-        <h1 className="text-2xl font-semibold">Earprint Spotify Links</h1>
+        <h1 className="text-2xl font-semibold">Soundings Spotify Links</h1>
         <p className="text-sm text-zinc-400">
           Status endpoint:
           <br />
@@ -24,7 +24,7 @@ export default function SpotifyLinksPage() {
             Log out of Spotify
           </Link>
         </div>
-        <p className="text-xs text-zinc-500">Use this page to reauthorize the deployed Earprint site on Vercel.</p>
+        <p className="text-xs text-zinc-500">Use this page to reauthorize the deployed Soundings site on Vercel.</p>
       </div>
     </div>
   )

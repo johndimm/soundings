@@ -1,6 +1,6 @@
 # YouTube API Services — Implementation, Access, Integration, and Use
 
-**Product / project:** Earprint (music listening and discovery web application)  
+**Product / project:** Soundings (music listening and discovery web application)  
 **Document purpose:** Support quota increase request for Google Cloud / YouTube Data API v3  
 **Last updated:** April 2026  
 
@@ -8,7 +8,7 @@
 
 ## 1. Summary
 
-Earprint is a web application that recommends music using an LLM (“DJ”), then resolves each recommendation to a playable track. When the user selects **YouTube** as the playback source, the backend uses the **YouTube Data API v3** only to **search for embeddable videos** matching text queries produced by the LLM. Playback uses the **YouTube IFrame Player API** in the browser (official embed), not the Data API.
+Soundings is a web application that recommends music using an LLM (“DJ”), then resolves each recommendation to a playable track. When the user selects **YouTube** as the playback source, the backend uses the **YouTube Data API v3** only to **search for embeddable videos** matching text queries produced by the LLM. Playback uses the **YouTube IFrame Player API** in the browser (official embed), not the Data API.
 
 We do **not** use the Data API to read or modify user-owned YouTube data, channels, playlists, or subscriptions. Access is **server-side** with an **API key** (no OAuth for YouTube).
 
@@ -168,4 +168,4 @@ Update this section with your legal / technical contact for the product submitte
 
 ---
 
-*This document describes the Earprint codebase as of the date above. If implementation details change, update this file and any materials submitted to Google.*
+*This document describes the Soundings codebase as of the date above. If implementation details change, update this file and any materials submitted to Google.*

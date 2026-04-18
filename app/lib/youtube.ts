@@ -285,7 +285,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
 
   const snippet = (item.snippet ?? {}) as Record<string, unknown>
   const title: string = decodeHtmlEntities((snippet.title as string) ?? query)
-  const channelTitle: string = (snippet.channelTitle as string) ?? 'Unknown'
+  const channelTitle: string = decodeHtmlEntities((snippet.channelTitle as string) ?? 'Unknown')
   const thumbs = snippet.thumbnails as
     | { high?: { url?: string }; medium?: { url?: string }; default?: { url?: string } }
     | undefined

@@ -55,6 +55,7 @@ export async function POST(req: NextRequest) {
       provider?: LLMProvider
       artistConstraint?: string
       notes?: string
+      globalNotes?: string
       forceTextSearch?: boolean
       alreadyHeard?: string[]
       accessToken?: string
@@ -118,27 +119,30 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const expiresAt = getAccessTokenExpiry(cookieStore)
-  const shouldRefresh = expiresAt === null || expiresAt - Date.now() < TOKEN_REFRESH_THRESHOLD_MS
   const requestIsHttps = req.nextUrl.protocol === 'https:'
 
-  if (shouldRefresh) {
-    const refreshedToken = await refreshSpotifyAccessToken(cookieStore, requestIsHttps)
-    if (refreshedToken) {
-      accessToken = refreshedToken
-    } else {
-      console.warn('Spotify access token refresh failed; falling back to existing token')
+  // YouTube source never needs a Spotify token — skip refresh entirely.
+  if (rawSource !== 'youtube') {
+    const expiresAt = getAccessTokenExpiry(cookieStore)
+    const shouldRefresh = expiresAt === null || expiresAt - Date.now() < TOKEN_REFRESH_THRESHOLD_MS
+    if (shouldRefresh) {
+      const refreshedToken = await refreshSpotifyAccessToken(cookieStore, requestIsHttps)
+      if (refreshedToken) {
+        accessToken = refreshedToken
+      } else {
+        console.warn('Spotify access token refresh failed; falling back to existing token')
+      }
     }
   }
 
-  // YouTube source (LLM + resolve) never needs a Spotify token.
   if (!accessToken && rawSource !== 'youtube') {
     return Response.json({ error: 'not_authenticated' }, { status: 401 })
   }
   // For all Spotify paths below, accessToken is guaranteed to be present.
   const spotifyToken: string = accessToken ?? ''
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
+  const { sessionHistory, priorProfile, provider, artistConstraint, notes, globalNotes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
+  const combinedNotes = [notes, globalNotes].filter(Boolean).join('\n\n') || undefined
 
   // ── Resolve-only path: skip LLM, just look up provided songs ────────────
   if (songsToResolve && songsToResolve.length > 0) {
@@ -206,7 +210,7 @@ export async function POST(req: NextRequest) {
       sessionHistory ?? [],
       provider,
       artistConstraint,
-      notes,
+      combinedNotes,
       priorProfile,
       alreadyHeard,
       mode,

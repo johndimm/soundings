@@ -1,12 +1,8 @@
 'use client'
 
-import { useState, useMemo, type ReactNode } from 'react'
-import Link from 'next/link'
+import { useState } from 'react'
 import { ListenEvent } from '@/app/lib/llm'
-import { SpotifyTrack } from '@/app/lib/spotify'
-import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
-import { type PlaybackSource, PLAYBACK_SOURCE_LABELS, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
-import type { CommittedSettings } from './PlayerClient'
+import { type CardState, type PlaybackSource } from '@/app/lib/playback/types'
 
 export interface HistoryEntry extends ListenEvent {
   albumArt: string | null
@@ -17,103 +13,11 @@ export interface HistoryEntry extends ListenEvent {
   // coords is inherited from ListenEvent (coords?: {x,y})
 }
 
-interface CardState {
-  track: SpotifyTrack
-  reason: string
-}
-
-const GENRE_OPTIONS = [
-  'Pop', 'Rock', 'Hip-Hop', 'R&B', 'Electronic', 'Jazz', 'Classical',
-  'Country', 'Folk', 'Metal', 'Soul', 'Blues', 'Reggae', 'Latin', 'Punk',
-]
-
-const TIME_PERIOD_OPTIONS = [
-  { label: '40s', value: '1940s' },
-  { label: '50s', value: '1950s' },
-  { label: '60s', value: '1960s' },
-  { label: '70s', value: '1970s' },
-  { label: '80s', value: '1980s' },
-  { label: '90s', value: '1990s' },
-  { label: '2000s', value: '2000s' },
-  { label: '2010s', value: '2010s' },
-  { label: 'Recent', value: 'after 2020' },
-  { label: 'Medieval', value: 'medieval era' },
-  { label: 'Renaissance', value: 'Renaissance era' },
-  { label: 'Baroque', value: 'Baroque era' },
-  { label: 'Classical', value: 'Classical era' },
-  { label: 'Romantic', value: 'Romantic era' },
-  { label: '20th C.', value: '20th century classical' },
-]
-
-// Broad musical regions — meaningful traditions without listing every country
-const REGION_OPTIONS = [
-  'US & Canada', 'UK & Ireland', 'Western Europe', 'Scandinavia',
-  'Eastern Europe', 'Latin America', 'Brazil', 'Caribbean',
-  'Africa', 'Middle East', 'India', 'East Asia', 'Southeast Asia',
-]
-
-function gradeColor(entry: HistoryEntry): string {
-  if (entry.percentListened >= 75) return 'text-green-400'
-  if (entry.percentListened >= 45) return 'text-zinc-300'
-  return 'text-red-400'
-}
-
-function gradeLabel(entry: HistoryEntry): string {
-  if (entry.percentListened >= 70) return 'liked'
-  if (entry.percentListened >= 40) return 'ok'
-  return 'nope'
-}
-
-interface Props {
-  history: HistoryEntry[]
-  queue: CardState[]
-  loadingNext: boolean
-  profile: string
-  onProfileChange: (v: string) => void
-  notes: string
-  onNotesChange: (v: string) => void
-  genres: string[]
-  onGenresChange: (v: string[]) => void
-  genreText: string
-  onGenreTextChange: (v: string) => void
-  timePeriod: string
-  onTimePeriodChange: (v: string) => void
-  regions: string[]
-  onRegionsChange: (v: string[]) => void
-  /** Names from the latest LLM response — quick-pick buttons. */
-  llmSuggestedArtists: string[]
-  artists: string[]
-  onArtistsChange: (v: string[]) => void
-  artistText: string
-  onArtistTextChange: (v: string) => void
-  popularity: number
-  onPopularityChange: (v: number) => void
-  discovery: number
-  onDiscoveryChange: (v: number) => void
-  onRemoveMultiple: (indices: number[]) => void
-  onRateHistoryItem: (index: number, percent: number) => void
-  onPlayQueueItem: (index: number) => void
-  onRemoveQueueItem: (index: number) => void
-  onPlayHistoryItem: (entry: HistoryEntry) => void
-  submittedUris: Set<string>
-  pendingSuggestions: { search: string; reason: string; spotifyId?: string }[]
-  /** True while resolving DJ picks into the queue (automatic). */
-  promotingDjPending?: boolean
-  settingsDirty: boolean
-  committedSettings?: CommittedSettings
-  source: PlaybackSource
-  onSourceChange: (v: PlaybackSource) => void
-  ytSearchesRemaining?: number | null
-  youtubeOnly?: boolean
-  /** Rendered to the right of the Up next queue only (e.g. music map). */
-  musicMap?: ReactNode
-}
-
 const SECTION_STYLES: Record<string, { label: string; labelColor: string; textColor: string; border: string }> = {
-  LIKED:    { label: 'Likes',    labelColor: 'text-green-400',  textColor: 'text-green-200',  border: 'border-green-900' },
-  DISLIKED: { label: 'Dislikes', labelColor: 'text-red-400',    textColor: 'text-red-200',    border: 'border-red-900' },
-  EXPLORED: { label: 'Explored', labelColor: 'text-blue-400',   textColor: 'text-blue-200',   border: 'border-blue-900' },
-  NEXT:     { label: 'Next move',labelColor: 'text-amber-400',  textColor: 'text-amber-200',  border: 'border-amber-900' },
+  LIKED:    { label: 'Likes',     labelColor: 'text-green-400', textColor: 'text-green-200',  border: 'border-green-900' },
+  DISLIKED: { label: 'Dislikes',  labelColor: 'text-red-400',   textColor: 'text-red-200',    border: 'border-red-900' },
+  EXPLORED: { label: 'Explored',  labelColor: 'text-blue-400',  textColor: 'text-blue-200',   border: 'border-blue-900' },
+  NEXT:     { label: 'Next move', labelColor: 'text-amber-400', textColor: 'text-amber-200',  border: 'border-amber-900' },
 }
 
 function ProfileView({ profile, onEdit }: { profile: string; onEdit: (v: string) => void }) {
@@ -166,241 +70,97 @@ function ProfileView({ profile, onEdit }: { profile: string; onEdit: (v: string)
   )
 }
 
+interface Props {
+  queue: CardState[]
+  loadingNext: boolean
+  profile: string
+  onProfileChange: (v: string) => void
+  onPlayQueueItem: (index: number) => void
+  onRemoveQueueItem: (index: number) => void
+  pendingSuggestions: { search: string; reason: string; spotifyId?: string }[]
+  /** True while resolving DJ picks into the queue (automatic). */
+  promotingDjPending?: boolean
+}
+
 export default function SessionPanel({
-  history,
   queue,
   loadingNext,
   profile,
   onProfileChange,
-  notes,
-  onNotesChange,
-  genres,
-  onGenresChange,
-  genreText,
-  onGenreTextChange,
-  timePeriod,
-  onTimePeriodChange,
-  regions,
-  onRegionsChange,
-  llmSuggestedArtists,
-  artists,
-  onArtistsChange,
-  artistText,
-  onArtistTextChange,
-  popularity,
-  onPopularityChange,
-  onRemoveMultiple,
-  onRateHistoryItem,
   onPlayQueueItem,
   onRemoveQueueItem,
-  onPlayHistoryItem,
-  discovery,
-  onDiscoveryChange,
-  submittedUris,
   pendingSuggestions,
   promotingDjPending = false,
-  settingsDirty,
-  committedSettings,
-  source,
-  onSourceChange,
-  ytSearchesRemaining,
-  youtubeOnly,
-  musicMap,
 }: Props) {
-  const [selected, setSelected] = useState<Set<number>>(new Set())
-
-  const isDirty = (field: keyof CommittedSettings): boolean => {
-    if (!settingsDirty || !committedSettings) return false
-    const cur: Record<string, unknown> = {
-      notes,
-      genreText,
-      timePeriod,
-      genres,
-      regions,
-      artists,
-      artistText,
-      popularity,
-      discovery,
-    }
-    const committed = committedSettings[field]
-    const current = cur[field]
-    if (Array.isArray(committed) && Array.isArray(current)) {
-      return JSON.stringify(committed) !== JSON.stringify(current)
-    }
-    return committed !== current
-  }
-
-  const toggleSelect = (i: number) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return next
-    })
-  }
-
-  const selectAll = () => {
-    if (selected.size === history.length) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(history.map((_, i) => i)))
-    }
-  }
-
-  const deleteSelected = () => {
-    onRemoveMultiple(Array.from(selected))
-    setSelected(new Set())
-  }
-
-  const toggleGenre = (g: string) => {
-    if (genres.includes(g)) {
-      onGenresChange(genres.filter(x => x !== g))
-    } else {
-      onGenresChange([...genres, g])
-    }
-  }
-
-  const toggleArtist = (name: string) => {
-    const lower = name.trim().toLowerCase()
-    const existing = artists.find(a => a.trim().toLowerCase() === lower)
-    if (existing) {
-      onArtistsChange(artists.filter(a => a.trim().toLowerCase() !== lower))
-    } else {
-      onArtistsChange([...artists, name.trim()])
-    }
-  }
-
-  /** LLM chips first, then any selected names not in the latest response (stay visible until toggled off). */
-  const artistButtonNames = useMemo(() => {
-    const seen = new Set<string>()
-    const out: string[] = []
-    const add = (raw: string) => {
-      const n = raw.trim()
-      if (!n) return
-      const k = n.toLowerCase()
-      if (seen.has(k)) return
-      seen.add(k)
-      out.push(n)
-    }
-    for (const n of llmSuggestedArtists) add(n)
-    for (const n of artists) add(n)
-    return out
-  }, [llmSuggestedArtists, artists])
-
-  const isArtistButtonSelected = (name: string) =>
-    artists.some(a => a.trim().toLowerCase() === name.trim().toLowerCase())
-
-  const toggleRegion = (r: string) => {
-    if (regions.includes(r)) {
-      onRegionsChange(regions.filter(x => x !== r))
-    } else {
-      onRegionsChange([...regions, r])
-    }
-  }
+  const totalCount = queue.length + pendingSuggestions.length
 
   return (
     <div className="flex flex-col gap-4 text-white w-full">
 
-      {/* Up next — queue row with optional map to the right */}
-      <div data-guide="up-next" className="flex flex-col gap-1">
-        <div className="flex flex-row gap-3 items-start">
-          <div className="flex-1 min-w-0 flex flex-col gap-1">
-            <div className="flex items-center justify-between">
-              <label className="text-xs text-zinc-500 uppercase tracking-wide">
-                Up next — queue{queue.length > 0 ? ` (${queue.length})` : ''}
-              </label>
-              {loadingNext && (
-                <div className="flex items-center gap-1.5 text-zinc-300">
-                  <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
-                  <span className="text-xs">Asking the DJ…</span>
-                </div>
-              )}
-            </div>
+      {/* Taste profile */}
+      {profile && <ProfileView profile={profile} onEdit={onProfileChange} />}
 
+      <div data-guide="up-next" className="flex flex-col gap-1">
+        <div className="flex items-center justify-between w-full">
+          <span className="text-xs text-zinc-500 uppercase tracking-wide">
+            Queue{totalCount > 0 ? ` (${totalCount})` : ''}
+          </span>
+          {(loadingNext || promotingDjPending) && (
+            <div className="flex items-center gap-1.5 text-zinc-300">
+              <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
+              <span className="text-xs">{promotingDjPending ? 'Adding…' : 'Asking the DJ…'}</span>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-3 mt-1">
+          <div className="flex flex-col gap-1">
             {loadingNext && queue.length === 0 && (
               <div className="flex items-center gap-2 text-zinc-500 text-xs py-2 italic">
                 Searching for songs…
               </div>
             )}
-
-            {queue.length === 0 && !loadingNext && (
+            {queue.length === 0 && !loadingNext && pendingSuggestions.length === 0 && (
               <p className="text-zinc-700 text-xs">Nothing queued yet.</p>
             )}
-
-            <div className="flex flex-col gap-1">
-              {queue.map((card, i) => (
-                <div
-                  key={`${card.track.uri ?? card.track.id}-${i}`}
-                  className="flex items-center gap-1"
+            {queue.map((card, i) => (
+              <div key={`${card.track.uri ?? card.track.id}-${i}`} className="flex items-center gap-1">
+                <button
+                  onClick={() => onPlayQueueItem(i)}
+                  className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
                 >
-                  <button
-                    onClick={() => onPlayQueueItem(i)}
-                    className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
-                  >
-                    <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
-                    {card.track.albumArt ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={card.track.albumArt}
-                        alt={card.track.album}
-                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg">♪</span>
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
-                      <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
+                  <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
+                  {card.track.albumArt ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={card.track.albumArt}
+                      alt={card.track.album}
+                      className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                      <span className="text-lg">♪</span>
                     </div>
-                  </button>
-                  <button
-                    onClick={() => onRemoveQueueItem(i)}
-                    className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
-                    title="Remove from queue"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
+                    <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
+                  </div>
+                </button>
+                <button
+                  onClick={() => onRemoveQueueItem(i)}
+                  className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
+                  title="Remove from queue"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
           </div>
 
-          {musicMap && (
-            <div
-              data-guide="music-map"
-              className="hidden sm:flex flex-shrink-0 w-[min(300px,42vw)] max-w-[320px] self-stretch flex-col border-l border-zinc-800 pl-3 -mr-1"
-            >
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
-                <Link
-                  href="/map"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                  Open ↗
-                </Link>
-              </div>
-              {musicMap}
-            </div>
-          )}
-        </div>
-
-        {/* DJ's pending suggestions — below Up next + map */}
-        {pendingSuggestions.length > 0 && (
-          <div className="mt-2 border-t border-zinc-800 pt-2">
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <div className="text-xs text-zinc-500 uppercase tracking-wider">DJ is thinking… (suggestions)</div>
-              {promotingDjPending && (
-                <div className="flex items-center gap-1.5 text-zinc-400">
-                  <div className="w-3 h-3 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
-                  <span className="text-[10px]">Adding to queue…</span>
-                </div>
-              )}
-            </div>
+          {pendingSuggestions.length > 0 && (
             <div className="flex flex-col gap-2">
+              <span className="text-[10px] text-zinc-600 uppercase tracking-wide">Up next</span>
               {pendingSuggestions.map((s, i) => (
                 <div key={i} className="text-xs px-1">
                   <div className="text-zinc-300 font-medium">{s.search}</div>
@@ -408,341 +168,7 @@ export default function SessionPanel({
                 </div>
               ))}
             </div>
-          </div>
-        )}
-
-        {/* Music map — mobile only, below DJ is thinking */}
-        {musicMap && (
-          <div
-            data-guide="music-map-mobile"
-            className="sm:hidden mt-2 border-t border-zinc-800 pt-2"
-          >
-            <div className="flex items-center justify-between gap-2 mb-1 w-full">
-              <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
-              <Link
-                href="/map"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-              >
-                Open ↗
-              </Link>
-            </div>
-            {musicMap}
-          </div>
-        )}
-      </div>
-
-      {/* Taste profile */}
-      {profile && <ProfileView profile={profile} onEdit={onProfileChange} />}
-
-      {/* Playback source */}
-      {!youtubeOnly && (
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <label className="text-xs text-zinc-500 uppercase tracking-wide">Source</label>
-            {source === 'youtube' && ytSearchesRemaining !== null && ytSearchesRemaining !== undefined && (
-              <span className={`text-xs tabular-nums ${ytSearchesRemaining <= 10 ? 'text-amber-400' : 'text-zinc-500'}`}>
-                {ytSearchesRemaining} searches left today
-              </span>
-            )}
-          </div>
-          <div className="flex gap-1.5">
-            {(Object.keys(PLAYBACK_SOURCE_LABELS) as PlaybackSource[]).map(s => (
-              <button
-                key={s}
-                onClick={() => onSourceChange(s)}
-                className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                  source === s
-                    ? 'bg-white text-black border-white'
-                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-                }`}
-              >
-                {PLAYBACK_SOURCE_LABELS[s]}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Discovery slider */}
-      <div data-guide="discovery" className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
-            Discovery
-            {isDirty('discovery') && <span data-guide="discovery-queued" className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
-          </label>
-          <span className="text-xs text-zinc-400">
-            {discovery <= 20 ? 'Familiar' : discovery <= 40 ? 'Mostly familiar' : discovery <= 60 ? 'Balanced' : discovery <= 80 ? 'Mostly new' : 'Adventurous'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-600">Familiar</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={discovery}
-            onChange={e => onDiscoveryChange(Number(e.target.value))}
-            className="flex-1 accent-zinc-400"
-          />
-          <span className="text-xs text-zinc-600">New</span>
-        </div>
-      </div>
-
-      {/* Genre selector */}
-      <div data-guide="genres" className="flex flex-col gap-2">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
-          Genres
-          {isDirty('genres') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {GENRE_OPTIONS.map(g => (
-            <button
-              key={g}
-              onClick={() => toggleGenre(g)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                genres.includes(g)
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-              }`}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
-        <input
-          value={genreText}
-          onChange={e => onGenreTextChange(e.target.value)}
-          placeholder="e.g. dreamy shoegaze, dark ambient…"
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-        />
-      </div>
-
-      {/* Artists — names from LLM + free text */}
-      <div className="flex flex-col gap-2">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
-          Artists
-          {(isDirty('artists') || isDirty('artistText')) && (
-            <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>
           )}
-        </label>
-        {artistButtonNames.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {artistButtonNames.map(name => (
-              <button
-                key={name.toLowerCase()}
-                type="button"
-                onClick={() => toggleArtist(name)}
-                className={`text-xs px-2.5 py-1 rounded-full border transition-colors max-w-full truncate ${
-                  isArtistButtonSelected(name)
-                    ? 'bg-white text-black border-white'
-                    : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-                }`}
-                title={name}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-zinc-700 text-xs">
-            Artist buttons appear after the DJ returns suggestions (same response as song picks).
-          </p>
-        )}
-        <input
-          value={artistText}
-          onChange={e => onArtistTextChange(e.target.value)}
-          placeholder="e.g. lean Coltrane, avoid smooth jazz…"
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-        />
-      </div>
-
-      {/* World region */}
-      <div className="flex flex-col gap-2">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
-          Region
-          {isDirty('regions') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {REGION_OPTIONS.map(r => (
-            <button
-              key={r}
-              onClick={() => toggleRegion(r)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                regions.includes(r)
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Time period */}
-      <div data-guide="heard" className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
-          Time period
-          {isDirty('timePeriod') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
-        </label>
-        <div className="flex flex-wrap gap-1.5">
-          {TIME_PERIOD_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => onTimePeriodChange(timePeriod === opt.value ? '' : opt.value)}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                timePeriod === opt.value
-                  ? 'bg-white text-black border-white'
-                  : 'bg-transparent text-zinc-400 border-zinc-700 hover:border-zinc-500 hover:text-zinc-200'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        <input
-          value={timePeriod}
-          onChange={e => onTimePeriodChange(e.target.value)}
-          placeholder="e.g. 1970s, after 2020, baroque era…"
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-        />
-      </div>
-
-      {/* Popularity */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">Popularity</label>
-          <span className="text-xs text-zinc-400">
-            {popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-zinc-600">Obscure</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={popularity}
-            onChange={e => onPopularityChange(Number(e.target.value))}
-            className="flex-1 accent-zinc-400"
-          />
-          <span className="text-xs text-zinc-600">Mainstream</span>
-        </div>
-      </div>
-
-      {/* Notes */}
-      <div className="flex flex-col gap-1">
-        <label className="text-xs text-zinc-500 uppercase tracking-wide flex items-center gap-1.5">
-          Tell the DJ
-          {isDirty('notes') && <span className="text-amber-500 text-[10px] normal-case tracking-normal font-normal">· queued</span>}
-        </label>
-        <textarea
-          value={notes}
-          onChange={e => onNotesChange(e.target.value)}
-          placeholder="e.g. more 80s, no country, upbeat only…"
-          rows={2}
-          className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 resize-none focus:outline-none focus:border-zinc-500"
-        />
-      </div>
-
-      {/* History */}
-      <div className="flex flex-col gap-1">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-zinc-500 uppercase tracking-wide">
-            Heard ({history.length})
-          </label>
-          <div className="flex items-center gap-2">
-            {history.length > 0 && (
-              <>
-                <button
-                  onClick={selectAll}
-                  className="text-xs text-zinc-500 hover:text-white transition-colors"
-                >
-                  {selected.size === history.length && history.length > 0 ? 'Deselect all' : 'Select all'}
-                </button>
-                {selected.size > 0 && (
-                  <button
-                    onClick={deleteSelected}
-                    className="text-xs text-red-500 hover:text-red-400 transition-colors"
-                  >
-                    Delete {selected.size}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-
-        {history.length === 0 && (
-          <p className="text-zinc-700 text-xs py-1">No songs yet.</p>
-        )}
-
-        <div className="flex flex-col gap-1">
-          {[...history].reverse().map((entry, i) => {
-            const realIndex = history.length - 1 - i
-            const isSelected = selected.has(realIndex)
-            // Only show as pending if we have a URI to look up — YouTube entries have no URI
-            const isPending = entry.uri ? !submittedUris.has(entry.uri) : false
-            const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
-            const canPlay = Boolean(playableTrackId) && entry.source !== 'youtube'
-            return (
-              <div
-                key={realIndex}
-                data-guide={i === 0 ? 'heard-item' : undefined}
-                className={`flex items-center gap-2 py-1 rounded-lg px-1 transition-colors ${isSelected ? 'bg-zinc-800' : 'hover:bg-zinc-900/50'} ${isPending ? 'opacity-50' : ''}`}
-              >
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSelect(realIndex)}
-                  className="flex-shrink-0 accent-zinc-400 cursor-pointer"
-                />
-                <button
-                  type="button"
-                  onClick={() => canPlay && onPlayHistoryItem(entry)}
-                  disabled={false}
-                  className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 rounded-xl px-2 py-1 text-left transition-colors"
-                  style={{
-                    cursor: canPlay ? 'pointer' : 'default',
-                    touchAction: 'manipulation',
-                  }}
-                >
-                  {entry.albumArt ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={entry.albumArt}
-                      alt=""
-                      className="w-9 h-9 rounded-md object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-md bg-zinc-800 flex-shrink-0" />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-xs font-medium truncate">{entry.track}</p>
-                    <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
-                  </div>
-                </button>
-                <div className="flex flex-col flex-shrink-0 gap-1" style={{ width: 96 }}>
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[10px] font-bold uppercase tracking-wide ${gradeColor(entry)}`}>{gradeLabel(entry)}</span>
-                    <span className="text-[10px] text-zinc-500">{Math.round(entry.percentListened)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={Math.round(entry.percentListened)}
-                    onChange={e => onRateHistoryItem(realIndex, Number(e.target.value))}
-                    className={`w-full ${entry.percentListened >= 75 ? 'accent-green-500' : entry.percentListened >= 45 ? 'accent-zinc-400' : 'accent-red-500'}`}
-                    style={{ height: 16 }}
-                    title={`${Math.round(entry.percentListened)}%`}
-                  />
-                </div>
-              </div>
-            )
-          })}
         </div>
       </div>
     </div>

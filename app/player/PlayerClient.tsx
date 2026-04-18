@@ -1,30 +1,74 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
-import MusicMap from './MusicMap'
+import AppHeader from '@/app/components/AppHeader'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
-import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE } from '@/app/lib/playback/types'
 import { isYoutubeResolveTestClientEnabled } from '@/app/lib/youtubeResolveTestClient'
 import {
   getYoutubeResolveTestFixtureSuggestion,
   isYoutubeResolveTestFixtureSuggestion,
 } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
-import { DEMO_CHANNEL_IMPORT, YOUTUBE_DEMO_CHANNEL_IMPORT } from '@/app/lib/demoChannel'
+import { BUILT_IN_FACTORY_CHANNELS_IMPORT, getMostPopularCard } from '@/app/lib/demoChannel'
+import {
+  DEV_FACTORY_OVERRIDE_STORAGE_KEY,
+  isDevFactorySnapshotEnabled,
+} from '@/app/lib/devFactoryOverride'
+import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE, type CardState } from '@/app/lib/playback/types'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
+function readSettingsSource(): PlaybackSource {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed.source === 'youtube' || parsed.source === 'spotify') return parsed.source
+    }
+  } catch {}
+  return DEFAULT_PLAYBACK_SOURCE
+}
+
+function readSettingsGlobalNotes(): string {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (typeof parsed.globalNotes === 'string') return parsed.globalNotes.trim()
+    }
+  } catch {}
+  return ''
+}
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
-const DEMO_LOADED_KEY = 'earprint-demo-loaded'
-const YT_DEMO_LOADED_KEY = 'earprint-yt-demo-loaded'
 const CHANNELS_EXPORT_VERSION = 1
+
+/** Must match `new Spotify.Player({ name })` — used to resolve a fresh `device_id` after play 404. */
+const SPOTIFY_WEB_PLAYER_DEVICE_NAME = 'Soundings'
+
+async function fetchWebPlaybackDeviceIdFromSpotifyApi(token: string): Promise<string | null> {
+  try {
+    const r = await fetch('https://api.spotify.com/v1/me/player/devices', {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+    if (!r.ok) return null
+    const data = (await r.json()) as {
+      devices?: { id?: string; name?: string; is_restricted?: boolean }[]
+    }
+    const devices = (data.devices ?? []).filter(d => typeof d.id === 'string' && d.id.length > 0)
+    const match = devices.find(d => d.name === SPOTIFY_WEB_PLAYER_DEVICE_NAME && !d.is_restricted)
+    return match?.id ?? devices.find(d => d.name === SPOTIFY_WEB_PLAYER_DEVICE_NAME)?.id ?? null
+  } catch {
+    return null
+  }
+}
 
 interface Channel {
   id: string
@@ -40,6 +84,7 @@ interface Channel {
   genres?: string[]
   genreText?: string
   timePeriod?: string
+  timePeriods?: string[]
   notes?: string
   regions?: string[]
   popularity?: number
@@ -77,11 +122,40 @@ function deriveChannelName(history: HistoryEntry[], profile: string): string {
   return ''
 }
 
+const ALL_CHANNEL_ID = 'earprint-all'
+
+function makeAllChannel(): Channel {
+  return {
+    id: ALL_CHANNEL_ID,
+    name: 'All',
+    isAutoNamed: false,
+    cardHistory: [],
+    sessionHistory: [],
+    profile: '',
+    createdAt: 0,
+    genres: [],
+    genreText: '',
+    timePeriod: '',
+    notes: '',
+    regions: [],
+    artists: [],
+    artistText: '',
+    popularity: 50,
+    discovery: 50,
+  }
+}
+
+function ensureAllChannel(channels: Channel[]): Channel[] {
+  if (channels.some(c => c.id === ALL_CHANNEL_ID)) return channels
+  return [makeAllChannel(), ...channels]
+}
+
 function loadChannels(): Channel[] {
   try {
     const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
-    if (raw) return JSON.parse(raw) as Channel[]
+    if (raw) return ensureAllChannel(JSON.parse(raw) as Channel[])
   } catch {}
+  /** No stored list yet (first visit). System reset stores a single empty All row instead. */
   return []
 }
 
@@ -119,6 +193,9 @@ function normalizeImportedChannel(raw: unknown): Channel | null {
     genres: Array.isArray(o.genres) ? (o.genres as string[]) : undefined,
     genreText: typeof o.genreText === 'string' ? o.genreText : undefined,
     timePeriod: typeof o.timePeriod === 'string' ? o.timePeriod : undefined,
+    timePeriods: Array.isArray(o.timePeriods) ? o.timePeriods as string[]
+      : typeof o.timePeriod === 'string' && o.timePeriod ? [o.timePeriod]
+      : [],
     notes: typeof o.notes === 'string' ? o.notes : undefined,
     regions: Array.isArray(o.regions) ? (o.regions as string[]) : undefined,
     popularity: typeof o.popularity === 'number' ? o.popularity : undefined,
@@ -292,16 +369,6 @@ interface SpotifyPlaybackState {
   }
 }
 
-interface CardState {
-  track: SpotifyTrack
-  reason: string
-  category?: string
-  coords?: { x: number; y: number }
-  composed?: number
-  performer?: string
-}
-
-/** Next card that would play (matches loadChannelIntoState queue shift). */
 function peekNextCard(ch: Channel): CardState | null {
   if (ch.currentCard) return ch.currentCard
   if (ch.queue?.length) return ch.queue[0] ?? null
@@ -328,10 +395,27 @@ function historyEntryToTrack(entry: HistoryEntry): SpotifyTrack | null {
   }
 }
 
-/** Liked / ok territory — same idea as green dots on the map (not "not-now"). */
+/** Liked territory — same idea as green dots on the map. */
 function isPositiveHeard(entry: HistoryEntry): boolean {
-  if (entry.reaction === 'not-now') return false
-  return entry.percentListened >= 50
+  return (entry.stars ?? 0) >= 3.5
+}
+
+/**
+ * Stars persisted when leaving a track: explicit star row choice wins; natural end with no choice = 5★;
+ * manual next / error skip with no choice = how far playback got (half-star steps), matching the
+ * progress fill on the star row — so unrated rows should only remain from crashes or old data.
+ */
+function computeRecordedListenStars(
+  playedToEnd: boolean,
+  userStars: number | null,
+  durationMs: number,
+  positionMs: number,
+): number {
+  if (userStars != null) return userStars
+  if (playedToEnd) return 5
+  if (!(durationMs > 0)) return 0
+  const p = Math.min(1, Math.max(0, positionMs) / durationMs)
+  return Math.round(p * 5 * 2) / 2
 }
 
 /** Stable dedup key that works for both Spotify (uses uri) and YouTube (uses id). */
@@ -435,10 +519,64 @@ function buildCombinedNotes(
   return parts.join('. ')
 }
 
-function determineReaction(percent: number): ListenEvent['reaction'] {
-  if (percent >= 80) return 'more-from-artist'
-  if (percent <= 30) return 'not-now'
-  return 'move-on'
+// ── Star rating component ────────────────────────────────────────────────────
+function StarRating({
+  value,
+  onChange,
+  size = 'md',
+  progress,
+}: {
+  value: number | null
+  onChange: (v: number | null) => void
+  size?: 'sm' | 'md' | 'lg'
+  /** 0–1: fills stars as the song plays when user hasn't rated yet */
+  progress?: number
+}) {
+  const [hovered, setHovered] = useState<number | null>(null)
+  const isProgressMode = value === null && hovered === null
+  const progressStars = (progress ?? 0) * 5
+  const display = hovered ?? value ?? (isProgressMode ? progressStars : 0)
+  const fontSize = size === 'lg' ? '2.2rem' : size === 'sm' ? '1.1rem' : '1.6rem'
+
+  return (
+    <div
+      className="flex"
+      onMouseLeave={() => setHovered(null)}
+      style={{ gap: '0.15rem' }}
+    >
+      {[1, 2, 3, 4, 5].map(star => {
+        const filled = display >= star ? 1 : display > star - 1 ? display - (star - 1) : 0
+        const clipPct = Math.round(filled * 100)
+        return (
+          <div
+            key={star}
+            className="relative select-none cursor-pointer"
+            style={{ fontSize, lineHeight: 1 }}
+          >
+            <span className="text-zinc-700">★</span>
+            {clipPct > 0 && (
+              <span
+                className={`absolute inset-0 overflow-hidden ${isProgressMode ? 'text-zinc-400' : 'text-amber-400'}`}
+                style={{ clipPath: `inset(0 ${100 - clipPct}% 0 0)` }}
+              >
+                ★
+              </span>
+            )}
+            <span
+              className="absolute inset-y-0 left-0 w-1/2"
+              onMouseEnter={() => setHovered(star - 0.5)}
+              onClick={() => onChange(value === star - 0.5 ? null : star - 0.5)}
+            />
+            <span
+              className="absolute inset-y-0 right-0 w-1/2"
+              onMouseEnter={() => setHovered(star)}
+              onClick={() => onChange(value === star ? null : star)}
+            />
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 const formatRetryTime = (ms: number) => {
@@ -517,13 +655,6 @@ function trySpotifyRedirect(
   window.location.href = '/api/auth/login'
 }
 
-/** Set by inline script in `app/player/page.tsx` before the client bundle loads. */
-function readWindowYtResolveTestFlag(): boolean {
-  if (typeof window === 'undefined') return false
-  return (
-    (window as unknown as { __EP_YT_RESOLVE_TEST__?: boolean }).__EP_YT_RESOLVE_TEST__ === true
-  )
-}
 
 export default function PlayerClient({
   accessToken: initialAccessToken,
@@ -544,7 +675,6 @@ export default function PlayerClient({
   const [playerConfigDj, setPlayerConfigDj] = useState<boolean | null>(() => {
     if (youtubeResolveTestFromServer) return true
     if (isYoutubeResolveTestClientEnabled()) return true
-    if (readWindowYtResolveTestFlag()) return true
     return null
   })
 
@@ -598,14 +728,6 @@ export default function PlayerClient({
 
   const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
   const [playResponse, setPlayResponse] = useState<string | null>(null)
-  /** Inline message for channel import/parse errors (no window.alert). */
-  const [channelsNotice, setChannelsNotice] = useState<string | null>(null)
-  /** Modal: confirm channel import or full reset (no window.confirm). */
-  const [channelsDialog, setChannelsDialog] = useState<
-    | null
-    | { kind: 'import'; data: { channels: Channel[]; activeChannelId?: string } }
-    | { kind: 'reset' }
-  >(null)
   const [notes, setNotes] = useState('')
   const [genres, setGenres] = useState<string[]>([])
   const [genreText, setGenreText] = useState('')
@@ -623,12 +745,13 @@ export default function PlayerClient({
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [youtubeDuration, setYoutubeDuration] = useState(0)
-  const [gradePercent, setGradePercent] = useState(0)
-  const [gradeTracking, setGradeTracking] = useState(true)
-  const [hasRated, setHasRated] = useState(false)
+  const [currentStars, setCurrentStars] = useState<number | null>(null)
   const [historyReady, setHistoryReady] = useState(false)
   /** False until loadSettings runs — prevents persist effects from overwriting localStorage with empty defaults on first paint. */
   const [settingsHydrated, setSettingsHydrated] = useState(false)
+  const pathname = usePathname()
+  /** Bumps when navigating onto /player (e.g. from /channels) so persist runs without putting `pathname` in persist deps. */
+  const [playerRouteGeneration, setPlayerRouteGeneration] = useState(0)
   /** Bumps when user presses Next (etc.) so the play effect re-runs even if the next track has the same URI as before. */
   const [playGeneration, setPlayGeneration] = useState(0)
   /** LLM suggestions not yet looked up on Spotify — resolved one-at-a-time when filling Up Next or starting playback. */
@@ -694,6 +817,10 @@ export default function PlayerClient({
   }
   const playerRef = useRef<SpotifyPlayer | null>(null)
   const youtubePlayerRef = useRef<YoutubePlayerHandle | null>(null)
+  /** Album panel for `auto 100%` width vs intrinsic — skip `albumPan` when the art already fits horizontally. */
+  const albumPanelRef = useRef<HTMLDivElement | null>(null)
+  const albumArtIntrinsicRef = useRef<{ w: number; h: number } | null>(null)
+  const [albumArtNeedsPan, setAlbumArtNeedsPan] = useState(true)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sdkReadyRef = useRef(false)
   const isSeekingRef = useRef(false)
@@ -717,7 +844,6 @@ export default function PlayerClient({
   const advanceRef = useRef<((playedToEnd?: boolean) => void) | null>(null)
   const pendingFadeInRef = useRef(false)
   const channelSwitchingRef = useRef(false)
-  const importChannelsInputRef = useRef<HTMLInputElement>(null)
   const deviceIdRef = useRef<string | null>(null)
   const lastPlayedUriRef = useRef<string | null>(null)
   const trackPlayStartAtRef = useRef<number>(0)
@@ -727,8 +853,7 @@ export default function PlayerClient({
   const fetchGenRef = useRef(0)
   const fetchingRef = useRef(false)
   const exploreModeRef = useRef<number>(50)
-  const gradeRef = useRef(50)
-  const hasRatedRef = useRef(false)
+  const currentStarsRef = useRef<number | null>(null)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suggestionBufferRef = useRef<SongSuggestion[]>([])
@@ -754,6 +879,58 @@ export default function PlayerClient({
   const pendingPlaybackPositionMsRef = useRef<number | undefined>(undefined)
   /** Console filter: `[dj-queue]` — why DJ suggestions do or don’t reach Up Next */
   const DJQ = '[dj-queue]'
+
+  const recomputeAlbumArtPan = useCallback(() => {
+    const el = albumPanelRef.current
+    const intr = albumArtIntrinsicRef.current
+    if (!el || !intr || intr.w <= 0 || intr.h <= 0) {
+      setAlbumArtNeedsPan(true)
+      return
+    }
+    const W = el.clientWidth
+    const H = el.clientHeight
+    if (W <= 0 || H <= 0) return
+    const renderedW = (intr.w / intr.h) * H
+    setAlbumArtNeedsPan(renderedW > W + 0.5)
+  }, [])
+
+  useEffect(() => {
+    const url = currentCard?.track.albumArt
+    const isYt = (currentCard?.track.source as string) === 'youtube'
+    if (!url || isYt) {
+      albumArtIntrinsicRef.current = null
+      setAlbumArtNeedsPan(true)
+      return
+    }
+    albumArtIntrinsicRef.current = null
+    setAlbumArtNeedsPan(true)
+    let cancelled = false
+    const img = new Image()
+    img.onload = () => {
+      if (cancelled) return
+      albumArtIntrinsicRef.current = { w: img.naturalWidth, h: img.naturalHeight }
+      recomputeAlbumArtPan()
+    }
+    img.onerror = () => {
+      if (cancelled) return
+      albumArtIntrinsicRef.current = null
+      setAlbumArtNeedsPan(true)
+    }
+    img.src = url
+    return () => {
+      cancelled = true
+    }
+  }, [currentCard?.track.albumArt, currentCard?.track.source, recomputeAlbumArtPan])
+
+  useEffect(() => {
+    const el = albumPanelRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => {
+      recomputeAlbumArtPan()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [recomputeAlbumArtPan])
 
   function clampPlaybackOffsetMs(positionMs: number, durationMs: number): number {
     if (!Number.isFinite(durationMs) || durationMs <= 0) return Math.max(0, positionMs)
@@ -815,11 +992,8 @@ export default function PlayerClient({
     sliderRef.current = demo.sliderPosition
     durationRef.current = demo.playbackState.duration
     isPausedRef.current = demo.playbackState.paused
-    setGradePercent(demo.gradePercent)
-    gradeRef.current = demo.gradePercent
-    setGradeTracking(true)
-    setHasRated(demo.hasRated)
-    hasRatedRef.current = demo.hasRated
+    setCurrentStars(demo.currentStars)
+    currentStarsRef.current = demo.currentStars
     setHistoryReady(true)
     setSuggestionBuffer(demo.pendingSuggestions)
     suggestionBufferRef.current = demo.pendingSuggestions
@@ -857,6 +1031,7 @@ export default function PlayerClient({
         genres: genresRef.current,
         genreText: genreTextRef.current,
         timePeriod: timePeriodRef.current,
+        timePeriods: timePeriodRef.current ? timePeriodRef.current.split(' and ').filter(Boolean) : [],
         notes: notesRef.current,
         regions: regionsRef.current,
         artists: artistsRef.current,
@@ -906,7 +1081,7 @@ export default function PlayerClient({
     // Restore settings
     const g = ch.genres ?? []; setGenres(g); genresRef.current = g
     const gt = ch.genreText ?? ''; setGenreText(gt); genreTextRef.current = gt
-    const tp = ch.timePeriod ?? ''; setTimePeriod(tp); timePeriodRef.current = tp
+    const tp = ch.timePeriods?.length ? ch.timePeriods.join(' and ') : (ch.timePeriod ?? ''); setTimePeriod(tp); timePeriodRef.current = tp
     const n = ch.notes ?? ''; setNotes(n); notesRef.current = n
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
     const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
@@ -933,7 +1108,7 @@ export default function PlayerClient({
     committedSettingsRef.current = nextCommitted
     setSettingsDirty(false)
 
-    const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? DEFAULT_PLAYBACK_SOURCE)
+    const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? readSettingsSource())
     setSource(nextSource)
     sourceRef.current = nextSource
 
@@ -1087,125 +1262,6 @@ export default function PlayerClient({
     })
   }, [])
 
-  const handleExportChannels = useCallback(() => {
-    if (isGuideDemo) return
-    const snapshot = snapshotCurrentChannel()
-    const payload = {
-      earprintExportVersion: CHANNELS_EXPORT_VERSION,
-      exportedAt: new Date().toISOString(),
-      activeChannelId: activeChannelIdRef.current,
-      channels: snapshot,
-    }
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `earprint-channels-${new Date().toISOString().slice(0, 10)}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [isGuideDemo, snapshotCurrentChannel])
-
-  const applyImportedChannels = useCallback(
-    (result: { channels: Channel[]; activeChannelId?: string }) => {
-      saveChannels(result.channels)
-      channelsRef.current = result.channels
-      setChannels(result.channels)
-      const activeId =
-        result.activeChannelId && result.channels.some(c => c.id === result.activeChannelId)
-          ? result.activeChannelId
-          : result.channels[0].id
-      const active = result.channels.find(c => c.id === activeId) ?? result.channels[0]
-      loadChannelIntoState(active)
-      setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
-      setError(null)
-      setChannelsNotice(null)
-      setChannelsDialog(null)
-    },
-    [loadChannelIntoState]
-  )
-
-  const handleImportChannelsFile = useCallback(
-    async (e: ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      e.target.value = ''
-      if (!file || isGuideDemo) return
-      setChannelsNotice(null)
-      try {
-        const text = await file.text()
-        const parsed: unknown = JSON.parse(text)
-        const result = parseChannelsImport(parsed)
-        if (!result) {
-          setChannelsNotice(
-            'Could not read channels from this file. Expected a JSON object with a "channels" array, or a JSON array of channels.'
-          )
-          return
-        }
-        setChannelsDialog({
-          kind: 'import',
-          data: { channels: result.channels, activeChannelId: result.activeChannelId },
-        })
-      } catch (err) {
-        setChannelsNotice(err instanceof SyntaxError ? 'Invalid JSON file.' : (err as Error).message)
-      }
-    },
-    [isGuideDemo]
-  )
-
-  /** Clear all channels, legacy history, and global DJ settings; leave one empty channel. */
-  const performResetAllChannels = useCallback(async () => {
-    if (isGuideDemo) return
-    if (channelSwitchingRef.current) return
-    setChannelsDialog(null)
-    channelSwitchingRef.current = true
-    try {
-      if (!isGuideDemo && currentCardRef.current) {
-        await fadeOutCurrentPlayback()
-        pendingFadeInRef.current = false
-        if (playerRef.current) await playerRef.current.setVolume(1)
-      }
-      try {
-        localStorage.removeItem(CHANNELS_STORAGE_KEY)
-        localStorage.removeItem(ACTIVE_CHANNEL_KEY)
-        localStorage.removeItem(HISTORY_STORAGE_KEY)
-        localStorage.removeItem(SETTINGS_STORAGE_KEY)
-        localStorage.removeItem('spotifyRateLimitUntil')
-      } catch {
-        /* ignore */
-      }
-      setBackoffUntil(null)
-      if (backoffTimerRef.current) {
-        clearTimeout(backoffTimerRef.current)
-        backoffTimerRef.current = null
-      }
-      const freshChannels = [{
-        id: genChannelId(),
-        name: 'New Channel',
-        isAutoNamed: true,
-        cardHistory: [],
-        sessionHistory: [],
-        profile: '',
-        currentCard: null,
-        queue: [],
-        createdAt: Date.now(),
-      }]
-      const fresh = freshChannels[0]
-      const freshActive = fresh
-      saveChannels(freshChannels)
-      try {
-        localStorage.setItem(ACTIVE_CHANNEL_KEY, freshActive.id)
-      } catch {
-        /* ignore */
-      }
-      setChannels(freshChannels)
-      channelsRef.current = freshChannels
-      loadChannelIntoState(freshActive)
-      setSubmittedUris(new Set())
-      setError(null)
-    } finally {
-      channelSwitchingRef.current = false
-    }
-  }, [isGuideDemo, loadChannelIntoState, fadeOutCurrentPlayback])
-
   // Restore backoff timer from localStorage on mount
   useEffect(() => {
     if (isGuideDemo) return
@@ -1330,7 +1386,7 @@ export default function PlayerClient({
     setPopularity(s.popularity ?? 50)
     setDiscovery(s.discovery ?? 50)
     setProvider(s.provider ?? 'deepseek')
-    setSource(youtubeOnly ? 'youtube' : (s.source ?? DEFAULT_PLAYBACK_SOURCE))
+    setSource(youtubeOnly ? 'youtube' : readSettingsSource())
     setCommittedSettings({
       notes: s.notes ?? '',
       genreText: s.genreText ?? '',
@@ -1397,25 +1453,128 @@ export default function PlayerClient({
   useEffect(() => {
     if (isGuideDemo) return
     if (typeof window === 'undefined') return
+    try {
+      localStorage.removeItem('earprint-factory-channels')
+    } catch {}
     let chs = loadChannels()
     let activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY) ?? ''
 
-    const demoLoadedKey = youtubeOnly ? YT_DEMO_LOADED_KEY : DEMO_LOADED_KEY
-    const demoAlreadyLoaded = Boolean(localStorage.getItem(demoLoadedKey))
-    const demoImport = youtubeOnly ? YOUTUBE_DEMO_CHANNEL_IMPORT : DEMO_CHANNEL_IMPORT
-
-    // Treat a single blank auto-named channel (from old reset) the same as no channels,
-    // but only on true first launch (not after a reset).
+    const oneChannel = chs.length === 1 ? chs[0] : null
+    const isEmptyChannel = (c: Channel) =>
+      !c.profile &&
+      !c.currentCard &&
+      (c.queue?.length ?? 0) === 0 &&
+      (c.cardHistory?.length ?? 0) === 0
     const isBlankSlate =
-      !demoAlreadyLoaded &&
-      chs.length === 1 &&
-      chs[0].isAutoNamed &&
-      !chs[0].profile &&
-      !chs[0].currentCard &&
-      (chs[0].queue?.length ?? 0) === 0 &&
-      (chs[0].cardHistory?.length ?? 0) === 0
+      chs.length === 0 ||
+      (oneChannel &&
+        ((oneChannel.id === ALL_CHANNEL_ID && isEmptyChannel(oneChannel)) ||
+          (oneChannel.isAutoNamed && isEmptyChannel(oneChannel))))
 
-    // Migrate legacy earprint-history into a default channel, or load demo on first launch
+    const finalizeChannelHydration = (chsArg: Channel[], activeIdArg: string, doEnsureAllPersist: boolean) => {
+      let chsLocal = chsArg
+      let activeIdLocal = activeIdArg
+      if (doEnsureAllPersist) {
+        chsLocal = ensureAllChannel(chsLocal)
+        saveChannels(chsLocal)
+        localStorage.setItem(ACTIVE_CHANNEL_KEY, activeIdLocal)
+      }
+      if (!activeIdLocal || !chsLocal.find(c => c.id === activeIdLocal)) {
+        activeIdLocal = chsLocal[0].id
+        localStorage.setItem(ACTIVE_CHANNEL_KEY, activeIdLocal)
+      }
+
+      const active = chsLocal.find(c => c.id === activeIdLocal)!
+
+      if (
+        chsLocal.length === 1 &&
+        chsLocal[0].id === ALL_CHANNEL_ID &&
+        (chsLocal[0].cardHistory?.length ?? 0) === 0 &&
+        !chsLocal[0].currentCard
+      ) {
+        const activeSource = youtubeOnly ? 'youtube' : (active.source ?? readSettingsSource())
+        active.currentCard = getMostPopularCard(activeSource)
+        saveChannels(chsLocal)
+      }
+
+      try {
+        const deduped = dedupeHistory(active.cardHistory)
+        setCardHistory(deduped)
+        cardHistoryRef.current = deduped
+        setSessionHistory(active.sessionHistory)
+        sessionHistoryRef.current = active.sessionHistory
+        const restoredQueue = [...(active.queue ?? [])]
+        const restoredCurrent = active.currentCard ?? null
+        const nextCurrent = restoredCurrent ?? restoredQueue.shift() ?? null
+        setCurrentCard(nextCurrent)
+        currentCardRef.current = nextCurrent
+        setQueue(restoredQueue)
+        queueRef.current = restoredQueue
+        if (active.profile) {
+          setPriorProfile(active.profile)
+          priorProfileRef.current = active.profile
+          setProfile(active.profile)
+        }
+        if (active.genres) {
+          setGenres(active.genres)
+          genresRef.current = active.genres
+        }
+        if (active.genreText !== undefined) {
+          setGenreText(active.genreText)
+          genreTextRef.current = active.genreText
+        }
+        if (active.timePeriods !== undefined || active.timePeriod !== undefined) {
+          const tp = active.timePeriods?.length ? active.timePeriods.join(' and ') : (active.timePeriod ?? '')
+          setTimePeriod(tp)
+          timePeriodRef.current = tp
+        }
+        if (active.notes !== undefined) {
+          setNotes(active.notes)
+          notesRef.current = active.notes
+        }
+        if (active.regions) {
+          setRegions(active.regions)
+          regionsRef.current = active.regions
+        }
+        if (active.artists) {
+          setArtists(active.artists)
+          artistsRef.current = active.artists
+        }
+        if (active.artistText !== undefined) {
+          setArtistText(active.artistText)
+          artistTextRef.current = active.artistText
+        }
+        if (active.popularity !== undefined) {
+          setPopularity(active.popularity)
+          popularityRef.current = active.popularity
+        }
+        if (active.discovery !== undefined) {
+          setDiscovery(active.discovery)
+          exploreModeRef.current = active.discovery
+        }
+
+        if (
+          nextCurrent &&
+          active.playbackTrackUri === nextCurrent.track.uri &&
+          typeof active.playbackPositionMs === 'number' &&
+          active.playbackPositionMs > 0
+        ) {
+          pendingPlaybackPositionMsRef.current = clampPlaybackOffsetMs(
+            active.playbackPositionMs,
+            nextCurrent.track.durationMs,
+          )
+        } else {
+          pendingPlaybackPositionMsRef.current = undefined
+        }
+      } catch {}
+
+      setChannels(chsLocal)
+      channelsRef.current = chsLocal
+      setActiveChannelId(activeIdLocal)
+      activeChannelIdRef.current = activeIdLocal
+      setHistoryReady(true)
+    }
+
     if (chs.length === 0 || isBlankSlate) {
       let legacyHistory: HistoryEntry[] = []
       try {
@@ -1424,97 +1583,168 @@ export default function PlayerClient({
       } catch {}
 
       if (legacyHistory.length > 0) {
-        // Existing user with old history format — migrate into a channel
         const id = genChannelId()
         const name = deriveChannelName(legacyHistory, '') || 'My Music'
-        const events = legacyHistory.map(({ track, artist, percentListened, reaction, coords }) => ({ track, artist, percentListened, reaction, coords }))
-        const ch: Channel = { id, name, isAutoNamed: true, cardHistory: legacyHistory, sessionHistory: events, profile: '', currentCard: null, queue: [], createdAt: Date.now() }
-        chs = [ch]
-        activeId = id
-      } else if (!demoAlreadyLoaded) {
-        // Brand new user — load the mode-appropriate demo channel once
-        const result = parseChannelsImport(demoImport)
-        if (result) {
-          chs = result.channels
-          activeId = result.activeChannelId ?? chs[0].id
-          localStorage.setItem(demoLoadedKey, '1')
-        } else {
-          const id = genChannelId()
-          const ch: Channel = { id, name: 'My Music', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', currentCard: null, queue: [], createdAt: Date.now() }
-          chs = [ch]
-          activeId = id
-        }
-      } else {
-        // Post-reset: demo already shown before, start blank
-        const id = genChannelId()
-        const ch: Channel = { id, name: 'My Music', isAutoNamed: true, cardHistory: [], sessionHistory: [], profile: '', currentCard: null, queue: [], createdAt: Date.now() }
-        chs = [ch]
-        activeId = id
-      }
-      saveChannels(chs)
-      localStorage.setItem(ACTIVE_CHANNEL_KEY, activeId)
-    }
-
-    if (!activeId || !chs.find(c => c.id === activeId)) {
-      activeId = chs[0].id
-      localStorage.setItem(ACTIVE_CHANNEL_KEY, activeId)
-    }
-
-    const active = chs.find(c => c.id === activeId)!
-    try {
-      const deduped = dedupeHistory(active.cardHistory)
-      setCardHistory(deduped)
-      cardHistoryRef.current = deduped
-      setSessionHistory(active.sessionHistory)
-      sessionHistoryRef.current = active.sessionHistory
-      const restoredQueue = [...(active.queue ?? [])]
-      const restoredCurrent = active.currentCard ?? null
-      const nextCurrent = restoredCurrent ?? restoredQueue.shift() ?? null
-      setCurrentCard(nextCurrent)
-      currentCardRef.current = nextCurrent
-      setQueue(restoredQueue)
-      queueRef.current = restoredQueue
-      if (active.profile) {
-        setPriorProfile(active.profile)
-        priorProfileRef.current = active.profile
-        setProfile(active.profile)
-      }
-      // Restore channel settings if present
-      if (active.genres) { setGenres(active.genres); genresRef.current = active.genres }
-      if (active.genreText !== undefined) { setGenreText(active.genreText); genreTextRef.current = active.genreText }
-      if (active.timePeriod !== undefined) { setTimePeriod(active.timePeriod); timePeriodRef.current = active.timePeriod }
-      if (active.notes !== undefined) { setNotes(active.notes); notesRef.current = active.notes }
-      if (active.regions) { setRegions(active.regions); regionsRef.current = active.regions }
-      if (active.artists) { setArtists(active.artists); artistsRef.current = active.artists }
-      if (active.artistText !== undefined) { setArtistText(active.artistText); artistTextRef.current = active.artistText }
-      if (active.popularity !== undefined) { setPopularity(active.popularity); popularityRef.current = active.popularity }
-      if (active.discovery !== undefined) { setDiscovery(active.discovery); exploreModeRef.current = active.discovery }
-
-      if (
-        nextCurrent &&
-        active.playbackTrackUri === nextCurrent.track.uri &&
-        typeof active.playbackPositionMs === 'number' &&
-        active.playbackPositionMs > 0
-      ) {
-        pendingPlaybackPositionMsRef.current = clampPlaybackOffsetMs(
-          active.playbackPositionMs,
-          nextCurrent.track.durationMs
+        const events = legacyHistory.map(
+          ({ track, artist, stars, coords }: { track: string; artist: string; stars?: number | null; coords?: { x: number; y: number } }) => ({
+            track,
+            artist,
+            stars: stars ?? null,
+            coords,
+          }),
         )
-      } else {
-        pendingPlaybackPositionMsRef.current = undefined
+        const ch: Channel = {
+          id,
+          name,
+          isAutoNamed: true,
+          cardHistory: legacyHistory,
+          sessionHistory: events,
+          profile: '',
+          currentCard: null,
+          queue: [],
+          createdAt: Date.now(),
+        }
+        chs = [ch]
+        activeId = id
+        finalizeChannelHydration(chs, activeId, true)
+        return
       }
-    } catch {}
+
+      /** System reset (and equivalent): persisted list is exactly one empty All — do not pull factory defaults. */
+      let persistedChannelsRaw: string | null = null
+      try {
+        persistedChannelsRaw = localStorage.getItem(CHANNELS_STORAGE_KEY)
+      } catch {
+        persistedChannelsRaw = null
+      }
+      const one = chs.length === 1 ? chs[0] : null
+      const allOnlyEmptyWipe =
+        persistedChannelsRaw !== null &&
+        one &&
+        one.id === ALL_CHANNEL_ID &&
+        isEmptyChannel(one)
+      if (allOnlyEmptyWipe) {
+        const activeIdLocal = activeId && chs.some(c => c.id === activeId) ? activeId : chs[0].id
+        finalizeChannelHydration(chs, activeIdLocal, true)
+        return
+      }
+
+      let cancelled = false
+      void (async () => {
+        let loaded = false
+        try {
+          const r = await fetch('/api/factory-defaults', { credentials: 'same-origin', cache: 'no-store' })
+          const data = r.ok ? await r.json() : null
+          if (
+            data?.ok &&
+            Array.isArray(data.channels) &&
+            data.channels.length > 0
+          ) {
+            const fr = parseChannelsImport({
+              channels: data.channels,
+              activeChannelId: typeof data.activeChannelId === 'string' ? data.activeChannelId : undefined,
+            })
+            if (fr) {
+              chs = fr.channels
+              activeId = fr.activeChannelId ?? chs[0].id
+              loaded = true
+            }
+          }
+        } catch {
+          /* use fallbacks */
+        }
+        if (cancelled) return
+        if (!loaded && isDevFactorySnapshotEnabled()) {
+          try {
+            const devRaw = localStorage.getItem(DEV_FACTORY_OVERRIDE_STORAGE_KEY)
+            if (devRaw) {
+              const devResult = parseChannelsImport(JSON.parse(devRaw))
+              if (devResult) {
+                chs = devResult.channels
+                activeId = devResult.activeChannelId ?? chs[0].id
+                loaded = true
+              }
+            }
+          } catch {
+            /* */
+          }
+        }
+        if (!loaded) {
+          const result = parseChannelsImport(BUILT_IN_FACTORY_CHANNELS_IMPORT)
+          if (result) {
+            chs = result.channels
+            activeId = result.activeChannelId ?? chs[0].id
+          } else {
+            const id = genChannelId()
+            const ch: Channel = {
+              id,
+              name: 'My Music',
+              isAutoNamed: true,
+              cardHistory: [],
+              sessionHistory: [],
+              profile: '',
+              currentCard: null,
+              queue: [],
+              createdAt: Date.now(),
+            }
+            chs = [ch]
+            activeId = id
+          }
+        }
+        if (cancelled) return
+        finalizeChannelHydration(chs, activeId, true)
+      })()
+
+      return () => {
+        cancelled = true
+      }
+    }
+
+    finalizeChannelHydration(chs, activeId, false)
+  }, [dedupeHistory, isGuideDemo, youtubeOnly])
+
+  // Persistent shell: returning from Channels / Settings must re-read localStorage (initial load only runs once).
+  const prevPathnameRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (isGuideDemo) return
+    if (!historyReady) return
+
+    const prev = prevPathnameRef.current
+    prevPathnameRef.current = pathname
+
+    if (pathname.startsWith('/player') && prev !== null && !prev.startsWith('/player')) {
+      setPlayerRouteGeneration(g => g + 1)
+    }
+
+    if (!pathname.startsWith('/player')) return
+    if (prev === null || prev.startsWith('/player')) return
+
+    const chs = loadChannels()
+    if (chs.length === 0) return
+    let activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY) ?? ''
+    if (!chs.some(c => c.id === activeId)) {
+      activeId = chs[0].id
+      try {
+        localStorage.setItem(ACTIVE_CHANNEL_KEY, activeId)
+      } catch {}
+    }
+    const active = chs.find(c => c.id === activeId)
+    if (!active) return
 
     setChannels(chs)
     channelsRef.current = chs
     setActiveChannelId(activeId)
     activeChannelIdRef.current = activeId
-    setHistoryReady(true)
-  }, [dedupeHistory, isGuideDemo])
+    loadChannelIntoState(active)
+  }, [pathname, historyReady, isGuideDemo, loadChannelIntoState])
 
   // ── Persist active channel data on change (same snapshot as channel switch — includes DJ settings) ──
+  // Only while on /player: the shell keeps this component mounted on /channels / /settings. Playback
+  // (e.g. auto-advance) still updates refs there — persisting would write stale non-active channels and
+  // overwrite edits the user just saved on the Channels page.
   useEffect(() => {
     if (isGuideDemo) return
+    if (!pathname.startsWith('/player')) return
     if (!activeChannelId || typeof window === 'undefined') return
     if (!settingsHydrated || !historyReady) return
     const updated = snapshotCurrentChannel()
@@ -1522,6 +1752,7 @@ export default function PlayerClient({
     saveChannels(updated)
     setChannels(updated)
   }, [
+    playerRouteGeneration,
     cardHistory,
     profile,
     activeChannelId,
@@ -1549,9 +1780,13 @@ export default function PlayerClient({
     if (sdkReadyRef.current) return
     sdkReadyRef.current = true
 
-    window.onSpotifyWebPlaybackSDKReady = () => {
+    let cancelled = false
+    const previousOnReady = window.onSpotifyWebPlaybackSDKReady
+
+    const initSpotifyPlayer = () => {
+      if (cancelled) return
       const p = new window.Spotify.Player({
-        name: 'Earprint',
+        name: 'Soundings',
         getOAuthToken: cb => {
           fetch('/api/spotify/token', { credentials: 'same-origin', cache: 'no-store' })
             .then(async r => {
@@ -1631,16 +1866,52 @@ export default function PlayerClient({
         redirectToSpotifyLoginRef.current('sdk authentication_error')
       })
 
+      if (cancelled) {
+        try {
+          p.disconnect()
+        } catch {
+          /* ignore */
+        }
+        playerRef.current = null
+        return
+      }
       p.connect()
     }
 
-    if (!document.getElementById('spotify-sdk')) {
-      const script = document.createElement('script')
-      script.id = 'spotify-sdk'
-      script.src = 'https://sdk.scdn.co/spotify-player.js'
-      document.body.appendChild(script)
+    const onSdkReady = () => {
+      previousOnReady?.()
+      initSpotifyPlayer()
     }
-  }, [isGuideDemo])
+
+    if (window.Spotify?.Player) {
+      // SDK already loaded from a previous page visit — call setup directly.
+      initSpotifyPlayer()
+    } else {
+      window.onSpotifyWebPlaybackSDKReady = onSdkReady
+      if (!document.getElementById('spotify-sdk')) {
+        const script = document.createElement('script')
+        script.id = 'spotify-sdk'
+        script.src = 'https://sdk.scdn.co/spotify-player.js'
+        document.body.appendChild(script)
+      }
+    }
+
+    return () => {
+      cancelled = true
+      sdkReadyRef.current = false
+      if (window.onSpotifyWebPlaybackSDKReady === onSdkReady) {
+        window.onSpotifyWebPlaybackSDKReady = previousOnReady
+      }
+      try {
+        playerRef.current?.disconnect()
+      } catch {
+        /* ignore */
+      }
+      playerRef.current = null
+      deviceIdRef.current = null
+      setDeviceId(null)
+    }
+  }, [isGuideDemo, youtubeOnly])
 
   // ── YouTube progress poll — reads position/duration from YT IFrame API ──────
   const autoAdvanceRef = useRef(false)
@@ -1678,6 +1949,8 @@ export default function PlayerClient({
     const TICK = 250
     pollRef.current = setInterval(() => {
       if (isPausedRef.current || isSeekingRef.current || !currentCardRef.current) return
+      // YouTube has its own progress poll — don't fight it with the Spotify animation.
+      if ((currentCardRef.current.track.source as string) === 'youtube') return
       const next = Math.min(sliderRef.current + TICK, durationRef.current)
       sliderRef.current = next
       setSliderPosition(next)
@@ -1827,32 +2100,58 @@ export default function PlayerClient({
   // ── Play a track ──────────────────────────────────────────────────────────
   const playTrack = useCallback(async (uri: string, positionMs?: number) => {
     if (isGuideDemo) return
-    const dId = deviceIdRef.current
+    let dId = deviceIdRef.current
     if (!dId) return
     const body =
       typeof positionMs === 'number' && positionMs > 0
         ? { uris: [uri], position_ms: Math.floor(positionMs) }
         : { uris: [uri] }
-    const doPlay = async (token: string) =>
-      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${dId}`, {
+    const doPlay = async (token: string, device: string) =>
+      fetch(`https://api.spotify.com/v1/me/player/play?device_id=${encodeURIComponent(device)}`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-    let res = await doPlay(accessTokenRef.current)
+    const transferToDevice = async (token: string, device: string) => {
+      await fetch('https://api.spotify.com/v1/me/player', {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ device_ids: [device], play: false }),
+      }).catch(() => {})
+    }
+
+    let res = await doPlay(accessTokenRef.current, dId)
     if (res.status === 401) {
       // Token stale — refresh and retry once
       const data = await fetch('/api/spotify/token').then(r => r.json()).catch(() => ({}))
       if (data.accessToken) {
         accessTokenRef.current = data.accessToken
-        res = await doPlay(data.accessToken)
+        res = await doPlay(data.accessToken, dId)
       }
     }
     if (res.status === 404) {
-      // Device not yet registered on Spotify's backend — retry after a short delay
+      // Device not yet registered — brief wait (common right after Web Playback `ready`)
       console.warn('playTrack: device not found (404), retrying in 1s…')
       await new Promise(r => setTimeout(r, 1000))
-      res = await doPlay(accessTokenRef.current)
+      res = await doPlay(accessTokenRef.current, dId)
+    }
+    if (res.status === 404) {
+      // Stale device_id in memory — resolve current Web Playback device from Spotify API
+      const fresh = await fetchWebPlaybackDeviceIdFromSpotifyApi(accessTokenRef.current)
+      if (fresh) {
+        dId = fresh
+        deviceIdRef.current = fresh
+        setDeviceId(fresh)
+        console.info('playTrack: refreshed device id from GET /me/player/devices, transferring…')
+        await transferToDevice(accessTokenRef.current, fresh)
+        await new Promise(r => setTimeout(r, 400))
+        res = await doPlay(accessTokenRef.current, dId)
+      }
+    }
+    if (res.status === 404) {
+      console.warn('playTrack: still 404 after device refresh, one more delay…')
+      await new Promise(r => setTimeout(r, 1500))
+      res = await doPlay(accessTokenRef.current, dId)
     }
     if (!res.ok) {
       const errBody = await res.text().catch(() => '')
@@ -1913,23 +2212,31 @@ export default function PlayerClient({
       return
     }
     const doPlay = async () => {
+      const spotifyUri = currentCard.track.uri
+      if (!spotifyUri) {
+        console.error('[play] Spotify track missing uri', currentCard.track.id)
+        return
+      }
       const player = playerRef.current
       if (pendingFadeInRef.current && player) {
         pendingFadeInRef.current = false
         await player.setVolume(0)
         await player.pause()
-        await playTrack(currentCard.track.uri, resumeMs)
+        await playTrack(spotifyUri, resumeMs)
         await fadeVolume(player, 0, 1)
       } else {
-        await playTrack(currentCard.track.uri, resumeMs)
+        await playTrack(spotifyUri, resumeMs)
       }
     }
     doPlay().catch(err => {
       console.error('[play] doPlay failed, retrying once', err)
       pendingFadeInRef.current = false
-      playTrack(currentCard.track.uri, resumeMs).catch(e =>
-        console.error('[play] retry also failed', e)
-      )
+      const spotifyUri = currentCard.track.uri
+      if (spotifyUri) {
+        playTrack(spotifyUri, resumeMs).catch(e =>
+          console.error('[play] retry also failed', e)
+        )
+      }
     })
   }, [
     currentCard?.track.uri ?? currentCard?.track.id,
@@ -1938,28 +2245,13 @@ export default function PlayerClient({
     playGeneration,
   ])
 
-  // Reset grade slider, rated flag, and end-time when song changes
+  // Reset star rating when song changes
   useEffect(() => {
-    setGradePercent(0)
-    gradeRef.current = 0
-    setGradeTracking(true)
-    setHasRated(false)
-    hasRatedRef.current = false
+    setCurrentStars(null)
+    currentStarsRef.current = null
     autoAdvanceRef.current = false
     expectedTrackEndAtRef.current = 0
   }, [currentCard?.track.uri ?? currentCard?.track.id])
-
-  // While tracking, sync grade slider to play position
-  useEffect(() => {
-    if (!gradeTracking || hasRated) return
-    const dur = (currentCard?.track.source as string) === 'youtube'
-      ? youtubeDuration
-      : durationRef.current
-    if (dur <= 0) return
-    const pct = Math.min(100, (sliderPosition / dur) * 100)
-    setGradePercent(pct)
-    gradeRef.current = pct
-  }, [sliderPosition, gradeTracking, hasRated, youtubeDuration, currentCard?.track.source])
 
   // Seed duration from Spotify track metadata before the Web Playback SDK reports duration (often 0).
   useEffect(() => {
@@ -2014,6 +2306,7 @@ export default function PlayerClient({
           artistsRef.current,
           artistTextRef.current
         ),
+        globalNotes: readSettingsGlobalNotes() || undefined,
         alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
         mode: exploreModeRef.current,
         numSongs,
@@ -2159,15 +2452,15 @@ export default function PlayerClient({
       const seenUris = new Set<string>()
       const excludeUris = new Set<string>([
         ...playedUrisRef.current,
-        ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-        ...queueRef.current.map(c => c.track.uri),
+        ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
+        ...queueRef.current.map(c => trackPlayKey(c.track)),
       ])
       for (const s of list) {
         if (out.length >= max) break
         try {
           const card = await resolveOneSuggestion(s)
           if (!card) continue
-          const u = card.track.uri
+          const u = trackPlayKey(card.track)
           if (excludeUris.has(u) || seenUris.has(u)) continue
           seenUris.add(u)
           excludeUris.add(u)
@@ -2196,15 +2489,15 @@ export default function PlayerClient({
       .filter(e => isPositiveHeard(e))
       .map(e => ({ entry: e, track: historyEntryToTrack(e) }))
       .filter((x): x is { entry: HistoryEntry; track: SpotifyTrack } => x.track !== null)
-      .sort((a, b) => b.entry.percentListened - a.entry.percentListened)
+      .sort((a, b) => (b.entry.stars ?? 0) - (a.entry.stars ?? 0))
 
     const seen = new Set<string>([
       ...playedUrisRef.current,
-      ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-      ...queueRef.current.map(c => c.track.uri),
+      ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
+      ...queueRef.current.map(c => trackPlayKey(c.track)),
     ])
 
-    const candidates = ranked.filter(({ track }) => !seen.has(track.uri))
+    const candidates = ranked.filter(({ track }) => !seen.has(trackPlayKey(track)))
 
     if (!currentCardRef.current && candidates.length > 0) {
       const { entry, track } = candidates[0]
@@ -2217,15 +2510,16 @@ export default function PlayerClient({
       lastPlayedUriRef.current = null
       currentCardRef.current = card
       setCurrentCard(card)
-      seen.add(track.uri)
+      seen.add(trackPlayKey(track))
       candidates.shift()
     }
 
     const newQ = [...queueRef.current]
     for (const { entry, track } of candidates) {
       if (newQ.length >= 3) break
-      if (seen.has(track.uri)) continue
-      seen.add(track.uri)
+      const tk = trackPlayKey(track)
+      if (seen.has(tk)) continue
+      seen.add(tk)
       newQ.push({
         track,
         reason: HEARD_RATE_LIMIT_REASON,
@@ -2236,7 +2530,7 @@ export default function PlayerClient({
 
     if (
       newQ.length !== queueRef.current.length ||
-      newQ.some((c, i) => c.track.uri !== queueRef.current[i]?.track.uri)
+      newQ.some((c, i) => trackPlayKey(c.track) !== trackPlayKey(queueRef.current[i]!.track))
     ) {
       queueRef.current = newQ
       setQueue(newQ)
@@ -2794,13 +3088,13 @@ export default function PlayerClient({
       const seen = new Set<string>([
         ...playedUrisRef.current,
         ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
-        ...(currentCardRef.current ? [currentCardRef.current.track.uri] : []),
-        ...queueRef.current.map(c => c.track.uri),
+        ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
+        ...queueRef.current.map(c => trackPlayKey(c.track)),
       ])
 
       const cards: CardState[] = []
       for (const t of songs) {
-        const u = t.track.uri
+        const u = trackPlayKey(t.track)
         if (seen.has(u)) continue
         seen.add(u)
         cards.push({
@@ -2830,17 +3124,18 @@ export default function PlayerClient({
         currentCardRef.current = first
         setCurrentCard(first)
         lastPlayedUriRef.current = null
-        setHasRated(false)
-        hasRatedRef.current = false
-        seen.add(first.track.uri)
+        setCurrentStars(null)
+        currentStarsRef.current = null
+        seen.add(trackPlayKey(first.track))
         restCards = afterFirst.slice(0, 3)
       }
 
       const q = [...queueRef.current]
       for (const c of restCards) {
         if (q.length >= 3) break
-        if (seen.has(c.track.uri)) continue
-        seen.add(c.track.uri)
+        const ck = trackPlayKey(c.track)
+        if (seen.has(ck)) continue
+        seen.add(ck)
         q.push(c)
       }
       queueRef.current = q
@@ -3146,85 +3441,45 @@ export default function PlayerClient({
     fillFromHeardWhenRateLimited,
   ])
 
-  // ── Record a rating (log it + fire LLM prefetch, but do NOT advance) ─────
-  const recordRating = useCallback((value: number) => {
+  // ── Advance to next song: record stars, then move on ──
+  const advance = useCallback((playedToEnd = false) => {
     const cur = currentCardRef.current
     if (!cur) return
 
-    const reaction = determineReaction(value)
+    const userStars = currentStarsRef.current
+    const stars = computeRecordedListenStars(
+      playedToEnd,
+      userStars,
+      durationRef.current,
+      sliderRef.current,
+    )
     const event: ListenEvent = {
       track: cur.track.name,
       artist: cur.track.artist,
-      percentListened: value,
-      reaction,
+      stars,
       coords: cur.coords,
     }
     const historyEntry: HistoryEntry = {
       ...event,
       albumArt: cur.track.albumArt,
-      uri: cur.track.uri,
+      uri: cur.track.uri ?? null,
       category: cur.category,
       coords: cur.coords,
+      source: cur.track.source as PlaybackSource | undefined,
     }
-
-    // If already rated this song, replace the previous entry
     const base = cardHistoryRef.current
     const existingIdx = base.findIndex(e => e.track === cur.track.name && e.artist === cur.track.artist)
-    let newCardHistory: HistoryEntry[]
-    let newSession: ListenEvent[]
-    if (existingIdx !== -1) {
-      newCardHistory = base.map((e, i) => (i === existingIdx ? historyEntry : e))
-      newSession = sessionHistoryRef.current.map(e =>
-        e.track === cur.track.name && e.artist === cur.track.artist ? event : e
-      )
-    } else {
-      newCardHistory = dedupeHistory([...base, historyEntry])
-      newSession = [...sessionHistoryRef.current, event]
-    }
-
+    const newCardHistory = existingIdx !== -1
+      ? base.map((e, i) => (i === existingIdx ? historyEntry : e))
+      : dedupeHistory([...base, historyEntry])
     setCardHistory(newCardHistory)
     cardHistoryRef.current = newCardHistory
+    const newSession = existingIdx !== -1
+      ? sessionHistoryRef.current.map(e => e.track === cur.track.name && e.artist === cur.track.artist ? event : e)
+      : [...sessionHistoryRef.current, event]
     setSessionHistory(newSession)
     sessionHistoryRef.current = newSession
-
-    setHasRated(true)
-    hasRatedRef.current = true
-
-    // On rating: call LLM for profile update + new suggestions (no Spotify lookup).
-    // Spotify resolution happens lazily when songs are actually needed.
-    fetchProfileOnly()
-  }, [dedupeHistory, fetchProfileOnly])
-
-  // ── Advance to next song (called by Next button or play-slider-end) ───────
-  const advance = useCallback((playedToEnd = false) => {
-    const cur = currentCardRef.current
-    if (!cur) return
-
-    // If user never rated, log as move-on and fire LLM
-    if (!hasRatedRef.current) {
-      const pct = playedToEnd ? 100 : (durationRef.current > 0 ? (sliderRef.current / durationRef.current) * 100 : 0)
-      const event: ListenEvent = {
-        track: cur.track.name,
-        artist: cur.track.artist,
-        percentListened: pct,
-        reaction: 'move-on',
-        coords: cur.coords,
-      }
-      const historyEntry: HistoryEntry = {
-        ...event,
-        albumArt: cur.track.albumArt,
-        uri: cur.track.uri,
-        category: cur.category,
-        coords: cur.coords,
-      }
-      const newCardHistory = dedupeHistory([...cardHistoryRef.current, historyEntry])
-      setCardHistory(newCardHistory)
-      cardHistoryRef.current = newCardHistory
-      const newSession = [...sessionHistoryRef.current, event]
-      setSessionHistory(newSession)
-      sessionHistoryRef.current = newSession
-      if (suggestionBufferRef.current.length === 0) fetchToBuffer()
-    }
+    if (suggestionBufferRef.current.length === 0) fetchToBuffer()
 
     // Let the play effect run again when the next row reuses the same URI/id (queue duplicates).
     setPlayGeneration(g => g + 1)
@@ -3245,11 +3500,19 @@ export default function PlayerClient({
   }, [dedupeHistory, fetchToBuffer])
   const advanceWithFade = useCallback(async (playedToEnd = false) => {
     const player = playerRef.current
-    if (player) {
+    const isYt = (currentCardRef.current?.track.source as string | undefined) === 'youtube'
+    // Only attempt Spotify fade when the SDK is actually connected (deviceId set).
+    if (player && !isYt && deviceIdRef.current) {
       pendingFadeInRef.current = true
       // On natural track end the audio will stop on its own — skip the fade-out so
       // we don't cut off the last seconds. Only fade out on manual Next.
-      if (!playedToEnd) await fadeVolume(player, 1, 0)
+      if (!playedToEnd) {
+        try {
+          await fadeVolume(player, 1, 0)
+        } catch {
+          // fade failed — proceed to advance anyway
+        }
+      }
     }
     advance(playedToEnd)
   }, [advance])
@@ -3263,8 +3526,8 @@ export default function PlayerClient({
     cardHistoryRef.current = newCardHistory
 
     // Rebuild session history from scratch; clear profile so LLM re-learns
-    const newSession = newCardHistory.map(({ track, artist, percentListened, reaction, coords }) => ({
-      track, artist, percentListened, reaction, coords,
+    const newSession = newCardHistory.map(({ track, artist, stars, coords }) => ({
+      track, artist, stars, coords,
     }))
     setSessionHistory(newSession)
     sessionHistoryRef.current = newSession
@@ -3278,18 +3541,14 @@ export default function PlayerClient({
     fetchToBuffer(undefined, undefined, undefined, true, false, true)
   }, [fetchToBuffer])
 
-  const handleRateHistoryItem = useCallback((index: number, percent: number) => {
-    const reaction = determineReaction(percent)
+  const handleRateHistoryItem = useCallback((index: number, stars: number | null) => {
     const newCardHistory = cardHistoryRef.current.map((e, i) =>
-      i === index ? { ...e, percentListened: percent, reaction } : e
+      i === index ? { ...e, stars } : e
     )
-    // Update display + localStorage via state, but do NOT call setSessionHistory —
-    // that triggers a re-render which can fire the fill effect and kick off an LLM call.
-    // Update the ref directly so the next natural LLM call gets the corrected ratings.
     setCardHistory(newCardHistory)
     cardHistoryRef.current = newCardHistory
-    sessionHistoryRef.current = newCardHistory.map(({ track, artist, percentListened, reaction, coords }) => ({
-      track, artist, percentListened, reaction, coords,
+    sessionHistoryRef.current = newCardHistory.map(({ track, artist, stars, coords }) => ({
+      track, artist, stars, coords,
     }))
   }, [])
 
@@ -3306,8 +3565,8 @@ export default function PlayerClient({
       setCurrentCard(first)
       setQueue(rest)
       queueRef.current = rest
-      setHasRated(false)
-      hasRatedRef.current = false
+      setCurrentStars(null)
+      currentStarsRef.current = null
     } else {
       // Song in progress — only replace the upcoming queue, let current song finish
       setQueue(cards)
@@ -3402,11 +3661,6 @@ export default function PlayerClient({
       )
     }, constraintDebounceMs)
   }, [constraintDepsKey])
-
-  // ── Grade handler — log rating, start LLM, but stay on current song ──────
-  const handleGradeSubmit = useCallback((value: number) => {
-    recordRating(value)
-  }, [recordRating])
 
   // ── Retry ────────────────────────────────────────────────────────────────
   const handleRetry = useCallback(() => {
@@ -3512,8 +3766,8 @@ export default function PlayerClient({
       pendingPlaybackPositionMsRef.current = undefined
       currentCardRef.current = card
       setCurrentCard(card)
-      setHasRated(false)
-      hasRatedRef.current = false
+      setCurrentStars(null)
+      currentStarsRef.current = null
     },
     [playUri]
   )
@@ -3526,38 +3780,12 @@ export default function PlayerClient({
 
   return (
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-4 border-b border-zinc-900 flex-wrap">
-        <h1 className="text-xl font-bold">Earprint</h1>
-        <div className="flex items-center gap-2">
-          <label className="text-xs text-zinc-400">LLM</label>
-          <select
-            value={provider}
-            onChange={e => setProvider(e.target.value as LLMProvider)}
-            className="text-xs bg-zinc-900 text-white border border-zinc-700 rounded px-2 py-1"
-          >
-            <option value="anthropic">Claude</option>
-            <option value="openai">GPT-4o</option>
-            <option value="deepseek">DeepSeek</option>
-            <option value="gemini">Gemini</option>
-          </select>
-        </div>
-        {spotifyUser && (
-          <div className="text-xs text-zinc-300 hidden sm:block">
-            {spotifyUser.display_name ?? spotifyUser.id}
-          </div>
-        )}
-        <div className="flex gap-2 sm:gap-3 items-center">
-          <Link href="/map" target="earprint-map" className="text-xs text-zinc-300 hover:text-white transition-colors hidden sm:inline">Map ↗</Link>
-          <a href="/status" className="text-xs text-zinc-300 hover:text-white transition-colors hidden sm:inline">Status</a>
-          <a href="/guide.html" target="_blank" className="text-xs text-zinc-300 hover:text-white transition-colors">Guide</a>
-          <a href="/diary.html" target="_blank" className="text-xs text-zinc-300 hover:text-white transition-colors hidden sm:inline">Diary</a>
-          <a href="/api/auth/logout" className="text-xs text-zinc-300 hover:text-white">Logout</a>
-        </div>
-      </div>
+      {/* Global nav header */}
+      <AppHeader />
       {/* Channel tabs */}
       {channels.length > 0 && (
-        <div data-guide="channels" className="flex items-center gap-1 px-4 py-2 border-b border-zinc-900 overflow-x-auto">
+        <div className="border-b border-zinc-900 overflow-x-auto">
+        <div data-guide="channels" className="flex items-center gap-1 px-4 py-2 max-w-[800px] mx-auto">
           {channels.map(ch => (
             <div
               key={ch.id}
@@ -3602,47 +3830,12 @@ export default function PlayerClient({
               )}
             </div>
           ))}
-          <button
-            onClick={createChannel}
+          <Link
+            href="/channels?new=1"
             className="px-2 py-1 text-lg leading-none text-zinc-400 hover:text-white flex-shrink-0 transition-colors"
             title="New channel"
-          >+</button>
-          {!isGuideDemo && (
-            <>
-              <input
-                ref={importChannelsInputRef}
-                type="file"
-                accept="application/json,.json"
-                className="hidden"
-                aria-hidden
-                onChange={handleImportChannelsFile}
-              />
-              <button
-                type="button"
-                onClick={handleExportChannels}
-                className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
-                title="Download all channels as JSON"
-              >
-                Export
-              </button>
-              <button
-                type="button"
-                onClick={() => importChannelsInputRef.current?.click()}
-                className="px-2 py-1 text-xs text-zinc-600 hover:text-zinc-300 flex-shrink-0 transition-colors"
-                title="Replace channels from a JSON file"
-              >
-                Import
-              </button>
-              <button
-                type="button"
-                onClick={() => setChannelsDialog({ kind: 'reset' })}
-                className="px-2 py-1 text-xs text-zinc-600 hover:text-red-400 flex-shrink-0 transition-colors"
-                title="Delete all channels and saved settings; start with one empty channel"
-              >
-                Reset all
-              </button>
-            </>
-          )}
+          >+</Link>
+        </div>
         </div>
       )}
 
@@ -3672,21 +3865,6 @@ export default function PlayerClient({
           </span>
         </div>
       )}
-      {channelsNotice && (
-        <div
-          role="alert"
-          className="px-6 py-2.5 bg-red-950/90 border-b border-red-900/50 text-red-100 text-sm flex flex-wrap items-center justify-between gap-3"
-        >
-          <span className="min-w-0">{channelsNotice}</span>
-          <button
-            type="button"
-            className="shrink-0 text-red-300 hover:text-white underline text-xs"
-            onClick={() => setChannelsNotice(null)}
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
       {playResponse && (
         <div className="px-6 py-3 border-b border-zinc-900">
           <p className="text-xs text-zinc-400 truncate">{playResponse}</p>
@@ -3705,12 +3883,16 @@ export default function PlayerClient({
       )}
 
       {/* Body */}
-      <div className="flex flex-col sm:flex-row gap-4 p-2 sm:p-4 sm:items-start overflow-y-auto flex-1">
+      <div className="flex flex-col items-center gap-3 p-4 overflow-y-auto flex-1">
+
+        {/* Single column — player panel + stars/next + session panel */}
+        <div className="flex flex-col gap-3 w-full max-w-[800px]">
 
         {/* Player panel — full-bleed album art or YouTube player */}
         <div
+          ref={albumPanelRef}
           data-guide="album-panel"
-          className="relative rounded-2xl overflow-hidden flex-shrink-0 w-full sm:w-[340px] h-64 sm:h-[580px] bg-zinc-900"
+          className="relative rounded-2xl overflow-hidden w-full aspect-[4/3] bg-zinc-900"
           style={{ cursor: currentCard && (currentCard.track.source as string) !== 'youtube' ? 'pointer' : 'default' }}
           onClick={currentCard && (currentCard.track.source as string) !== 'youtube' ? togglePlayback : undefined}
         >
@@ -3721,13 +3903,9 @@ export default function PlayerClient({
               ref={youtubePlayerRef}
               videoId={currentCard.track.id}
               onEnded={() => advanceRef.current?.(true)}
-              onPlayerError={code => {
-                const isEmbed = code === 101 || code === 150 || code === 153
-                setError(
-                  isEmbed
-                    ? 'This video cannot play in the embedded player here (embedding/autoplay limits). Use the player unmute control, or open on YouTube.'
-                    : `YouTube player error (code ${code}).`
-                )
+              onPlayerError={_code => {
+                // Any YouTube player error means this video can't play — skip to next.
+                advanceRef.current?.(false)
               }}
             />
           )}
@@ -3741,7 +3919,10 @@ export default function PlayerClient({
                 backgroundSize: 'auto 100%',
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'center',
-                animation: playbackState?.paused ? 'none' : 'albumPan 60s ease-in-out infinite alternate',
+                animation:
+                  playbackState?.paused || !albumArtNeedsPan
+                    ? 'none'
+                    : 'albumPan 60s ease-in-out infinite alternate',
               }}
             />
           )}
@@ -3815,46 +3996,10 @@ export default function PlayerClient({
                 YouTube iframe is z-[6]; these controls are z-10. Without pointer-events-none on the
                 bottom panel, the large pt-16 hit area blocks all clicks to the video (play, unmute).
               */}
-              {/* Vertical grade slider — right side, aligned with Next button */}
-              <div
-                data-guide="grade-slider"
-                className="absolute right-4 bottom-5 flex flex-col items-center gap-2 z-10 pointer-events-auto"
-                onClick={e => e.stopPropagation()}
-              >
-                <span className="text-white text-xs font-bold tabular-nums bg-black/40 px-1 rounded">
-                  {Math.round(gradePercent)}%
-                </span>
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  value={gradePercent}
-                  style={{
-                    writingMode: 'vertical-lr' as const,
-                    direction: 'rtl' as const,
-                    height: 'clamp(80px, 30vh, 180px)',
-                    accentColor: '#ff5f5f',
-                    cursor: 'pointer',
-                  }}
-                  onMouseDown={() => setGradeTracking(false)}
-                  onTouchStart={() => setGradeTracking(false)}
-                  onChange={e => {
-                    const v = Number(e.currentTarget.value)
-                    setGradePercent(v)
-                    gradeRef.current = v
-                  }}
-                  onMouseUp={e => handleGradeSubmit(Number(e.currentTarget.value))}
-                  onTouchEnd={e => handleGradeSubmit(Number(e.currentTarget.value))}
-                />
-                <span className={`text-[10px] ${hasRated ? 'text-green-400' : 'text-zinc-400'}`}>
-                  {hasRated ? 'rated' : 'rate'}
-                </span>
-              </div>
-
               {/* Bottom controls */}
               <div
                 data-guide="track-info"
-                className={`absolute bottom-0 left-0 right-14 px-3 sm:px-5 pb-3 sm:pb-5 pt-8 sm:pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
+                className={`absolute bottom-0 left-0 right-0 px-3 sm:px-5 pb-3 sm:pb-5 pt-8 sm:pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
                   (currentCard.track.source as string) === 'youtube' ? 'pointer-events-none' : ''
                 }`}
                 onClick={e => e.stopPropagation()}
@@ -3938,32 +4083,41 @@ export default function PlayerClient({
                   </span>
                 </div>
 
-                {/* Next button */}
-                <div className="flex items-center gap-4 mt-2 sm:mt-4">
-                  <button
-                    onClick={() => advanceWithFade()}
-                    className="flex-1 py-2 sm:py-4 text-xl font-bold bg-white/20 hover:bg-white/30 active:bg-white/40 text-white rounded-2xl transition-colors"
-                  >
-                    Next
-                  </button>
-                  {loadingQueue && (
-                    <div className="flex items-center gap-2 text-white/70">
-                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      <span className="text-xs">Asking the DJ…</span>
-                    </div>
-                  )}
-                </div>
                 </div>
               </div>
             </>
           )}
         </div>
 
-        {/* Right column: session panel */}
-        <div className="w-full sm:flex-1 flex flex-col gap-4 min-w-0">
-          <div data-guide="sidebar" className="flex-1 min-w-0 px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950">
+        {/* Stars + Next below the panel */}
+        {currentCard && (
+          <div className="flex items-center gap-3 px-1">
+            <StarRating
+              value={currentStars}
+              onChange={v => { setCurrentStars(v); currentStarsRef.current = v }}
+              size="lg"
+              progress={(() => {
+                const dur = (currentCard.track.source as string) === 'youtube' ? youtubeDuration : duration
+                return dur > 0 ? Math.min(1, sliderPosition / dur) : 0
+              })()}
+            />
+            <button
+              onClick={() => advanceWithFade()}
+              className="flex-1 py-3 text-xl font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 transition-colors"
+            >
+              Next
+            </button>
+            {loadingQueue && (
+              <div className="flex items-center gap-1 text-zinc-400">
+                <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Session panel */}
+        <div data-guide="sidebar" className="w-full px-4 py-4 border border-zinc-800 rounded-2xl bg-zinc-950">
           <SessionPanel
-            history={cardHistory}
             queue={queue}
             loadingNext={loadingQueue}
             profile={profile}
@@ -3972,30 +4126,6 @@ export default function PlayerClient({
               setPriorProfile(v)
               priorProfileRef.current = v
             }}
-            notes={notes}
-            onNotesChange={setNotes}
-            genres={genres}
-            onGenresChange={setGenres}
-            genreText={genreText}
-            onGenreTextChange={setGenreText}
-            timePeriod={timePeriod}
-            onTimePeriodChange={setTimePeriod}
-            regions={regions}
-            onRegionsChange={setRegions}
-            llmSuggestedArtists={llmSuggestedArtists}
-            artists={artists}
-            onArtistsChange={setArtists}
-            artistText={artistText}
-            onArtistTextChange={setArtistText}
-            popularity={popularity}
-            onPopularityChange={setPopularity}
-            discovery={discovery}
-            onDiscoveryChange={setDiscovery}
-            settingsDirty={settingsDirty}
-            committedSettings={committedSettings}
-            onRemoveMultiple={handleRemoveMultiple}
-            onRateHistoryItem={handleRateHistoryItem}
-            submittedUris={submittedUris}
             pendingSuggestions={suggestionBuffer}
             promotingDjPending={promotingDjPending}
             onRemoveQueueItem={(index) => {
@@ -4015,116 +4145,19 @@ export default function PlayerClient({
               setCurrentCard(picked)
               setQueue(remaining)
               queueRef.current = remaining
-              setHasRated(false)
-              hasRatedRef.current = false
+              setCurrentStars(null)
+              currentStarsRef.current = null
             }}
-            onPlayHistoryItem={handlePlayHistoryItem}
-            source={source}
-            onSourceChange={(s: PlaybackSource) => {
-              sourceRef.current = s
-              setSource(s)
-            }}
-            ytSearchesRemaining={ytSearchesRemaining}
-            youtubeOnly={youtubeOnly}
-            musicMap={
-              <MusicMap
-                history={cardHistory}
-                embedded
-                width={280}
-                height={200}
-                currentPlaying={
-                  currentCard
-                    ? {
-                        uri: currentCard.track.uri,
-                        track: currentCard.track.name,
-                        artist: currentCard.track.artist,
-                        coords: currentCard.coords,
-                        category: currentCard.category,
-                      }
-                    : null
-                }
-                hasRatedCurrent={hasRated}
-              />
-            }
           />
-          </div>
         </div>
+
+        </div>{/* end single column */}
       </div>
 
-      {channelsDialog && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 p-4"
-          role="presentation"
-          onClick={e => {
-            if (e.target === e.currentTarget) setChannelsDialog(null)
-          }}
-        >
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="channels-dialog-title"
-            className="bg-zinc-900 border border-zinc-600 rounded-xl p-6 max-w-md w-full shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            {channelsDialog.kind === 'import' && (
-              <>
-                <h2 id="channels-dialog-title" className="text-lg font-semibold text-white mb-2">
-                  Replace all channels?
-                </h2>
-                <p className="text-sm text-zinc-300 mb-6">
-                  Replace all {channels.length} channel(s) with {channelsDialog.data.channels.length} imported
-                  channel(s)? Your current channels will be overwritten.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-sm rounded-lg border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
-                    onClick={() => setChannelsDialog(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-sm rounded-lg bg-amber-700 hover:bg-amber-600 text-white"
-                    onClick={() => applyImportedChannels(channelsDialog.data)}
-                  >
-                    Replace channels
-                  </button>
-                </div>
-              </>
-            )}
-            {channelsDialog.kind === 'reset' && (
-              <>
-                <h2 id="channels-dialog-title" className="text-lg font-semibold text-white mb-2">
-                  Reset all channels?
-                </h2>
-                <p className="text-sm text-zinc-300 mb-6">
-                  Delete all channels and start over? This removes every channel, listen history, and saved DJ
-                  settings from this browser. You cannot undo this.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-sm rounded-lg border border-zinc-600 text-zinc-200 hover:bg-zinc-800"
-                    onClick={() => setChannelsDialog(null)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="px-4 py-2 text-sm rounded-lg bg-red-800 hover:bg-red-700 text-white"
-                    onClick={() => void performResetAllChannels()}
-                  >
-                    Delete all
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-
+      {/* Footer */}
+      <div className="px-6 py-3 border-t border-zinc-900 text-center">
+        <a href="/status" className="text-xs text-zinc-700 hover:text-zinc-400 transition-colors">Status</a>
+      </div>
     </div>
   )
 }

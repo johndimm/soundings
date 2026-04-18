@@ -4,8 +4,8 @@ import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 export interface ListenEvent {
   track: string
   artist: string
-  percentListened: number
-  reaction: 'move-on' | 'not-now' | 'more-from-artist'
+  /** 0–5 in 0.5 increments. Null only for legacy imports or interrupted writes (player now always records a score). */
+  stars: number | null
   coords?: { x: number; y: number; z?: number }
 }
 
@@ -70,11 +70,11 @@ Reference anchors (be consistent — the same song should always land near the s
 
 When assigning coords: x/y capture sonic character; z captures how widely known/mainstream the specific recording is (not the artist in general — an obscure deep cut by a famous artist can have low z).
 
-NAVIGATION RULES (use full musical knowledge, not just the 2D projection):
-- Song liked (≥50% listened): region is promising. Slot 1 should explore its musical neighborhood.
-- Song disliked (<50%): avoid that musical territory and those sonic attributes — NOT the artist. A dislike is about the sound of that track, not a rejection of the artist. The same artist may have songs in very different styles; those remain fair game.
-- "not-now": skip; not a taste signal.
-- "more-from-artist": Slot 1 may be this artist or a close musical peer. Slots 2 and 3 must explore distant territory.
+NAVIGATION RULES (ratings are ★0.5–★5 in half-star steps; skipped = no signal):
+- ★3.5–★5: liked. Region is promising — Slot 1 should explore its musical neighborhood.
+- ★1–★2.5: disliked. Avoid that sonic territory and those attributes — NOT the artist. The same artist may have songs in very different styles; those remain fair game.
+- ★3: neutral. Mildly interesting but not a strong pull in either direction.
+- (skipped): no taste signal — treat as unheard.
 
 ARTIST RULE — strictly enforced:
 - NEVER put two songs by the same artist (or the same group) in the same batch of 3.
@@ -187,12 +187,13 @@ function buildUserPrompt(
   if (sessionHistory.length > 0) {
     const lines = sessionHistory.map(e => {
       const pos = e.coords ? ` @ (${Math.round(e.coords.x)}, ${Math.round(e.coords.y)})` : ''
-      return `- "${e.track}" by ${e.artist}: ${Math.round(e.percentListened)}% [${e.reaction}]${pos}`
+      const rating = e.stars !== null && e.stars !== undefined ? `★${e.stars}` : '(skipped)'
+      return `- "${e.track}" by ${e.artist}: ${rating}${pos}`
     }).join('\n')
     prompt += `Ratings this session:\n${lines}\n\n`
   }
 
-  const hasLikes = sessionHistory.some(e => e.percentListened >= 50) ||
+  const hasLikes = sessionHistory.some(e => (e.stars ?? 0) >= 3.5) ||
     (priorProfile ? /LIKED:\s*(?!\[none|\[no confirmed|\[nothing)/i.test(priorProfile) : false)
 
   prompt += slotInstructions(mode, hasLikes, numSongs)
@@ -354,16 +355,20 @@ export async function getNextSongQuery(
     }
     try {
       const result = parseLLMResponse(raw)
-      const yearRange = notes ? parseYearRange(notes) : null
-      if (yearRange) {
+      const yearRanges = notes ? parseYearRanges(notes) : null
+      if (yearRanges && yearRanges.length > 0) {
         const before = result.songs.length
+        const rangeLabel = yearRanges.map(r => `[${r.min}, ${r.max}]`).join(' ∪ ')
         result.songs = result.songs.filter(s => {
-          if (s.composed === undefined) {
+          const composed = s.composed
+          if (composed === undefined) {
             console.warn('[llm] dropping song with no composed year under year-range constraint:', s.search)
             return false
           }
-          const ok = s.composed >= yearRange.min && s.composed <= yearRange.max
-          if (!ok) console.warn(`[llm] dropping "${s.search}" — composed ${s.composed} outside [${yearRange.min}, ${yearRange.max}]`)
+          const ok = yearRanges.some(r => composed >= r.min && composed <= r.max)
+          if (!ok) {
+            console.warn(`[llm] dropping "${s.search}" — composed ${composed} outside allowed year range(s): ${rangeLabel}`)
+          }
           return ok
         })
         if (result.songs.length < before) {
@@ -377,6 +382,24 @@ export async function getNextSongQuery(
     }
   }
   throw lastError ?? new Error('LLM query failed after all attempts')
+}
+
+/**
+ * Parse multiple year constraints (union). Channel time periods are joined with " and "
+ * (e.g. "1990s and 2000s and 2010s and after 2020"); each segment is parsed with {@link parseYearRange}.
+ * If no segment matches, falls back to parsing the full string once.
+ */
+export function parseYearRanges(notes: string): { min: number; max: number }[] | null {
+  const s = notes.trim()
+  if (!s) return null
+  const ranges: { min: number; max: number }[] = []
+  for (const part of s.split(/\s+and\s+/i)) {
+    const r = parseYearRange(part.trim())
+    if (r) ranges.push(r)
+  }
+  if (ranges.length > 0) return ranges
+  const single = parseYearRange(s)
+  return single ? [single] : null
 }
 
 /**

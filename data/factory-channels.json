@@ -1,0 +1,803 @@
+{
+  "savedAt": "2026-04-18T01:54:28.529Z",
+  "activeChannelId": "mo3m9pld7vzd",
+  "channels": [
+    {
+      "id": "earprint-all",
+      "name": "All",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're clearly drawn to late-50s/early-60s cool jazz that's calm, harmonically rich, and introspective. You prefer piano trios and lyrical melodies over driving intensity, and you respond to sparse arrangements with emotional depth—Bill Evans seems to be a touchstone for your taste.",
+      "createdAt": 0,
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "notes": "",
+      "regions": [],
+      "artists": [],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 50,
+      "source": "spotify",
+      "currentCard": {
+        "track": {
+          "id": "0aWMVrwxPNYkKmFthzmpRi",
+          "uri": "spotify:track:0aWMVrwxPNYkKmFthzmpRi",
+          "name": "Blue in Green (feat. John Coltrane & Bill Evans)",
+          "artist": "Miles Davis",
+          "album": "Kind Of Blue (Legacy Edition)",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2730ebc17239b6b18ba88cfb8ca",
+          "durationMs": 337733,
+          "releaseYear": 1959
+        },
+        "reason": "Slot 3 (WILD CARD): Surprising within constraints — same era and cool/modal style, but replaces piano trio with sparse trumpet/piano interplay, deeply introspective and harmonically lush, yet distinct in timbre and ensemble feel.",
+        "category": "Jazz > Cool Jazz / Modal Jazz",
+        "coords": {
+          "x": 18,
+          "y": 15,
+          "z": 75
+        },
+        "composed": 1959
+      },
+      "queue": [],
+      "timePeriods": [],
+      "playbackTrackUri": "spotify:track:0aWMVrwxPNYkKmFthzmpRi",
+      "playbackPositionMs": 0
+    },
+    {
+      "id": "mo3jvkdzl7ci",
+      "name": "Cool Jazz",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Ghost of a Chance",
+          "artist": "Lennie Tristano",
+          "stars": 4,
+          "coords": {
+            "x": 25,
+            "y": 45,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273797d6a7438bde2cf9d890be0",
+          "uri": "spotify:track:5vTBSWHl0qXtM1980R2pVM",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Blue Rondo à la Turk",
+          "artist": "The Dave Brubeck Quartet",
+          "stars": 4,
+          "coords": {
+            "x": 22,
+            "y": 65,
+            "z": 70
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b6bd44cf06bf8f4d5ce1e080",
+          "uri": "spotify:track:7CrNF9zL7tIQ2269DVxzST",
+          "category": "Jazz > Cool Jazz/West Coast Jazz",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Ghost of a Chance",
+          "artist": "Lennie Tristano",
+          "stars": 4,
+          "coords": {
+            "x": 25,
+            "y": 45,
+            "z": 25
+          }
+        },
+        {
+          "track": "Blue Rondo à la Turk",
+          "artist": "The Dave Brubeck Quartet",
+          "stars": 4,
+          "coords": {
+            "x": 22,
+            "y": 65,
+            "z": 70
+          }
+        }
+      ],
+      "profile": "You're exploring the core spectrum of American soul, blues, and R&B from the 50s–70s — from polished Motown harmonies to raw blues emotion, intimate ballads to explosive funk rhythms. We're mapping energy, production style, and cultural reach within this foundational era.",
+      "createdAt": 1776469170167,
+      "genres": [
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1950s and 1960s",
+      "notes": "cool jazz",
+      "regions": [],
+      "artists": [],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 0,
+      "source": "spotify",
+      "currentCard": {
+        "track": {
+          "id": "3XiG3nHzUX3TJQ3D3UwFJ5",
+          "uri": "spotify:track:3XiG3nHzUX3TJQ3D3UwFJ5",
+          "name": "Israel",
+          "artist": "Bill Evans Trio",
+          "album": "Explorations",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273cab935f4386e58f05a9705bc",
+          "durationMs": 370000,
+          "releaseYear": 1961,
+          "source": "spotify"
+        },
+        "reason": "Slot 2: FAR — explores the more harmonically adventurous side of cool jazz with Evans' intricate piano work from 1959, moving toward modal exploration while maintaining introspective energy.",
+        "category": "Jazz > Cool Jazz",
+        "coords": {
+          "x": 20,
+          "y": 45,
+          "z": 40
+        },
+        "composed": 1959
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "77dUlFRxKG5WYl6qwwmXGu",
+            "uri": "spotify:track:77dUlFRxKG5WYl6qwwmXGu",
+            "name": "The Opium Eaters",
+            "artist": "Dean Omori",
+            "album": "The Heroin View",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b2733fad4aa33bd407f5de83dcd0",
+            "durationMs": 238091,
+            "releaseYear": 2015,
+            "source": "spotify"
+          },
+          "reason": "Slot 3: WILD CARD — shifts from piano/bossa to West Coast cool jazz with breezy, contrapuntal brass interplay from 1956, offering a different ensemble texture within your preferred calm energy range.",
+          "category": "Jazz > West Coast Jazz",
+          "coords": {
+            "x": 22,
+            "y": 40,
+            "z": 50
+          },
+          "composed": 1956
+        },
+        {
+          "track": {
+            "id": "5FYgwqjjq9kPCMj8yArfTr",
+            "uri": "spotify:track:5FYgwqjjq9kPCMj8yArfTr",
+            "name": "My Funny Valentine - Rudy Van Gelder Remaster 2007",
+            "artist": "Miles Davis Quintet",
+            "album": "Cookin' With The Miles Davis Quintet",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b2732a2d01f78d82ad4d8c095ab1",
+            "durationMs": 358200,
+            "releaseYear": 1957,
+            "source": "spotify"
+          },
+          "reason": "Slot 1 (Nearby): Cool jazz ballad with lyrical trumpet, harmonically rich and introspective like Bill Evans but with a different instrumental voice. Positioned in calm, acoustic-leaning territory.",
+          "category": "Jazz > Cool Jazz",
+          "coords": {
+            "x": 20,
+            "y": 25,
+            "z": 65
+          },
+          "composed": 1956
+        }
+      ],
+      "timePeriods": [
+        "1950s",
+        "1960s"
+      ],
+      "playbackTrackUri": "spotify:track:3XiG3nHzUX3TJQ3D3UwFJ5",
+      "playbackPositionMs": 64418
+    },
+    {
+      "id": "mo3m9pld7vzd",
+      "name": "Chamber Music",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "String Quartet No. 14 in D Minor, D. 810 \"Der Tod und das Mädchen\": II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": null,
+          "coords": {
+            "x": 5,
+            "y": 45,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273ffe506f95384e9dbbe961e26",
+          "uri": "spotify:track:7hLxTkJ1Yc1NiZijaX4loF",
+          "category": "Classical > Chamber Music > String Quartet",
+          "source": "spotify"
+        },
+        {
+          "track": "Clair de lune from Suite bergamasque",
+          "artist": "Claude Debussy",
+          "stars": null,
+          "coords": {
+            "x": 8,
+            "y": 20,
+            "z": 85
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27389b3fc504f6ffe51a0ca02ab",
+          "uri": "spotify:track:0pHFAoFikRaLe6tUMbB9FT",
+          "category": "Classical > Impressionist > Piano Solo",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 2 in E-Flat Major, D. 929: II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": null,
+          "coords": {
+            "x": 6,
+            "y": 40,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27392045137235fe6a64e471e31",
+          "uri": "spotify:track:2GiNqtvA87QYLkdJuZWByl",
+          "category": "Classical > Chamber Music > Piano Trio",
+          "source": "spotify"
+        },
+        {
+          "track": "Quatuor pour la fin du temps: V. Louange a l'eternite de Jesus",
+          "artist": "Olivier Messiaen",
+          "stars": 3.5,
+          "coords": {
+            "x": 25,
+            "y": 22,
+            "z": 45
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2737fc1508f3588fe3ccd6392ef",
+          "uri": "spotify:track:1svfczKYFHKcfmLMo54Q3v",
+          "category": "Classical > 20th Century Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese. Presto (Arr. for Piano by Anthony Goldstone)",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 70,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27370dc44edd71e5913e04a5ea2",
+          "uri": "spotify:track:2b2xrD2R5UkcHtiCBp7NSl",
+          "category": "Classical > Classical Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 1 in G Minor, Op. 27: III. Intermezzo. Allegro molto marcato – Più vivo e scherzando",
+          "artist": "Edvard Grieg",
+          "stars": 4.5,
+          "coords": {
+            "x": 10,
+            "y": 68,
+            "z": 35
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273f8d47d9a23eb0de05d2d7ca9",
+          "uri": "spotify:track:2CRzpmeOayycp7NFktyhYQ",
+          "category": "Classical > Romantic Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Six Metamorphoses after Ovid for Solo Oboe, Op. 49: I. Pan (Senza misura)",
+          "artist": "Benjamin Britten",
+          "stars": null,
+          "coords": {
+            "x": 15,
+            "y": 25,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dcb478d9ada77ebb3f43f129",
+          "uri": "spotify:track:2XsFd9a9Xdc4sw2xmOHW4F",
+          "category": "Classical > 20th Century Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 39 in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese (Presto) - Live",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 75,
+            "z": 50
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273266449a992b69ffde2002a02",
+          "uri": "spotify:track:6XoM0xsbAjwdjfIph7DYEd",
+          "category": "Classical > Classical Era Chamber Music",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Piano Trio No. 39 in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese (Presto) - Live",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 75,
+            "z": 50
+          }
+        }
+      ],
+      "profile": "You responded strongly to the driving, folk‑tinged intensity of Grieg's quartet, showing an appetite for dramatic narrative in chamber music. Your skipped Britten suggests less interest in purely sparse, pastoral solos. The Romantic and Classical piano trio territory remains unexplored — let's see where lyrical interplay lands.",
+      "createdAt": 1776473189329,
+      "genres": [
+        "Classical"
+      ],
+      "genreText": "",
+      "timePeriod": "Classical era and Romantic era and 20th century classical",
+      "notes": "chamber music, quartets, trios, piano, Glenn Gould, Vladimir Ashkenazy, Mitsuko Uchida, Vladimir Horowitz",
+      "regions": [
+        "Western Europe"
+      ],
+      "artists": [],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 50,
+      "timePeriods": [
+        "Classical era",
+        "Romantic era",
+        "20th century classical"
+      ],
+      "source": "spotify",
+      "currentCard": {
+        "track": {
+          "id": "1q3tWQD6EYggQi1q4EKjUs",
+          "uri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
+          "name": "Piano Sonata No. 30 in E Major, Op. 109: III. Gesangvoll, mit innigster Empfindung. Andante molto cantabile ed espressivo",
+          "artist": "Ludwig van Beethoven",
+          "album": "Glenn Gould plays Beethoven: Piano Sonatas Nos. 1-3; 5-10; 12-14; 15-18; 23; 30-32",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2735493dbe5586227e003b9138e",
+          "durationMs": 459480,
+          "releaseYear": 1965,
+          "source": "spotify"
+        },
+        "reason": "Slot 1 - NEARBY: A late Beethoven piano sonata performed by Glenn Gould, offering introspective, structurally innovative 19th-century music adjacent to your interest in 20th-century experimentation, with Gould's distinctive touch.",
+        "category": "Classical > Piano Sonata",
+        "coords": {
+          "x": 15,
+          "y": 35,
+          "z": 70
+        },
+        "composed": 1820,
+        "performer": "Glenn Gould"
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "2LNHA8xdPWTqWl1fjuJevk",
+            "uri": "spotify:track:2LNHA8xdPWTqWl1fjuJevk",
+            "name": "String Quartet No. 1 in C Major, Op. 49: I. Moderato",
+            "artist": "Dmitri Shostakovich",
+            "album": "Shostakovich: String Quartets Nos. 1, 8 & 14",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
+            "durationMs": 267920,
+            "releaseYear": 2015,
+            "source": "spotify"
+          },
+          "reason": "Slot 1 — NEARBY: 20th-century quartet with modernist tension and sparse, introspective passages, exploring harmonic experimentation adjacent to Britten and Messiaen.",
+          "category": "Classical > 20th century chamber music",
+          "coords": {
+            "x": 15,
+            "y": 48,
+            "z": 35
+          },
+          "composed": 1938
+        },
+        {
+          "track": {
+            "id": "15OYOsjhgsfYUAOx9ocEbm",
+            "uri": "spotify:track:15OYOsjhgsfYUAOx9ocEbm",
+            "name": "Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929: II. Andante con moto",
+            "artist": "Franz Schubert",
+            "album": "Schubert: Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273a2376e7fe1516e8680f70491",
+            "durationMs": 620693,
+            "releaseYear": 2026,
+            "source": "spotify"
+          },
+          "reason": "Slot 2 — FAR: Romantic-era trio with lyrical, songful intimacy—uncharted emotional warmth and melodic richness far from 20th-century textures.",
+          "category": "Classical > Romantic chamber music",
+          "coords": {
+            "x": 10,
+            "y": 32,
+            "z": 65
+          },
+          "composed": 1827
+        },
+        {
+          "track": {
+            "id": "1zwNC4HIvgQQ6nga0ygjIg",
+            "uri": "spotify:track:1zwNC4HIvgQQ6nga0ygjIg",
+            "name": "String Quartet No. 8 in C Minor, Op. 110: II. Allegro molto",
+            "artist": "Dmitri Shostakovich",
+            "album": "Shostakovich: String Quartets Nos. 1, 8 & 14",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
+            "durationMs": 173133,
+            "releaseYear": 2015,
+            "source": "spotify"
+          },
+          "reason": "Slot 1 — NEARBY: Building on your ★4.5 for Grieg's intense, driving quartet, this is 20th-century chamber music with similar high energy and dramatic tension, but from a different cultural tradition within Western Europe.",
+          "category": "Classical > 20th century chamber music",
+          "coords": {
+            "x": 12,
+            "y": 78,
+            "z": 45
+          },
+          "composed": 1960
+        }
+      ],
+      "playbackTrackUri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
+      "playbackPositionMs": 157008
+    },
+    {
+      "id": "mo3mflyc45k4",
+      "name": "Deep House",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're exploring the intersection of electronic beats and jazz sensibility, from soulful deep house to French touch and live-instrumented nu jazz. Your range spans high-energy dance tracks and late-night chillout, with a clear affinity for groove, melody, and fusion styles from the 2000s onward.",
+      "createdAt": 1776473464548,
+      "genres": [
+        "Electronic",
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1990s and 2000s and 2010s and after 2020",
+      "notes": "Deep House, Kaskade, Daft Punk, Andy Caldwell, Blue Six, Llorca, Mark Farina",
+      "regions": [],
+      "artists": [],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 50,
+      "timePeriods": [
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "source": "spotify",
+      "currentCard": {
+        "track": {
+          "id": "1L803aXwjhfOVC5HRoFGib",
+          "uri": "spotify:track:1L803aXwjhfOVC5HRoFGib",
+          "name": "Indigo Blues - Original Radio Edit",
+          "artist": "Llorca",
+          "album": "Indigo Blues",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27359adaa206b0626b255fcd15a",
+          "durationMs": 236066,
+          "releaseYear": 2001,
+          "source": "spotify"
+        },
+        "reason": "Slot 3 (WILD CARD): Late-90s French deep house with live double bass, trumpet, and a smoky jazz-club atmosphere—obscure but authentic to the Llorca/deep house/jazz blend.",
+        "category": "Electronic > Deep House / Nu Jazz",
+        "coords": {
+          "x": 60,
+          "y": 45,
+          "z": 25
+        },
+        "composed": 1999
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "303ccTay2FiDTZ9fZ2AdBt",
+            "uri": "spotify:track:303ccTay2FiDTZ9fZ2AdBt",
+            "name": "Music Sounds Better With You",
+            "artist": "Stardust",
+            "album": "Music Sounds Better With You",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273b98afa12c212cbbda4f1799b",
+            "durationMs": 403293,
+            "releaseYear": 1998,
+            "source": "spotify"
+          },
+          "reason": "Slot 1: NEARBY to French touch/Daft Punk territory — classic filtered French house with disco/jazz samples, high energy and mainstream electronic appeal.",
+          "category": "Electronic > French House",
+          "coords": {
+            "x": 88,
+            "y": 78,
+            "z": 75
+          },
+          "composed": 1998
+        },
+        {
+          "track": {
+            "id": "5d1QIekq9cWzye6Crv1mcf",
+            "uri": "spotify:track:5d1QIekq9cWzye6Crv1mcf",
+            "name": "(Never Been to) California",
+            "artist": "DJ Mark Farina",
+            "album": "Mushroom Jazz 7",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273dec9087901c859a58490f69c",
+            "durationMs": 150026,
+            "releaseYear": 2011,
+            "source": "spotify"
+          },
+          "reason": "Slot 2: FAR from high-energy house — downtempo, sample-based jazzy hip-hop beats, cult following in the underground lounge scene.",
+          "category": "Electronic > Downtempo / Trip-Hop",
+          "coords": {
+            "x": 65,
+            "y": 30,
+            "z": 25
+          },
+          "composed": 1999
+        }
+      ],
+      "playbackTrackUri": "spotify:track:1L803aXwjhfOVC5HRoFGib",
+      "playbackPositionMs": 127518
+    },
+    {
+      "id": "mo3mpve3gv91",
+      "name": "Motown",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "I Heard It Through The Grapevine",
+          "artist": "Marvin Gaye",
+          "stars": 4,
+          "coords": {
+            "x": 30,
+            "y": 75,
+            "z": 90
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273aff6573c5110e0732fbab3d8",
+          "uri": "spotify:track:1tqT6DhmsrtQgyCKUwotiw",
+          "category": "Soul > Motown",
+          "source": "spotify"
+        },
+        {
+          "track": "Smokestack Lightnin'",
+          "artist": "Howlin' Wolf",
+          "stars": null,
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736181b1ed45a906d5b2c89af3",
+          "uri": "spotify:track:2HUZVffVPXvqnrml0gXggp",
+          "category": "Blues > Chicago Blues",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Smokestack Lightnin'",
+          "artist": "Howlin' Wolf",
+          "stars": null,
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 65
+          }
+        }
+      ],
+      "profile": "You're exploring the core spectrum of mid-century American R&B, from the polished drive of Motown to the raw ache of the blues. We're testing your response to deep soul emotion, cool instrumental grooves, and the heavier, resigned sound of electric blues.",
+      "createdAt": 1776473943339,
+      "genres": [
+        "Soul",
+        "Blues",
+        "R&B"
+      ],
+      "genreText": "",
+      "timePeriods": [
+        "1950s",
+        "1960s",
+        "1970s"
+      ],
+      "notes": "Detroit Motown, Howlin' Wolf, Albert King, Muddy Waters",
+      "regions": [
+        "US & Canada"
+      ],
+      "artists": [],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 50,
+      "source": "spotify",
+      "currentCard": {
+        "track": {
+          "id": "3Um9toULmYFGCpvaIPFw7l",
+          "uri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
+          "name": "What's Going On",
+          "artist": "Marvin Gaye",
+          "album": "What's Going On",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
+          "durationMs": 233000,
+          "releaseYear": 1971,
+          "source": "spotify"
+        },
+        "reason": "Slot 6: Conceptually rich, socially conscious early-70s soul — layered vocals, jazzy instrumentation, and a calm yet profound energy that redefined mainstream R&B.",
+        "category": "Soul > Progressive Soul",
+        "coords": {
+          "x": 35,
+          "y": 50,
+          "z": 92
+        },
+        "composed": 1971
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "7MiLmLbwNoyf47xQ4TCVYp",
+            "uri": "spotify:track:7MiLmLbwNoyf47xQ4TCVYp",
+            "name": "Papa Was A Rollin' Stone - Single Version",
+            "artist": "The Temptations",
+            "album": "20th Century Masters: The Millennium Collection: Best Of The Temptations, Vol. 2 - The '70s, '80s, '90s",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273dabb260cf41a2fbb2c842787",
+            "durationMs": 419640,
+            "releaseYear": 2000,
+            "source": "spotify"
+          },
+          "reason": "Slot 3 (WILD CARD): Surprising within constraints — epic, psychedelic-soul, dark narrative, extended arrangement. A dramatic shift in mood and structure from classic Motown.",
+          "category": "Soul > Psychedelic Soul",
+          "coords": {
+            "x": 40,
+            "y": 65,
+            "z": 80
+          },
+          "composed": 1972
+        },
+        {
+          "track": {
+            "id": "46JKtJ4Ws9VgtUVxFjcDlQ",
+            "uri": "spotify:track:46JKtJ4Ws9VgtUVxFjcDlQ",
+            "name": "Respect Yourself",
+            "artist": "The Staple Singers",
+            "album": "Be Altitude: Respect Yourself [Stax Remasters]",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b273b2ab737f6a57a42a04cb5e19",
+            "durationMs": 296866,
+            "releaseYear": 1972,
+            "source": "spotify"
+          },
+          "reason": "Slot 4 (VARIED): Southern soul-gospel hybrid — raw, uplifting, with driving rhythm and social message. Bridges blues feeling with Stax-era production, distinct from Detroit.",
+          "category": "Soul > Southern Soul",
+          "coords": {
+            "x": 20,
+            "y": 70,
+            "z": 75
+          },
+          "composed": 1971
+        },
+        {
+          "track": {
+            "id": "4fQMGlCawbTkH9yPPZ49kP",
+            "uri": "spotify:track:4fQMGlCawbTkH9yPPZ49kP",
+            "name": "Green Onions",
+            "artist": "Booker T. & the M.G.'s",
+            "album": "Green Onions",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b27346007ceff2f1c33c9b9ec19c",
+            "durationMs": 176333,
+            "releaseYear": 1962,
+            "source": "spotify"
+          },
+          "reason": "Slot 2 (FAR): Instrumental, organ-driven R&B with a cool, hypnotic groove. Musically distant from vocal-focused soul/blues, exploring a sparse, iconic instrumental pocket of the early '60s.",
+          "category": "R&B > Instrumental Soul",
+          "coords": {
+            "x": 35,
+            "y": 48,
+            "z": 82
+          },
+          "composed": 1962
+        }
+      ],
+      "timePeriod": "1950s and 1960s and 1970s",
+      "playbackTrackUri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
+      "playbackPositionMs": 49233
+    },
+    {
+      "id": "mo3mt22qd0m4",
+      "name": "Hip Hop",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're exploring the foundational sounds of American soul, blues, and R&B from the 50s-70s, starting with Detroit's polished Motown. Your electronic/jazz fusion background suggests you might appreciate both the tight arrangements and the raw emotional core of these genres.",
+      "createdAt": 1776474091970,
+      "genres": [
+        "Hip-Hop"
+      ],
+      "genreText": "",
+      "timePeriod": "1980s and 1990s and 2000s and 2010s and after 2020",
+      "notes": "Jay-Z, Tupac Shakur, Nas, Eminem, The Notorious B.I.G., Rakim, and Kendrick Lamar",
+      "regions": [
+        "US & Canada"
+      ],
+      "artists": [],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 0,
+      "timePeriods": [
+        "1980s",
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "source": "spotify",
+      "currentCard": {
+        "track": {
+          "id": "5DuTNKFEjJIySAyJH1yNDU",
+          "uri": "spotify:track:5DuTNKFEjJIySAyJH1yNDU",
+          "name": "The Message (feat. Melle Mel & Duke Bootee)",
+          "artist": "Grandmaster Flash & The Furious Five",
+          "album": "The Message",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273798575ed938d0968a00ce887",
+          "durationMs": 431800,
+          "releaseYear": 1982,
+          "source": "spotify"
+        },
+        "reason": "Slot 1: Early hip-hop foundation - socially conscious lyrics over sparse electronic beats, low energy but culturally massive.",
+        "category": "Hip-Hop > Old School",
+        "coords": {
+          "x": 70,
+          "y": 40,
+          "z": 85
+        },
+        "composed": 1982
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "5Tbpp3OLLClPJF8t1DmrFD",
+            "uri": "spotify:track:5Tbpp3OLLClPJF8t1DmrFD",
+            "name": "Nuthin' But A \"G\" Thang",
+            "artist": "Dr. Dre",
+            "album": "The Chronic",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b2739710731c9d7baec635f1bab1",
+            "durationMs": 237573,
+            "releaseYear": 1992,
+            "source": "spotify"
+          },
+          "reason": "Slot 2: West Coast G-funk - smooth synthesizers, laid-back but driving groove, extremely mainstream in 90s hip-hop.",
+          "category": "Hip-Hop > G-Funk",
+          "coords": {
+            "x": 75,
+            "y": 65,
+            "z": 90
+          },
+          "composed": 1992
+        },
+        {
+          "track": {
+            "id": "6zsk6uF3MxfIeHPlubKBvR",
+            "uri": "spotify:track:6zsk6uF3MxfIeHPlubKBvR",
+            "name": "Get Ur Freak On",
+            "artist": "Missy Elliott",
+            "album": "Miss E... So Addictive",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b2732e3969990abe1229c0879a7b",
+            "durationMs": 211120,
+            "releaseYear": 2001,
+            "source": "spotify"
+          },
+          "reason": "Slot 3: Wild card - experimental production, bhangra-inspired beat, high energy, creatively mainstream in early 2000s.",
+          "category": "Hip-Hop > Experimental",
+          "coords": {
+            "x": 85,
+            "y": 75,
+            "z": 80
+          },
+          "composed": 2001
+        },
+        {
+          "track": {
+            "id": "480ilhTofIsJNvbHBLaZji",
+            "uri": "spotify:track:480ilhTofIsJNvbHBLaZji",
+            "name": "M.A.A.D City (made popular by Kendrick Lamar ft. Mc Eiht) [backing version]",
+            "artist": "Party Tyme",
+            "album": "Hip Hop & Rap Hits 7 - Party Tyme (Backing Versions)",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b27379996da2e8dbc44d22b776ca",
+            "durationMs": 349459,
+            "releaseYear": 2023,
+            "source": "spotify"
+          },
+          "reason": "Slot 4: Modern classic - intense narrative, jazz-influenced production, high energy with cult-like reverence in hip-hop circles.",
+          "category": "Hip-Hop > Conscious Rap",
+          "coords": {
+            "x": 65,
+            "y": 85,
+            "z": 70
+          },
+          "composed": 2012
+        }
+      ],
+      "playbackTrackUri": "spotify:track:5DuTNKFEjJIySAyJH1yNDU",
+      "playbackPositionMs": 74684
+    }
+  ]
+}

@@ -1,6 +1,6 @@
-# Earprint User Guide
+# Soundings User Guide
 
-Earprint is a music discovery app that uses an AI DJ to learn your taste and find music you don't know yet. It works in two modes — pick the one that suits you:
+Soundings is a music discovery app that uses an AI DJ to learn your taste and find music you don't know yet. It works in two modes — pick the one that suits you:
 
 | Mode | Requirement | Playback |
 |------|-------------|---------|
@@ -11,7 +11,7 @@ Earprint is a music discovery app that uses an AI DJ to learn your taste and fin
 
 ## How it works, in one paragraph
 
-When you open earprint, the AI DJ picks songs from very different parts of the musical map and lines them up. As you listen and react, the DJ builds a picture of your taste and uses it to choose what comes next. The more you interact, the more accurate it gets. Everything is saved in your browser — no server account needed.
+When you open Soundings, the AI DJ picks songs from very different parts of the musical map and lines them up. As you listen and react, the DJ builds a picture of your taste and uses it to choose what comes next. The more you interact, the more accurate it gets. Everything is saved in your browser — no server account needed.
 
 ---
 
@@ -247,7 +247,7 @@ Click the **×** on a channel tab. You cannot delete the last remaining channel.
 
 ## The taste space
 
-Earprint treats music as a **high-dimensional space** — not just genre tags. We know many things about songs: writers, performers, instruments, recording date, where it was recorded, and how it is categorized. **All of those attributes can feed into a notion of distance**: similar songs are **close**; different songs are farther apart.
+Soundings treats music as a **high-dimensional space** — not just genre tags. We know many things about songs: writers, performers, instruments, recording date, where it was recorded, and how it is categorized. **All of those attributes can feed into a notion of distance**: similar songs are **close**; different songs are farther apart.
 
 If you like a song, the DJ can look for **nearby** music you have not heard yet. If you dislike something, it can learn to **avoid that general region** of the space — not by banning one label, but by steering away from that neighborhood of sound.
 
@@ -272,7 +272,7 @@ Each dot is a song. Colored labels mark broad genre regions. The map is for expl
 
 [Screenshot: yellow banner showing "Spotify unavailable until 8:14 PM — Try now | stats"]
 
-Earprint calls both a music service (Spotify or YouTube) and an AI service. Occasionally:
+Soundings calls both a music service (Spotify or YouTube) and an AI service. Occasionally:
 
 - **Spotify rate limiting** — Spotify has throttled the app. A yellow banner appears at the top with an estimated wait time.
   - Click **Try now** to immediately ping Spotify. If it responds successfully, the ban is cleared and music resumes.

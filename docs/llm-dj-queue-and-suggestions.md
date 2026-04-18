@@ -1,6 +1,6 @@
 # LLM → DJ suggestions → queue: behavior and rules
 
-This document describes how **Earprint** uses the LLM’s song list after it returns, how **suggestions** (DJ buffer) relate to **Up Next** (queue), when the LLM is called again, and the main **guard rules**. Implementation lives primarily in `app/player/PlayerClient.tsx` and `app/api/next-song/route.ts`.
+This document describes how **Soundings** uses the LLM’s song list after it returns, how **suggestions** (DJ buffer) relate to **Up Next** (queue), when the LLM is called again, and the main **guard rules**. Implementation lives primarily in `app/player/PlayerClient.tsx` and `app/api/next-song/route.ts`.
 
 ---
 

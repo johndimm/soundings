@@ -59,8 +59,7 @@ async function run() {
     sessionHistory.push({
       track: picked.search,
       artist: '',
-      percentListened: 5,
-      reaction: 'move-on',
+      stars: null,
     })
 
     console.log(`✗  ${picked.search}  [${picked.category ?? 'uncategorized'}]`)

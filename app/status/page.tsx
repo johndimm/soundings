@@ -195,14 +195,15 @@ export default function StatusPage() {
   const peakColor = peakPct >= 80 ? 'text-red-400' : peakPct >= 50 ? 'text-yellow-400' : 'text-green-400'
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 font-mono text-sm">
-      <a href="/player" className="text-zinc-500 hover:text-zinc-300 text-xs mb-6 inline-block transition-colors">← Back to player</a>
+    <div className="min-h-screen bg-white text-black font-mono text-sm">
+    <div className="p-8 max-w-[800px] mx-auto">
+      <a href="/player" className="text-zinc-400 hover:text-black text-xs mb-6 inline-block transition-colors">← Back to player</a>
       <h1 className="text-lg font-bold mb-6">Spotify call tracker</h1>
 
       {/* Chart */}
       <section className="mb-8">
         <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Request rate — last 10 minutes</h2>
-        <div className="bg-zinc-950 rounded-xl p-3 border border-zinc-900">
+        <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
           <RateChart log={stats.log} safeLimit={SPOTIFY_SAFE_LIMIT} />
         </div>
         {stats.log.length === 0 && (
@@ -323,6 +324,7 @@ export default function StatusPage() {
       >
         Clear all stats
       </button>
+    </div>
     </div>
   )
 }

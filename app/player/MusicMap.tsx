@@ -43,8 +43,8 @@ function jitter(seed: string, range: number): number {
 }
 
 function dotColor(entry: HistoryEntry): string {
-  if (entry.reaction === 'not-now') return '#71717a'
-  if (entry.percentListened >= 50) return '#22c55e'
+  if (!entry.stars) return '#71717a'
+  if (entry.stars >= 3.5) return '#22c55e'
   return '#ef4444'
 }
 
@@ -66,8 +66,7 @@ function toLiveHistoryEntry(cur: MusicMapCurrentPlaying): HistoryEntry {
   return {
     track: cur.track,
     artist: cur.artist,
-    percentListened: 0,
-    reaction: 'move-on',
+    stars: null,
     uri: cur.uri,
     albumArt: null,
     category: cur.category,
@@ -545,7 +544,7 @@ export default function MusicMap({
                   <div className="text-amber-400">Now playing · rate to save</div>
                 ) : (
                   <div style={{ color: dotColor(entry) }}>
-                    {Math.round(entry.percentListened)}%
+                    {entry.stars !== null && entry.stars !== undefined ? `★${entry.stars}` : '(skipped)'}
                     {estimated ? ' · est. pos' : ` · (${Math.round(x)}, ${Math.round(y)})`}
                   </div>
                 )}

@@ -89,3 +89,14 @@ export interface PlayerAdapterCallbacks {
   /** Auth failure — app should redirect to login. */
   onAuthError: (reason: string) => void
 }
+
+// ── Card state ───────────────────────────────────────────────────────────────
+
+export interface CardState {
+  track: Track
+  reason: string
+  category?: string
+  coords?: { x: number; y: number }
+  composed?: number
+  performer?: string
+}

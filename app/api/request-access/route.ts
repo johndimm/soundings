@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       from: 'onboarding@resend.dev',
       to: TO,
-      subject: 'Earprint access request',
+      subject: 'Soundings access request',
       text: `Access request from: ${email}`,
     }),
   })

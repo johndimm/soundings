@@ -1,5 +1,5 @@
 'use client'
-import { useRef, useImperativeHandle, forwardRef, useMemo, useEffect } from 'react'
+import { useRef, useImperativeHandle, forwardRef, useMemo, useEffect, useState } from 'react'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 
 // ── Minimal YT IFrame API types ──────────────────────────────────────────────
@@ -8,10 +8,12 @@ interface YTPlayer {
   getDuration(): number
   pauseVideo(): void
   playVideo(): void
+  setVolume(v: number): void
   destroy(): void
 }
 interface YTPlayerOptions {
   events?: {
+    onReady?: () => void
     onStateChange?: (e: { data: number }) => void
     onError?: (e: { data: number }) => void
   }
@@ -58,6 +60,9 @@ function whenYtReady(cb: () => void) {
 const IFRAME_ALLOW =
   'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share'
 
+// If the video hasn't started playing within this window, show the tap-to-play overlay.
+const AUTOPLAY_TIMEOUT_MS = 1500
+
 interface Props {
   videoId: string
   onEnded?: () => void
@@ -89,19 +94,32 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
   onEndedRef.current = onEnded
   onErrorRef.current = onPlayerError
 
+  // Shown when autoplay is blocked; cleared as soon as the video starts buffering/playing.
+  const [blocked, setBlocked] = useState(false)
+
   const normalizedId = useMemo(() => extractYoutubeVideoIdLoose(videoId) ?? null, [videoId])
   const embedSrc = useMemo(() => (normalizedId ? buildEmbedSrc(normalizedId) : ''), [normalizedId])
 
   useEffect(() => {
     if (!normalizedId) return
+    setBlocked(false)
     let destroyed = false
+
+    // If autoplay doesn't start within AUTOPLAY_TIMEOUT_MS, show the tap-to-play overlay.
+    const autoplayTimer = setTimeout(() => {
+      if (!destroyed) setBlocked(true)
+    }, AUTOPLAY_TIMEOUT_MS)
 
     whenYtReady(() => {
       if (destroyed || !iframeRef.current || !window.YT?.Player) return
       const player = new window.YT.Player(iframeRef.current, {
         events: {
           onStateChange: (e) => {
-            // 0 = ENDED
+            // 1 = playing, 3 = buffering — autoplay succeeded, clear overlay and timer
+            if (e.data === 1 || e.data === 3) {
+              clearTimeout(autoplayTimer)
+              setBlocked(false)
+            }
             if (e.data === 0) onEndedRef.current?.()
           },
           onError: (e) => {
@@ -114,6 +132,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
 
     return () => {
       destroyed = true
+      clearTimeout(autoplayTimer)
       try { ytPlayerRef.current?.destroy() } catch {}
       ytPlayerRef.current = null
     }
@@ -149,8 +168,21 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
         allowFullScreen
         className="absolute inset-0 h-full w-full border-0"
       />
+      {blocked && (
+        <button
+          className="absolute inset-0 flex items-center justify-center bg-black/70 cursor-pointer z-10"
+          onClick={() => {
+            try { ytPlayerRef.current?.playVideo() } catch {}
+            setBlocked(false)
+          }}
+        >
+          <span className="text-white text-6xl leading-none">▶</span>
+        </button>
+      )}
     </div>
   )
 })
 
 export default YoutubePlayer
+
+

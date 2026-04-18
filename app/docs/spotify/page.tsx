@@ -4,7 +4,7 @@ export default function SpotifyDoc() {
       <div className="max-w-3xl mx-auto px-8 py-12">
         <a href="/docs" className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors">← Docs</a>
 
-        <h1 className="text-3xl font-bold mt-6 mb-2">How Earprint uses Spotify</h1>
+        <h1 className="text-3xl font-bold mt-6 mb-2">How Soundings uses Spotify</h1>
         <p className="text-zinc-400 mb-10 text-sm">
           Every Spotify API call the app makes — what it is, when it fires, and why it&apos;s needed.
         </p>
@@ -117,7 +117,7 @@ export default function SpotifyDoc() {
               rateImpact="1 script load, not rate-limited"
             >
               Loads the Spotify Web Playback SDK. This registers the browser tab as a virtual
-              Spotify device named «Earprint», visible in the Spotify app&apos;s device list.
+              Spotify device named «Soundings», visible in the Spotify app&apos;s device list.
               Requires a Premium account.
             </Call>
 
@@ -139,7 +139,7 @@ export default function SpotifyDoc() {
               file="app/player/PlayerClient.tsx · playTrack()"
               rateImpact="1 call per track change"
             >
-              Tells Spotify to play a specific track URI on the Earprint device.
+              Tells Spotify to play a specific track URI on the Soundings device.
               Called directly from the browser with the access token.
               Fires when: a new card is loaded, the user taps a queue item, or replays a history item.
             </Call>

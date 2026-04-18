@@ -61,8 +61,7 @@ export interface GuideDemoState {
     }
   }
   sliderPosition: number
-  gradePercent: number
-  hasRated: boolean
+  currentStars: number | null
   loadingQueue: boolean
   submittedUris: Set<string>
   spotifyUser: { id: string; display_name?: string; product?: string }
@@ -125,8 +124,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard1.name,
     artist: tracks.heard1.artist,
-    percentListened: 82,
-    reaction: 'more-from-artist',
+    stars: 4.5,
     albumArt: tracks.heard1.albumArt,
     uri: tracks.heard1.uri,
     category: 'Soul/Blues > Modern soul',
@@ -135,8 +133,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard2.name,
     artist: tracks.heard2.artist,
-    percentListened: 64,
-    reaction: 'move-on',
+    stars: 3.5,
     albumArt: tracks.heard2.albumArt,
     uri: tracks.heard2.uri,
     category: 'Jazz > Spiritual jazz',
@@ -145,8 +142,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard3.name,
     artist: tracks.heard3.artist,
-    percentListened: 28,
-    reaction: 'not-now',
+    stars: 1.5,
     albumArt: tracks.heard3.albumArt,
     uri: tracks.heard3.uri,
     category: 'Electronic > Industrial pop',
@@ -155,8 +151,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard4.name,
     artist: tracks.heard4.artist,
-    percentListened: 73,
-    reaction: 'move-on',
+    stars: 3.5,
     albumArt: tracks.heard4.albumArt,
     uri: tracks.heard4.uri,
     category: 'Ambient/New Age > Drift ambient',
@@ -165,8 +160,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard5.name,
     artist: tracks.heard5.artist,
-    percentListened: 91,
-    reaction: 'more-from-artist',
+    stars: 5,
     albumArt: tracks.heard5.albumArt,
     uri: tracks.heard5.uri,
     category: 'Folk/Country > Cosmic folk',
@@ -175,8 +169,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard6.name,
     artist: tracks.heard6.artist,
-    percentListened: 55,
-    reaction: 'move-on',
+    stars: 3,
     albumArt: tracks.heard6.albumArt,
     uri: tracks.heard6.uri,
     category: 'World/Latin > Afro-Latin fusion',
@@ -185,8 +178,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard7.name,
     artist: tracks.heard7.artist,
-    percentListened: 28,
-    reaction: 'move-on',
+    stars: 1.5,
     albumArt: tracks.heard7.albumArt,
     uri: tracks.heard7.uri,
     category: 'Metal > Melodic metal',
@@ -195,8 +187,7 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   {
     track: tracks.heard8.name,
     artist: tracks.heard8.artist,
-    percentListened: 35,
-    reaction: 'move-on',
+    stars: 2,
     albumArt: tracks.heard8.albumArt,
     uri: tracks.heard8.uri,
     category: 'Hip-Hop/R&B > Trap',
@@ -204,11 +195,10 @@ const cardHistory: GuideDemoHistoryEntry[] = [
   },
 ]
 
-const sessionHistory: ListenEvent[] = cardHistory.map(({ track, artist, percentListened, reaction, coords }) => ({
+const sessionHistory: ListenEvent[] = cardHistory.map(({ track, artist, stars, coords }) => ({
   track,
   artist,
-  percentListened,
-  reaction,
+  stars,
   coords,
 }))
 
@@ -329,8 +319,7 @@ export function getGuideDemoState(scene?: string | null): GuideDemoState {
       },
     },
     sliderPosition: 83_000,
-    gradePercent: 72,
-    hasRated: true,
+    currentStars: 4,
     loadingQueue: false,
     submittedUris: new Set(cardHistory.map(entry => entry.uri ?? '').filter(Boolean)),
     spotifyUser: {

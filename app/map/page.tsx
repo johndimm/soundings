@@ -45,7 +45,8 @@ export default function MapPage() {
   const estimatedCount = history.filter(e => !e.coords).length
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 font-mono">
+    <div className="min-h-screen bg-white text-black font-mono">
+    <div className="p-6 max-w-[800px] mx-auto">
       <div className="flex items-center gap-4 mb-4 flex-wrap">
         <button
           type="button"
@@ -53,7 +54,7 @@ export default function MapPage() {
             if (window.opener) window.close()
             else window.location.href = '/player'
           }}
-          className="text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
+          className="text-zinc-400 hover:text-black text-xs transition-colors"
         >
           ← Player
         </button>
@@ -68,6 +69,7 @@ export default function MapPage() {
       <MusicMap history={history} width={800} height={520} embedded={false} />
 
       <p className="text-zinc-700 text-xs mt-3 text-right">History updates every 2s from this tab (same storage as the player).</p>
+    </div>
     </div>
   )
 }

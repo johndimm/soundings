@@ -27,7 +27,7 @@ export default async function Home({
 
         {/* Title */}
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-5xl font-bold tracking-tight">Earprint</h1>
+          <h1 className="text-5xl font-bold tracking-tight">Soundings</h1>
           <p className="text-zinc-400 text-lg">Music discovery that learns your taste</p>
         </div>
 
@@ -93,7 +93,7 @@ export default async function Home({
         <div className="flex gap-4">
           <a href="/status" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Spotify status</a>
           <a href="/docs" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Docs</a>
-          <a href="/diary.html" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Diary</a>
+          <a href="/journal.html" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Journal</a>
         </div>
 
       </div>
