@@ -1,6 +1,24 @@
 /** JSON export wrapper version (see Settings → Export). */
 export const CHANNELS_EXPORT_VERSION = 1
 
+/** Matches `earprint-all` in the player and channels UI. */
+export const EARPRINT_ALL_CHANNEL_ID = 'earprint-all'
+
+/**
+ * Map exploration for bounded channels: balanced slots; channel filters carry the intent.
+ * (No per-channel discovery slider — only "All" uses full exploration.)
+ */
+export const CHANNEL_DISCOVERY_DEFAULT = 50
+
+/** All channel: full exploration in taste space (no genre/region filters). */
+export const ALL_CHANNEL_DISCOVERY_DEFAULT = 100
+
+export function normalizeChannelDiscovery(c: Channel): Channel {
+  const discovery =
+    c.id === EARPRINT_ALL_CHANNEL_ID ? ALL_CHANNEL_DISCOVERY_DEFAULT : CHANNEL_DISCOVERY_DEFAULT
+  return { ...c, discovery }
+}
+
 export interface HistoryEntry {
   track: string
   artist: string
@@ -41,7 +59,7 @@ export function normalizeImportedChannel(raw: unknown): Channel | null {
   const id = typeof o.id === 'string' && o.id.trim() ? o.id.trim() : genChannelId()
   const name = typeof o.name === 'string' ? o.name : 'Channel'
   const createdAt = typeof o.createdAt === 'number' ? o.createdAt : Date.now()
-  return {
+  const base: Channel = {
     id,
     name,
     isAutoNamed: typeof o.isAutoNamed === 'boolean' ? o.isAutoNamed : false,
@@ -64,6 +82,7 @@ export function normalizeImportedChannel(raw: unknown): Channel | null {
     ...(o.discovery !== undefined && { discovery: o.discovery as number }),
     ...(o.source !== undefined && { source: o.source as string }),
   }
+  return normalizeChannelDiscovery(base)
 }
 
 export function parseChannelsImport(raw: unknown): { channels: Channel[]; activeChannelId?: string } | null {

@@ -16,6 +16,10 @@ import {
   isYoutubeResolveTestFixtureSuggestion,
 } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
+import {
+  ALL_CHANNEL_DISCOVERY_DEFAULT,
+  CHANNEL_DISCOVERY_DEFAULT,
+} from '@/app/lib/channelsImportExport'
 import { BUILT_IN_FACTORY_CHANNELS_IMPORT, getMostPopularCard } from '@/app/lib/demoChannel'
 import {
   DEV_FACTORY_OVERRIDE_STORAGE_KEY,
@@ -141,7 +145,7 @@ function makeAllChannel(): Channel {
     artists: [],
     artistText: '',
     popularity: 50,
-    discovery: 50,
+    discovery: ALL_CHANNEL_DISCOVERY_DEFAULT,
   }
 }
 
@@ -150,10 +154,26 @@ function ensureAllChannel(channels: Channel[]): Channel[] {
   return [makeAllChannel(), ...channels]
 }
 
+/** Fixed discovery: bounded channels use balanced map mode; All uses full exploration (no slider). */
+function withFixedDiscovery(c: Channel): Channel {
+  return {
+    ...c,
+    discovery: c.id === ALL_CHANNEL_ID ? ALL_CHANNEL_DISCOVERY_DEFAULT : CHANNEL_DISCOVERY_DEFAULT,
+  }
+}
+
 function loadChannels(): Channel[] {
   try {
     const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
-    if (raw) return ensureAllChannel(JSON.parse(raw) as Channel[])
+    if (raw) {
+      const parsed = JSON.parse(raw) as unknown
+      if (!Array.isArray(parsed)) return ensureAllChannel([])
+      const mapped = parsed
+        .map(item => normalizeImportedChannel(item))
+        .filter((c): c is Channel => c !== null)
+        .map(withFixedDiscovery)
+      return ensureAllChannel(mapped)
+    }
   } catch {}
   /** No stored list yet (first visit). System reset stores a single empty All row instead. */
   return []
@@ -231,7 +251,7 @@ function parseChannelsImport(raw: unknown): { channels: Channel[]; activeChannel
   const channels: Channel[] = []
   for (const item of list) {
     const ch = normalizeImportedChannel(item)
-    if (ch) channels.push(ch)
+    if (ch) channels.push(withFixedDiscovery(ch))
   }
   if (channels.length === 0) return null
   return { channels, activeChannelId }
@@ -401,21 +421,21 @@ function isPositiveHeard(entry: HistoryEntry): boolean {
 }
 
 /**
- * Stars persisted when leaving a track: explicit star row choice wins; natural end with no choice = 5★;
- * manual next / error skip with no choice = how far playback got (half-star steps), matching the
- * progress fill on the star row — so unrated rows should only remain from crashes or old data.
+ * Stars persisted when leaving a track: explicit star row choice wins; otherwise inferred from
+ * listen progress (half-star steps). Implicit scores are capped at 4.5 so a full listen does not
+ * record 5★ unless the user taps five stars — use explicit rating for a top score.
  */
 function computeRecordedListenStars(
-  playedToEnd: boolean,
   userStars: number | null,
   durationMs: number,
   positionMs: number,
 ): number {
   if (userStars != null) return userStars
-  if (playedToEnd) return 5
   if (!(durationMs > 0)) return 0
   const p = Math.min(1, Math.max(0, positionMs) / durationMs)
-  return Math.round(p * 5 * 2) / 2
+  const raw = p * 5
+  const capped = Math.min(4.5, raw)
+  return Math.round(capped * 2) / 2
 }
 
 /** Stable dedup key that works for both Spotify (uses uri) and YouTube (uses id). */
@@ -734,8 +754,6 @@ export default function PlayerClient({
   const [regions, setRegions] = useState<string[]>([])
   const [artists, setArtists] = useState<string[]>([])
   const [artistText, setArtistText] = useState('')
-  /** Names from the latest LLM response (`suggested_artists`); not persisted per channel. */
-  const [llmSuggestedArtists, setLlmSuggestedArtists] = useState<string[]>([])
   const [timePeriod, setTimePeriod] = useState('')
   const [popularity, setPopularity] = useState(50)
   const [discovery, setDiscovery] = useState(50)
@@ -842,6 +860,19 @@ export default function PlayerClient({
   const durationRef = useRef(0)
   const isPausedRef = useRef(true)
   const advanceRef = useRef<((playedToEnd?: boolean) => void) | null>(null)
+  /** When true, Spotify/YouTube may advance when the track reaches the end. Default off — user clicks Next. */
+  const [autoNextAtEnd, setAutoNextAtEnd] = useState(false)
+  const autoNextAtEndRef = useRef(false)
+
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('earprint-auto-next-at-end')
+      if (v === '1') {
+        setAutoNextAtEnd(true)
+        autoNextAtEndRef.current = true
+      }
+    } catch {}
+  }, [])
   const pendingFadeInRef = useRef(false)
   const channelSwitchingRef = useRef(false)
   const deviceIdRef = useRef<string | null>(null)
@@ -978,7 +1009,6 @@ export default function PlayerClient({
     artistsRef.current = demo.artists
     setArtistText(demo.artistText)
     artistTextRef.current = demo.artistText
-    setLlmSuggestedArtists(demo.llmSuggestedArtists)
     setTimePeriod(demo.timePeriod)
     timePeriodRef.current = demo.timePeriod
     setPopularity(demo.popularity)
@@ -1087,9 +1117,9 @@ export default function PlayerClient({
     const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
     const at = ch.artistText ?? ''; setArtistText(at); artistTextRef.current = at
     const pop = ch.popularity ?? 50; setPopularity(pop); popularityRef.current = pop
-    const disc = ch.discovery ?? 50; setDiscovery(disc); exploreModeRef.current = disc
-
-    setLlmSuggestedArtists([])
+    const disc =
+      ch.id === ALL_CHANNEL_ID ? ALL_CHANNEL_DISCOVERY_DEFAULT : CHANNEL_DISCOVERY_DEFAULT
+    setDiscovery(disc); exploreModeRef.current = disc
 
     setLoadingQueue(false)
 
@@ -1839,6 +1869,7 @@ export default function PlayerClient({
           // The local 250ms timer is frozen by the browser when backgrounded, so this is
           // the only reliable signal for auto-advance while the app is not visible.
           if (
+            autoNextAtEndRef.current &&
             state.paused &&
             state.position === 0 &&
             !autoAdvanceRef.current &&
@@ -1930,7 +1961,11 @@ export default function PlayerClient({
         setSliderPosition(currentTimeSec * 1000)
       }
       const endThreshold = Math.max(1000, durationRef.current - 1500)
-      if (durationRef.current > 0 && sliderRef.current >= endThreshold) {
+      if (
+        autoNextAtEndRef.current &&
+        durationRef.current > 0 &&
+        sliderRef.current >= endThreshold
+      ) {
         if (!autoAdvanceRef.current) {
           autoAdvanceRef.current = true
           advanceRef.current?.(true)
@@ -1955,7 +1990,7 @@ export default function PlayerClient({
       sliderRef.current = next
       setSliderPosition(next)
       const endThreshold = Math.max(1000, durationRef.current - 1500)
-      if (next >= endThreshold) {
+      if (autoNextAtEndRef.current && next >= endThreshold) {
         if (!autoAdvanceRef.current) {
           autoAdvanceRef.current = true
           advanceRef.current?.(true)
@@ -2008,6 +2043,7 @@ export default function PlayerClient({
       // Wall-clock check: if enough time has passed for the track to have ended while
       // backgrounded (JS timer was frozen), advance now rather than reclaiming the old track.
       if (
+        autoNextAtEndRef.current &&
         !autoAdvanceRef.current &&
         expectedTrackEndAtRef.current > 0 &&
         Date.now() >= expectedTrackEndAtRef.current
@@ -2607,13 +2643,6 @@ export default function PlayerClient({
           priorProfileRef.current = data.profile
           setProfile(data.profile)
         }
-        if (Array.isArray(data.suggestedArtists) && data.suggestedArtists.length > 0) {
-          const sa = data.suggestedArtists
-            .filter((x: unknown): x is string => typeof x === 'string')
-            .map((x: string) => x.trim())
-            .filter(Boolean)
-          if (sa.length > 0) setLlmSuggestedArtists(sa)
-        }
         if (Array.isArray(data.songs) && data.songs.length > 0) {
           const incoming = data.songs as SongSuggestion[]
           setSuggestionBuffer(prev => {
@@ -2778,14 +2807,13 @@ export default function PlayerClient({
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
     fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch, numSongs)
-      .then(async ({ suggestions, profile: newProfile, suggestedArtists: nextArtists }) => {
+      .then(async ({ suggestions, profile: newProfile }) => {
         console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
         if (newProfile) {
           setPriorProfile(newProfile)
           priorProfileRef.current = newProfile
           setProfile(newProfile)
         }
-        if (nextArtists.length > 0) setLlmSuggestedArtists(nextArtists)
         setSubmittedUris(new Set(cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean)))
 
         if (gen !== fetchGenRef.current) return
@@ -3005,10 +3033,16 @@ export default function PlayerClient({
     }
     const needCurrent = !currentCardRef.current
     const queueRoom = Math.max(0, 3 - queueRef.current.length)
-    const maxTake =
+    /** With auto-advance off, only one track at a time — no Up Next until the user presses Next. */
+    const maxTakeRaw =
       needCurrent && queueRef.current.length === 0
         ? 4
         : queueRoom
+    const maxTake = autoNextAtEndRef.current
+      ? maxTakeRaw
+      : needCurrent && queueRef.current.length === 0
+        ? 1
+        : 0
 
     if (maxTake <= 0) {
       console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (no slots)', {
@@ -3127,7 +3161,8 @@ export default function PlayerClient({
         setCurrentStars(null)
         currentStarsRef.current = null
         seen.add(trackPlayKey(first.track))
-        restCards = afterFirst.slice(0, 3)
+        // With auto-advance on, queue up to 3; off, only now playing (rest stays in buffer).
+        restCards = autoNextAtEndRef.current ? afterFirst.slice(0, 3) : []
       }
 
       const q = [...queueRef.current]
@@ -3251,6 +3286,7 @@ export default function PlayerClient({
             await startPlaybackFromSuggestions()
           }
           if (
+            autoNextAtEndRef.current &&
             currentCardRef.current &&
             queueRef.current.length < 3 &&
             suggestionBufferRef.current.length > 0
@@ -3447,12 +3483,7 @@ export default function PlayerClient({
     if (!cur) return
 
     const userStars = currentStarsRef.current
-    const stars = computeRecordedListenStars(
-      playedToEnd,
-      userStars,
-      durationRef.current,
-      sliderRef.current,
-    )
+    const stars = computeRecordedListenStars(userStars, durationRef.current, sliderRef.current)
     const event: ListenEvent = {
       track: cur.track.name,
       artist: cur.track.artist,
@@ -3902,7 +3933,9 @@ export default function PlayerClient({
               key={`${currentCard.track.id}-${playGeneration}`}
               ref={youtubePlayerRef}
               videoId={currentCard.track.id}
-              onEnded={() => advanceRef.current?.(true)}
+              onEnded={() => {
+                if (autoNextAtEndRef.current) advanceRef.current?.(true)
+              }}
               onPlayerError={_code => {
                 // Any YouTube player error means this video can't play — skip to next.
                 advanceRef.current?.(false)
@@ -4060,7 +4093,8 @@ export default function PlayerClient({
                       isSeekingRef.current = false
                       if ((currentCard.track.source as string) === 'youtube') return
                       if (duration > 0 && v >= duration - 1500) {
-                        advanceWithFade()
+                        if (autoNextAtEndRef.current) advanceWithFade()
+                        else playerRef.current?.seek(v)
                       } else {
                         playerRef.current?.seek(v)
                       }
@@ -4070,7 +4104,8 @@ export default function PlayerClient({
                       isSeekingRef.current = false
                       if ((currentCard.track.source as string) === 'youtube') return
                       if (duration > 0 && v >= duration - 1500) {
-                        advanceWithFade()
+                        if (autoNextAtEndRef.current) advanceWithFade()
+                        else playerRef.current?.seek(v)
                       } else {
                         playerRef.current?.seek(v)
                       }
@@ -4091,7 +4126,8 @@ export default function PlayerClient({
 
         {/* Stars + Next below the panel */}
         {currentCard && (
-          <div className="flex items-center gap-3 px-1">
+          <div className="flex flex-col gap-2 px-1 w-full max-w-[800px]">
+            <div className="flex items-center gap-3">
             <StarRating
               value={currentStars}
               onChange={v => { setCurrentStars(v); currentStarsRef.current = v }}
@@ -4112,6 +4148,23 @@ export default function PlayerClient({
                 <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
               </div>
             )}
+            </div>
+            <label className="flex items-center gap-2 text-xs text-zinc-500 cursor-pointer select-none pl-0.5">
+              <input
+                type="checkbox"
+                className="accent-zinc-400 rounded border-zinc-600"
+                checked={autoNextAtEnd}
+                onChange={e => {
+                  const v = e.target.checked
+                  setAutoNextAtEnd(v)
+                  autoNextAtEndRef.current = v
+                  try {
+                    localStorage.setItem('earprint-auto-next-at-end', v ? '1' : '0')
+                  } catch {}
+                }}
+              />
+              Auto-advance when a track ends
+            </label>
           </div>
         )}
 

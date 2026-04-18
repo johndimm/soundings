@@ -92,7 +92,7 @@ function makeAllChannelForExport() {
     artists: [] as string[],
     artistText: '',
     popularity: 50,
-    discovery: 50,
+    discovery: 100,
   }
 }
 

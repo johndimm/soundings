@@ -67,7 +67,6 @@ export interface GuideDemoState {
   spotifyUser: { id: string; display_name?: string; product?: string }
   settingsDirty: boolean
   backoffUntil: number | null
-  llmSuggestedArtists: string[]
   artists: string[]
   artistText: string
 }
@@ -252,7 +251,7 @@ export function getGuideDemoState(scene?: string | null): GuideDemoState {
       artists: [],
       artistText: '',
       popularity: 45,
-      discovery: 72,
+      discovery: 50,
     },
     {
       id: 'guide-electronic',
@@ -292,17 +291,7 @@ export function getGuideDemoState(scene?: string | null): GuideDemoState {
     timePeriod: '1970s to now',
     regions: ['Scandinavia'],
     popularity: 45,
-    discovery: 72,
-    llmSuggestedArtists: [
-      'Miles Davis',
-      'John Coltrane',
-      'Nina Simone',
-      'Brian Eno',
-      'Alice Coltrane',
-      'Bill Evans',
-      'Chet Baker',
-      'Portishead',
-    ],
+    discovery: 50,
     artists: [],
     artistText: '',
     provider: 'deepseek',

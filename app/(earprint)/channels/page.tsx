@@ -1,10 +1,13 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
 import {
+  ALL_CHANNEL_DISCOVERY_DEFAULT,
+  CHANNEL_DISCOVERY_DEFAULT,
   genChannelId,
+  normalizeChannelDiscovery,
   type Channel,
   type HistoryEntry,
 } from '@/app/lib/channelsImportExport'
@@ -43,6 +46,100 @@ const REGION_OPTIONS = [
   'Africa', 'Middle East', 'India', 'East Asia', 'Southeast Asia',
 ]
 
+/** Artist quick-picks keyed by genre (union when multiple genres are selected). */
+const ARTISTS_BY_GENRE: Record<string, readonly string[]> = {
+  Pop: ['The Beatles', 'Madonna', 'Michael Jackson', 'ABBA', 'Taylor Swift', 'Elton John'],
+  Rock: ['The Beatles', 'Led Zeppelin', 'Pink Floyd', 'David Bowie', 'Radiohead', 'The Cure'],
+  'Hip-Hop': ['Kendrick Lamar', 'Outkast', 'Nas', 'Missy Elliott', 'Wu-Tang Clan'],
+  'R&B': ['Marvin Gaye', 'Aretha Franklin', 'Stevie Wonder', 'Prince', 'Whitney Houston'],
+  Electronic: ['Kraftwerk', 'Aphex Twin', 'Daft Punk', 'Brian Eno', 'Depeche Mode'],
+  Jazz: ['Miles Davis', 'John Coltrane', 'Billie Holiday', 'Ella Fitzgerald', 'Duke Ellington', 'Nina Simone'],
+  Classical: [
+    'Johann Sebastian Bach',
+    'Wolfgang Amadeus Mozart',
+    'Ludwig van Beethoven',
+    'Frédéric Chopin',
+    'Claude Debussy',
+    'Igor Stravinsky',
+    'Philip Glass',
+  ],
+  Country: ['Johnny Cash', 'Dolly Parton', 'Willie Nelson', 'Patsy Cline', 'Hank Williams'],
+  Folk: ['Joni Mitchell', 'Bob Dylan', 'Joan Baez', 'Simon & Garfunkel'],
+  Metal: ['Metallica', 'Black Sabbath', 'Iron Maiden', 'Judas Priest'],
+  Soul: ['Marvin Gaye', 'Aretha Franklin', 'Otis Redding', 'James Brown'],
+  Blues: ['B.B. King', 'Muddy Waters', 'Robert Johnson', 'Howlin\' Wolf'],
+  Reggae: ['Bob Marley', 'Peter Tosh', 'Jimmy Cliff'],
+  Latin: ['Celia Cruz', 'Carlos Santana', 'Bad Bunny', 'Rosalía'],
+  Punk: ['The Ramones', 'Sex Pistols', 'The Clash', 'Black Flag'],
+}
+
+/**
+ * Time chips → example names. Decade rows mix familiar recording artists with composers in the
+ * notated / concert tradition (including contemporary classical); art-music era rows are historical style periods.
+ */
+const ARTISTS_BY_TIME_PERIOD: Record<string, readonly string[]> = {
+  '1940s': ['Frank Sinatra', 'Billie Holiday', 'Ella Fitzgerald', 'Duke Ellington', 'Igor Stravinsky', 'Benjamin Britten'],
+  '1950s': ['Elvis Presley', 'Chuck Berry', 'Little Richard', 'Miles Davis', 'Pierre Boulez', 'John Cage'],
+  '1960s': ['The Beatles', 'Bob Dylan', 'Jimi Hendrix', 'Aretha Franklin', 'György Ligeti', 'Steve Reich'],
+  '1970s': ['Led Zeppelin', 'Stevie Wonder', 'David Bowie', 'Pink Floyd', 'Philip Glass', 'Arvo Pärt'],
+  '1980s': ['Madonna', 'Prince', 'Michael Jackson', 'The Cure', 'John Adams', 'Henryk Górecki'],
+  '1990s': ['Radiohead', 'Outkast', 'Björk', 'Nirvana', 'Thomas Adès', 'Kaija Saariaho'],
+  '2000s': ['Radiohead', 'Outkast', 'Beyoncé', 'Amy Winehouse', 'John Luther Adams', 'Anna Meredith'],
+  '2010s': ['Taylor Swift', 'Kendrick Lamar', 'Adele', 'Caroline Shaw', 'Hildur Guðnadóttir'],
+  'after 2020': ['Taylor Swift', 'Bad Bunny', 'Billie Eilish', 'Anna Thorvaldsdottir', 'Gabriel Kahane'],
+  'medieval era': ['Hildegard von Bingen', 'Guillaume de Machaut', 'Perotin'],
+  'Renaissance era': ['Josquin des Prez', 'Giovanni Palestrina', 'William Byrd'],
+  'Baroque era': ['Johann Sebastian Bach', 'George Frideric Handel', 'Antonio Vivaldi', 'Claudio Monteverdi'],
+  'Classical era': ['Wolfgang Amadeus Mozart', 'Joseph Haydn', 'Ludwig van Beethoven'],
+  'Romantic era': ['Frédéric Chopin', 'Johannes Brahms', 'Richard Wagner', 'Pyotr Ilyich Tchaikovsky'],
+  '20th century classical': ['Igor Stravinsky', 'Dmitri Shostakovich', 'Béla Bartók', 'Olivier Messiaen'],
+}
+
+const ARTISTS_BY_REGION: Record<string, readonly string[]> = {
+  'US & Canada': ['Frank Sinatra', 'Prince', 'Bob Dylan', 'Aaron Copland'],
+  'UK & Ireland': ['The Beatles', 'David Bowie', 'Kate Bush', 'Benjamin Britten'],
+  'Western Europe': ['Édith Piaf', 'Claude Debussy', 'Maurice Ravel', 'Johannes Brahms'],
+  Scandinavia: ['ABBA', 'Björk', 'Robyn', 'Jean Sibelius'],
+  'Eastern Europe': ['Frédéric Chopin', 'Dmitri Shostakovich', 'Béla Bartók'],
+  'Latin America': ['Celia Cruz', 'Carlos Santana', 'Heitor Villa-Lobos'],
+  Brazil: ['Antônio Carlos Jobim', 'Gilberto Gil', 'Caetano Veloso'],
+  Caribbean: ['Bob Marley', 'Jimmy Cliff', 'Celia Cruz'],
+  Africa: ['Fela Kuti', 'Youssou N\'Dour'],
+  'Middle East': ['Fairuz', 'Ofra Haza'],
+  India: ['Ravi Shankar', 'A.R. Rahman'],
+  'East Asia': ['Ryuichi Sakamoto', 'Yo-Yo Ma'],
+  'Southeast Asia': ['Yanni', 'Anggun'],
+}
+
+/** Union of genre + selected time periods + selected regions (deduped). */
+function deriveArtistOptions(genres: string[], timePeriods: string[], regions: string[]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  const push = (name: string) => {
+    if (seen.has(name)) return
+    seen.add(name)
+    out.push(name)
+  }
+  for (const g of genres) {
+    for (const a of ARTISTS_BY_GENRE[g] ?? []) push(a)
+  }
+  for (const tp of timePeriods) {
+    for (const a of ARTISTS_BY_TIME_PERIOD[tp] ?? []) push(a)
+  }
+  for (const r of regions) {
+    for (const a of ARTISTS_BY_REGION[r] ?? []) push(a)
+  }
+  return out
+}
+
+function mergeArtistTextIntoNotes(ch: Channel): Channel {
+  const at = typeof ch.artistText === 'string' ? ch.artistText.trim() : ''
+  if (!at) return ch
+  const n = typeof ch.notes === 'string' ? ch.notes.trim() : ''
+  const merged = n ? `${n}\n\n${at}` : at
+  return { ...ch, notes: merged, artistText: '' }
+}
+
 function makeAllChannel(): Channel {
   return {
     id: ALL_CHANNEL_ID,
@@ -60,7 +157,7 @@ function makeAllChannel(): Channel {
     artists: [],
     artistText: '',
     popularity: 50,
-    discovery: 50,
+    discovery: ALL_CHANNEL_DISCOVERY_DEFAULT,
   }
 }
 
@@ -148,7 +245,8 @@ export default function ChannelsPage() {
     try {
       const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
       loaded = ensureAllChannel(raw ? JSON.parse(raw) : [])
-      // Persist if All channel was just added
+      loaded = loaded.map(mergeArtistTextIntoNotes).map(normalizeChannelDiscovery)
+      // Persist merged notes + cleared artistText, and any All-channel insertion from ensureAllChannel
       try { localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(loaded)) } catch {}
       const activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY)
       setChannels(loaded)
@@ -172,7 +270,7 @@ export default function ChannelsPage() {
         artists: [],
         artistText: '',
         popularity: 50,
-        discovery: 50,
+        discovery: CHANNEL_DISCOVERY_DEFAULT,
       }
       const updated = [...loaded, newCh]
       setChannels(updated)
@@ -186,7 +284,43 @@ export default function ChannelsPage() {
     setMounted(true)
   }, [searchParams])
 
-const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0]
+  const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0]
+
+  const selectionKey = JSON.stringify({
+    g: activeChannel?.genres ?? [],
+    tp: activeChannel?.timePeriods ?? [],
+    r: activeChannel?.regions ?? [],
+  })
+
+  const derivedArtistOptions = useMemo(
+    () =>
+      deriveArtistOptions(
+        activeChannel?.genres ?? [],
+        activeChannel?.timePeriods ?? [],
+        activeChannel?.regions ?? []
+      ),
+    [selectionKey]
+  )
+
+  useEffect(() => {
+    if (!mounted) return
+    if (!activeChannelId) return
+    setChannels(prev => {
+      const ch = prev.find(c => c.id === activeChannelId)
+      if (!ch || ch.id === ALL_CHANNEL_ID) return prev
+      const allowed = new Set(
+        deriveArtistOptions(ch.genres ?? [], ch.timePeriods ?? [], ch.regions ?? [])
+      )
+      const cur = ch.artists ?? []
+      const pruned = cur.filter(a => allowed.has(a))
+      if (pruned.length === cur.length) return prev
+      const next = prev.map(c => (c.id === ch.id ? { ...c, artists: pruned } : c))
+      try {
+        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(next))
+      } catch {}
+      return next
+    })
+  }, [mounted, activeChannelId, selectionKey])
 
   const persist = (updated: Channel[]) => {
     setChannels(updated)
@@ -221,13 +355,13 @@ const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0
       createdAt: Date.now(),
       genres: [],
       genreText: '',
-      timePeriod: '',
+      timePeriods: [],
       notes: '',
       regions: [],
       artists: [],
       artistText: '',
       popularity: 50,
-      discovery: 50,
+      discovery: CHANNEL_DISCOVERY_DEFAULT,
     }
     const updated = [...channels, newCh]
     persist(updated)
@@ -264,6 +398,13 @@ const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0
     const regions = activeChannel?.regions ?? []
     updateActive({
       regions: regions.includes(r) ? regions.filter(x => x !== r) : [...regions, r],
+    })
+  }
+
+  const toggleArtist = (name: string) => {
+    const list = activeChannel?.artists ?? []
+    updateActive({
+      artists: list.includes(name) ? list.filter(x => x !== name) : [...list, name],
     })
   }
 
@@ -312,12 +453,11 @@ const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0
   const genres = ch?.genres ?? []
   const regions = ch?.regions ?? []
   const timePeriods = ch?.timePeriods ?? []
+  const artists = ch?.artists ?? []
   const popularity = ch?.popularity ?? 50
-  const discovery = ch?.discovery ?? 50
   const notes = ch?.notes ?? ''
   const history: HistoryEntry[] = ch?.cardHistory ?? []
 
-  const discoveryLabel = discovery <= 20 ? 'Familiar' : discovery <= 40 ? 'Mostly familiar' : discovery <= 60 ? 'Balanced' : discovery <= 80 ? 'Mostly new' : 'Adventurous'
   const popularityLabel = popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'
 
   return (
@@ -401,23 +541,6 @@ const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0
                 <span className="text-xs text-zinc-400 italic">No filters — plays anything</span>
               ) : (
                 <>
-                  {/* Discovery */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs text-zinc-500 uppercase tracking-wide">Discovery</label>
-                      <span className="text-xs text-zinc-400">{discoveryLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-600">Familiar</span>
-                      <input
-                        type="range" min={0} max={100} value={discovery}
-                        onChange={e => updateActive({ discovery: Number(e.target.value) })}
-                        className="flex-1 accent-zinc-400"
-                      />
-                      <span className="text-xs text-zinc-600">New</span>
-                    </div>
-                  </div>
-
                   {/* Genres */}
                   <div className="flex flex-col gap-2">
                     <label className="text-xs text-zinc-500 uppercase tracking-wide">Genres</label>
@@ -453,6 +576,27 @@ const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0
                     </div>
                   </div>
 
+                  {/* Artists (options = union from genres + eras + regions) */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Artists</label>
+                    {derivedArtistOptions.length === 0 ? (
+                      <p className="text-xs text-zinc-500 leading-relaxed">
+                        Select genres, eras, or regions to see artist picks matching those choices.
+                      </p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {derivedArtistOptions.map(a => (
+                          <Chip
+                            key={a}
+                            label={a}
+                            active={artists.includes(a)}
+                            onClick={() => toggleArtist(a)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Popularity */}
                   <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
@@ -470,13 +614,13 @@ const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0
                     </div>
                   </div>
 
-                  {/* Notes */}
+                  {/* Notes & freeform hints */}
                   <div className="flex flex-col gap-1">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Notes</label>
+                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Notes and hints</label>
                     <textarea
                       value={notes}
                       onChange={e => updateActive({ notes: e.target.value })}
-                      placeholder="Describe what you want — genres, artists, era, mood, anything. e.g. dreamy shoegaze, lean Coltrane, avoid smooth jazz, upbeat only, nothing after 1990…"
+                      placeholder="Anything for the DJ — extra artists, avoid lists, mood, era, lyrics, … e.g. lean Coltrane, no smooth jazz, upbeat only, nothing after 1990."
                       rows={4}
                       className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-3 py-2 text-sm text-black placeholder-zinc-400 resize-none focus:outline-none focus:border-zinc-500"
                     />
