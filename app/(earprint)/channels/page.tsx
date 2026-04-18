@@ -537,9 +537,7 @@ export default function ChannelsPage() {
 
             {/* Settings (always) + ratings below */}
             <div className="border-b border-zinc-200 px-4 pt-4 pb-5 flex flex-col gap-5">
-              {ch.id === ALL_CHANNEL_ID ? (
-                <span className="text-xs text-zinc-400 italic">No filters — plays anything</span>
-              ) : (
+              {ch.id === ALL_CHANNEL_ID ? null : (
                 <>
                   {/* Genres */}
                   <div className="flex flex-col gap-2">
