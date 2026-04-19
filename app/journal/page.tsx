@@ -24,6 +24,65 @@ export default function JournalPage() {
 const JOURNAL_CONTENT = `
 <h1>Soundings Dev Diary</h1>
 
+<h2>2026-04-18</h2>
+
+<h3>Music map on channels page</h3>
+<ul>
+  <li class="fix">Added the 3D music map to the bottom of each channel on <code>/channels</code>. Reuses the existing <code>MusicMap</code> component with history normalized from the channel export type (<code>albumArt ?? null</code>, <code>uri ?? null</code>, <code>stars ?? null</code>).</li>
+</ul>
+
+<h3>Queue population decoupled from auto-advance</h3>
+<ul>
+  <li class="problem">Three guards in <code>PlayerClient</code> checked <code>autoNextAtEndRef.current</code> before populating the queue, so with auto-advance off the queue stayed empty and the user saw only "Up Next" pending suggestions, never a ready queue.</li>
+  <li class="fix">Removed all three <code>autoNextAtEndRef.current</code> guards from queue-filling code paths (<code>promoteDjPendingByIdOnly</code> max-take calculation, rest-cards slice, and <code>consumeDjSuggestionBuffer</code> top-up guard). Auto-advance now only controls whether the player advances automatically at track end — queue always fills to depth 3.</li>
+</ul>
+
+<h3>Proactive queue and buffer refill</h3>
+<ul>
+  <li class="fix">Changed the auto-fill trigger from <code>suggestionBuffer.length === 0</code> to <code>suggestionBuffer.length &lt;= 1 || queue.length &lt;= 1</code>. Both the DJ suggestion buffer and the ready queue now refill one step earlier, preventing the gap between the last song finishing and the next LLM response arriving. Existing <code>djInventoryFull()</code> (both ≥3) and 15s <code>FETCH_COOLDOWN_MS</code> guards prevent over-requesting.</li>
+</ul>
+
+<h3>Slot label stripped from DJ reasons</h3>
+<ul>
+  <li class="problem">The LLM was echoing its internal slot terminology ("Slot 1 — …" or "Slot 2:") into the <code>reason</code> field that appears in the player UI.</li>
+  <li class="fix">Added a regex strip in <code>parseLLMResponse</code> in <code>llm.ts</code>: removes leading "Slot N —" and "Slot N:" patterns. Also updated the system prompt to instruct the model not to include slot labels in reason strings.</li>
+</ul>
+
+<h3>Album art gradient lightened</h3>
+<ul>
+  <li class="fix">The gradient overlay at the bottom of the album art panel was too heavy (<code>from-black via-black/60</code>), making all cover art look faded. Changed to <code>from-black/80 via-transparent</code> so the gradient fades to clear instead of staying dark across the full image.</li>
+</ul>
+
+<h3>Guide fully rewritten</h3>
+<ul>
+  <li class="fix">Rewrote all sections of <code>app/guide/page.tsx</code> to match the current UI: channel tabs, channel settings page, auto-advance checkbox, queue vs. Up next distinction, and the music map.</li>
+  <li class="fix">Removed the old album-indicator.png screenshot; added channel-settings.png with a walkthrough for creating a channel. Swapped music-map.svg for music-map.png.</li>
+  <li class="fix">Removed the LLM provider section (no longer shown to end users).</li>
+</ul>
+
+<h3>Music map grid lines brightened</h3>
+<ul>
+  <li class="fix">Grid lines in <code>MusicMap.tsx</code> were nearly invisible against the dark background. Changed both face-grid and connecting-edge colors from <code>#3f3f46</code>/<code>#52525b</code> (zinc-700/600) to <code>#71717a</code> (zinc-500).</li>
+</ul>
+
+<h3>Channel-switch race condition — wrong album art</h3>
+<ul>
+  <li class="problem">Switching channels while a Spotify resolve was in flight let the old channel's results (e.g. Saint-Saëns artwork) apply to the new channel's state (e.g. Charles Mingus track).</li>
+  <li class="fix">Added <code>resolvingRef.current = false</code> in <code>loadChannelIntoState</code> so any in-flight resolve from the previous channel is abandoned. Also captured the active channel ID before each async resolve in <code>promoteDjPendingByIdOnly</code>, <code>startPlaybackFromSuggestions</code>, and <code>topUpQueueFromSuggestions</code>; after the await, the result is discarded if the channel has since changed.</li>
+</ul>
+
+<h3>Multiple artists on SpotifyTrack</h3>
+<ul>
+  <li class="fix">Spotify's API returns the full <code>artists</code> array but only the first was stored. Added <code>artists?: string[]</code> to the <code>SpotifyTrack</code> interface and populated it in both <code>searchTrack</code> and <code>getTracksByIds</code> in <code>spotify.ts</code>.</li>
+  <li class="fix">Player display uses <code>track.artists.join(', ')</code> when more than one artist is credited, falling back to <code>track.artist</code> otherwise.</li>
+</ul>
+
+<h3>Composed year hallucination fix</h3>
+<ul>
+  <li class="problem">The LLM was setting <code>composed</code> for living artists (e.g. Chappell Roan shown as 1959), because the guidance only said "omit for contemporary recordings" without a hard cutoff.</li>
+  <li class="fix">Strengthened the system prompt: "NEVER set <code>composed</code> for any living artist or any song written after 1970. If in doubt, omit it." Also added a display-layer guard: if <code>releaseYear &gt; 1990</code>, trust Spotify's year rather than showing the LLM-provided <code>composed</code> value.</li>
+</ul>
+
 <h2>2026-04-09</h2>
 
 <h3>Gemini model</h3>

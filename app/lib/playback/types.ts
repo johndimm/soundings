@@ -27,6 +27,8 @@ export interface Track {
   id: string
   name: string
   artist: string
+  /** All credited artists when known (e.g. Spotify multi-artist tracks). */
+  artists?: string[]
   album: string
   albumArt: string | null
   durationMs: number

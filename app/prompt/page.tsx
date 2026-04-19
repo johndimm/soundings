@@ -16,6 +16,8 @@ The app supports two playback sources: Spotify (if you have a Premium account) a
 
 There is a history page that shows every song you've heard and how you rated it. You can re-rate songs here, delete them, or select multiple entries and delete them in bulk. Next to the history list is a three-dimensional map that plots every song you've heard in a musical space defined by three axes: how acoustic versus electronic it is, how calm versus intense, and how obscure versus mainstream. You can rotate this map to explore it.
 
+Each channel on the channels settings page also shows a compact version of this music map below the rating history, so you can see the sonic shape of each channel at a glance.
+
 There is a channel settings page where you configure the DJ constraints described above and choose which AI model to use.
 
 The app works in a demo mode with no login required, using preloaded history data, so anyone can try it before signing up.`
@@ -50,7 +52,7 @@ The app presents one song at a time inside a "channel." The user listens, rates 
 - cardHistory: HistoryEntry[] (all songs heard and rated)
 - sessionHistory: ListenEvent[] (history sent to LLM — lighter version)
 - currentCard: CardState | null (track now playing)
-- queue: CardState[] (songs ready to play, target depth 3)
+- queue: CardState[] (songs ready to play, target depth 3; fills regardless of auto-advance setting)
 - genres: string[] (selected genre chips)
 - genreText: string (free-text genre override)
 - timePeriod: string (era constraint, e.g. "1970s", "baroque era")
@@ -65,7 +67,7 @@ The app presents one song at a time inside a "channel." The user listens, rates 
 - playbackTrackUri: string (which track the position belongs to)
 
 ### HistoryEntry
-Extends ListenEvent with: albumArt (string|null), uri (string|null), category (string), source ('spotify'|'youtube'), coords ({x,y,z}).
+Extends ListenEvent with: albumArt (string|null), uri (string|null), category (string), source ('spotify'|'youtube'), coords ({x,y,z}), stars (number|null).
 
 ### ListenEvent
 - track: string, artist: string
@@ -145,6 +147,7 @@ Right column — SessionPanel:
   - Popularity slider (0=Obscure … 100=Mainstream)
   - Tell the DJ textarea (freeform notes)
 - LLM selector: dropdown to pick which AI model is used (Claude, GPT-4o, DeepSeek, Gemini). Stored in \`earprint-settings.provider\`.
+- Below the rating history list: compact MusicMap showing all heard songs for that channel.
 - Changes take effect on the next DJ query.
 
 ### /ratings — Ratings history + map (client)

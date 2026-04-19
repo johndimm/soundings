@@ -103,7 +103,7 @@ DATE INTEGRITY — strictly enforced:
 Also include "suggested_artists": an array of 8–12 DISTINCT real recording-artist or band names that fit the user's constraints and the taste profile — these power UI quick-pick buttons (exploration anchors). Use canonical names only. They need not appear in the 3 song rows; vary styles. If you cannot name enough confidently, include fewer (minimum 4 when possible) or an empty array.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: slot role, position in space, why this song","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
+{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
 YOUTUBE (youtube_url or youtube_video_id) — optional; strongly preferred when the listener uses YouTube playback:
@@ -121,7 +121,7 @@ SPOTIFY ID (spotify_id) — conservative but not silent:
 - When unsure between including a questionable id or omitting it, omit it.
 - The "search" field is always required and is the source of truth for lookup; spotify_id is an optional accelerator when trustworthy.
 
-The "composed" field is the year of composition (for classical/jazz standards/etc.) — omit it for contemporary recordings where the release year is meaningful.
+The "composed" field is the year of composition — use it ONLY for classical music and pre-1970 jazz standards where the composer predates the performer (e.g. Bach, Mozart, a Bill Evans arrangement of a 1930s standard). NEVER set "composed" for any living artist or any song written after 1970. If in doubt, omit it.
 The "performer" field is for classical pieces only: set it to the performing ensemble or soloist (e.g. "Berlin Philharmonic / Karajan", "Glenn Gould"). The "search" field should include both composer and performer for best lookup results.`
 
 // 0 = pure familiar (exploit liked regions), 100 = pure adventurous (all unexplored)
@@ -528,7 +528,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
       })
       .map((s: LLMRow) => ({
         search: s.search,
-        reason: s.reason,
+        reason: s.reason.replace(/^Slot\s*\d+\s*[—–-]\s*/i, '').replace(/^Slot\s*\d+:\s*/i, ''),
         category: typeof s.category === 'string' ? s.category : undefined,
         spotifyId: normalizeSpotifyTrackId(rawSpotifyIdFromRow(s as unknown as Record<string, unknown>)),
         youtubeVideoId: rawYoutubeVideoIdFromRow(s as unknown as Record<string, unknown>),

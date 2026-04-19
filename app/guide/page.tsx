@@ -274,20 +274,12 @@ const GUIDE_CONTENT = `
 <h1>Soundings</h1>
 <p class="subtitle">Help</p>
 
-<p>Soundings is a music discovery app that uses an AI DJ to learn your taste and find music you don't know yet. It works in two modes — pick the one that suits you:</p>
-
-<table>
-  <thead><tr><th>Mode</th><th>Requirement</th><th>Playback</th></tr></thead>
-  <tbody>
-    <tr><td><strong>Spotify</strong></td><td>Spotify Premium account</td><td>Full audio, seekable</td></tr>
-    <tr><td><strong>YouTube</strong></td><td>No account needed</td><td>Embedded YouTube video</td></tr>
-  </tbody>
-</table>
+<p>Soundings is a music discovery app that uses an AI DJ to learn your taste and surface music you haven't found yet. It works with Spotify (Premium) or YouTube (no account needed). Everything is stored in your browser — no server account required.</p>
 
 <div class="quickstart">
   <div class="quickstart-label">Quick start</div>
-  <p>All you really need is the <strong>Next button</strong>. Press it when you hear something you don't like — the song gets no stars. If you like it, give it stars before pressing Next. The more you rate, the more precisely the DJ learns your taste.</p>
-  <p>Everything else is optional: the controls on the Channels page let you give hints to speed the process up.</p>
+  <p>All you need is the <strong>Next button</strong>. Press it when you hear something you don't like — the song gets no stars and the DJ steers away from that sound. If you like it, give it stars first. The more you rate, the more precisely the DJ learns your taste.</p>
+  <p>Everything else is optional. Channels let you give explicit hints — genre, era, region — to focus the DJ faster.</p>
 </div>
 
 <div class="toc">
@@ -298,13 +290,11 @@ const GUIDE_CONTENT = `
     <li><a href="#player">The player</a></li>
     <li><a href="#rating">Rating a track</a></li>
     <li><a href="#reactions">How the DJ interprets ratings</a></li>
-    <li><a href="#sidebar">The sidebar</a></li>
+    <li><a href="#queue">The queue</a></li>
     <li><a href="#channels">Channels</a></li>
-    <li><a href="#taste-space">The taste space</a></li>
-    <li><a href="#map">The map</a></li>
+    <li><a href="#map">The music map</a></li>
     <li><a href="#status">Status and rate limiting</a></li>
     <li><a href="#mobile">Mobile</a></li>
-    <li><a href="#provider">LLM provider</a></li>
   </ol>
 </div>
 
@@ -312,178 +302,171 @@ const GUIDE_CONTENT = `
 
 <h2 id="how-it-works">How it works</h2>
 
-<p>When you open Soundings, the AI DJ picks songs from very different parts of the musical map and lines them up. As you listen and rate, the DJ builds a picture of your taste and uses it to choose what comes next. The more you interact, the more accurate it gets. Everything is saved in your browser — no server account needed.</p>
+<p>The AI DJ plots every song in a three-dimensional taste space — acoustic vs. electronic, calm vs. intense, obscure vs. mainstream. As you listen and rate, the DJ builds a picture of where you like to be in that space and picks songs accordingly. Songs you love pull future picks toward that neighborhood; songs you skip or rate low steer the DJ away.</p>
 
 <hr>
 
 <h2 id="modes">Choosing a mode</h2>
 
-<p>On the login page you'll see two options:</p>
-<ul>
-  <li><strong>Spotify</strong> — logs you in with OAuth and streams audio through the Spotify Web Playback SDK. Requires a Premium subscription.</li>
-  <li><strong>YouTube</strong> — goes straight to the player with no login. Songs play as embedded YouTube videos.</li>
-</ul>
-<p>Both modes use the same AI DJ and channels system. You can maintain independent channels in each mode.</p>
+<table>
+  <thead><tr><th>Mode</th><th>Requirement</th><th>Playback</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Spotify</strong></td><td>Spotify Premium account</td><td>Full audio, seekable</td></tr>
+    <tr><td><strong>YouTube</strong></td><td>No account needed</td><td>Embedded YouTube video</td></tr>
+  </tbody>
+</table>
+
+<p>Both modes use the same AI DJ and channels system.</p>
 
 <h3>YouTube quota</h3>
-<p>The YouTube Data API has a daily search quota. The free tier allows roughly <strong>100 song lookups per day</strong>. When the quota is exhausted the player shows a yellow banner and the DJ holds new suggestions until the next day (quota resets at midnight Pacific time). The <a href="/status">Status</a> page shows how many searches remain.</p>
+<p>The YouTube Data API allows roughly <strong>100 song lookups per day</strong> on the free tier. When the quota runs out, the player holds new suggestions until midnight Pacific time. The <a href="/status">Status</a> page shows how many searches remain.</p>
 
 <hr>
 
 <h2 id="player">The player</h2>
 
 <figure class="screenshot">
-  <img class="zoomable" src="/guide/screenshots/full-player.png" alt="The full player — album art panel on the left, sidebar on the right">
-  <figcaption>The full player — album art panel on the left, sidebar on the right</figcaption>
+  <img class="zoomable" src="/guide/screenshots/full-player.png" alt="The player showing album art, track info, stars, and Next button">
+  <figcaption>The player — channel tabs at top, album art, track info, stars, and Next</figcaption>
 </figure>
 
-<h3>Album art panel <em style="font-weight:400;color:#555;text-transform:none;letter-spacing:0">(Spotify mode)</em></h3>
+<h3>Channel tabs</h3>
+<p>The row of pills at the top of the player shows your channels. Click any tab to switch immediately. The <strong>+</strong> button creates a new channel.</p>
 
-<p>The left side shows the album art, which slowly pans across the image while a song plays.</p>
+<h3>Album art panel <em style="font-weight:400;color:#555;text-transform:none;letter-spacing:0">(Spotify mode)</em></h3>
 <ul>
-  <li><strong>Click anywhere on the art</strong> to pause or resume playback.</li>
-  <li><strong>▶ / ⏸ indicator</strong> — a small icon in the top-right corner tells you at a glance whether the song is playing or paused.</li>
-  <li><strong>Hover</strong> over the art to see "play" or "pause" as text over a dim overlay.</li>
+  <li><strong>Click</strong> the art to pause or resume.</li>
+  <li>The <strong>▶ / ⏸</strong> icon in the top-right corner shows playback state at a glance.</li>
+  <li>The art slowly pans while the song plays.</li>
 </ul>
 
 <h3>YouTube video panel <em style="font-weight:400;color:#555;text-transform:none;letter-spacing:0">(YouTube mode)</em></h3>
-
-<p>In YouTube mode the album art panel is replaced by an embedded YouTube video. The video autoplays when a song loads. Use the YouTube player controls (volume, fullscreen, etc.) directly within the embed.</p>
-<ul>
-  <li>The star rating and Next button work the same as in Spotify mode.</li>
-  <li>Because playback is inside an iframe, the app's seek bar reflects elapsed time but does not control the YouTube player directly.</li>
-</ul>
-
-<figure class="screenshot">
-  <img class="img-album-indicator" src="/guide/screenshots/album-indicator.png" alt="Album art with play indicator in top-right corner">
-  <figcaption>Album art with ▶ indicator in top-right corner</figcaption>
-</figure>
+<p>The album art is replaced by an embedded YouTube video. Use the YouTube controls for volume and fullscreen. Stars and Next work the same as in Spotify mode.</p>
 
 <h3>Track info</h3>
-
-<p>At the bottom of the art panel:</p>
 <ul>
-  <li><strong>Song title</strong> — click it to open the track in Spotify or YouTube (depending on mode).</li>
-  <li><strong>Artist</strong> and <strong>year</strong> — for contemporary recordings this is the release year; for classical music and jazz standards it shows the year of <em>composition</em> (e.g. "1785" for Mozart K. 475, not the CD release date).</li>
-  <li><strong>DJ's reason</strong> — a one-sentence note explaining why this song was picked.</li>
+  <li><strong>Song title</strong> — click it to open the track on Spotify or YouTube.</li>
+  <li><strong>Artist</strong> and <strong>year</strong> — contemporary tracks show release year; classical music and jazz standards show the year of <em>composition</em>.</li>
+  <li><strong>DJ's reason</strong> — one sentence explaining why this song was chosen.</li>
 </ul>
 
 <h3>Progress bar</h3>
+<p>Drag to seek. Dragging all the way to the end advances to the next song, same as pressing Next.</p>
 
-<p>Below the track info is a scrubber. Drag it to seek. If you drag it all the way to the end, the app advances to the next song — same as pressing Next.</p>
-
-<h3>Stars and Next button</h3>
-
-<p>Below the album panel you'll find the star rating (★ ½ to ★★★★★) and the <strong>Next</strong> button.</p>
+<h3>Stars and Next</h3>
 <ul>
-  <li>Rate the current song with 0.5–5 stars before pressing Next, or leave it unrated to skip.</li>
-  <li>Pressing <strong>Next</strong> fades out the current track over ~700 ms and starts the next one.</li>
-  <li>If a song plays to 98% of its duration, it auto-advances — counted as a full listen.</li>
+  <li>Rate with ½ to ★★★★★ before pressing Next, or leave unrated to skip.</li>
+  <li><strong>Next</strong> fades out the current track and starts the next one.</li>
+  <li><strong>Auto-advance when a track ends</strong> — when checked, the player moves on automatically at the end of a song. Uncheck it if you want to stay on a track as long as you like.</li>
 </ul>
 
 <hr>
 
 <h2 id="rating">Rating a track</h2>
 
-<p>Rating is how you teach the DJ your taste. Stars range from ½ to 5. Click the left half of a star for a half-star, the right half for a full star. Click a star again to clear it.</p>
+<p>Stars are how you teach the DJ. Click the left half of a star for a half-star, the right half for a full star. Click a lit star again to clear it.</p>
 
-<h3>In the Ratings page</h3>
-
-<p>On the <strong>Ratings</strong> page, every song in your history shows its star rating. Click any star to revise the rating — the change is applied immediately to the session history the DJ uses.</p>
+<p>You can revise ratings any time on the <strong>Channels</strong> page — changes take effect immediately.</p>
 
 <hr>
 
 <h2 id="reactions">How the DJ interprets ratings</h2>
-
-<p>The DJ maps your star rating to inform the next batch of suggestions:</p>
 
 <table>
   <thead>
     <tr><th>Stars</th><th>Meaning to the DJ</th></tr>
   </thead>
   <tbody>
-    <tr><td>★★★★ – ★★★★★</td><td>Loved it. May return to this artist or nearby sound.</td></tr>
-    <tr><td>★★ – ★★★½</td><td>Fine. Explore nearby territory.</td></tr>
-    <tr><td>½ – ★½</td><td>Not for me. Steer away from this sound.</td></tr>
+    <tr><td>★★★★ – ★★★★★</td><td>Loved it — explore this neighborhood of the taste space.</td></tr>
+    <tr><td>★★ – ★★★½</td><td>Fine — continue exploring nearby.</td></tr>
+    <tr><td>½ – ★½</td><td>Not for me — steer away from this sound.</td></tr>
     <tr><td>(none / skipped)</td><td>Passed on without rating.</td></tr>
   </tbody>
 </table>
 
-<p>A low rating is about the sonic character of the track, not a ban on the artist. The same artist may have songs in very different styles — those remain fair game.</p>
+<p>A low rating targets the <em>sound</em> of a track, not the artist. The same artist may have songs in very different styles — those stay fair game.</p>
 
 <hr>
 
-<h2 id="sidebar">The sidebar</h2>
+<h2 id="queue">The queue</h2>
 
-<h3>Up next</h3>
+<figure class="screenshot">
+  <img class="zoomable" src="/guide/screenshots/up-next.png" alt="Queue showing one resolved track and two DJ suggestions pending">
+  <figcaption>Queue — one resolved track ready to play, two DJ suggestions still being looked up</figcaption>
+</figure>
 
-<p>Shows the songs queued for playback. Click any song to jump to it immediately. Click <strong>×</strong> next to a song to remove it from the queue.</p>
-
-<p>Below the confirmed queue, a <strong>"DJ is thinking…"</strong> section may appear showing song names and reasons the DJ has suggested but hasn't yet resolved to tracks. These become clickable once the lookup finishes.</p>
+<p>The sidebar shows what's coming up:</p>
+<ul>
+  <li><strong>Queue</strong> — tracks fully resolved and ready to play. Click any row to jump to it; click <strong>×</strong> to remove it.</li>
+  <li><strong>DJ is thinking…</strong> — song names and reasons the DJ has proposed but hasn't finished looking up yet. They move into the queue once resolved.</li>
+</ul>
 
 <h3>What I know about you</h3>
-
-<p>The DJ maintains a short paragraph describing your taste — genres, eras, moods, energy levels. It updates after each rated song.</p>
-
-<p>Click <strong>edit</strong> to manually revise the profile. Useful if it's wrong, or if you want to steer the DJ in a different direction.</p>
+<p>Below the queue the DJ shows a short profile of your taste — genres, eras, moods, energy levels — updated after each rated track. Click <strong>edit</strong> to revise it manually if it's wrong or if you want to steer the DJ in a new direction.</p>
 
 <hr>
 
 <h2 id="channels">Channels</h2>
 
-<p>Channels let you maintain separate listening sessions with completely independent histories, profiles, and settings. <strong>Make a channel for every mood</strong> — morning focus, late-night ambient, work, workout, a deep dive into Brazilian music — and switch between them without losing your place.</p>
+<p>Channels let you maintain completely separate listening sessions — independent histories, profiles, and settings. Make a channel for every context: morning focus, late-night jazz, a workout playlist, a deep dive into Brazilian music. Switch between them from the player tabs without losing your place.</p>
+
+<h3>Creating a channel</h3>
+<p>Click <strong>+</strong> in the player tab row or go to the <strong>Channels</strong> page and click <strong>+</strong> in the sidebar. A new channel appears with no settings — the DJ explores broadly until you add constraints or it learns your taste.</p>
+
+<figure class="screenshot">
+  <img class="zoomable" src="/guide/screenshots/channel-settings.png" alt="Channel settings page showing genre chips, region, time period, artists, and popularity slider">
+  <figcaption>Channel settings — pick genres, region, era, and artist anchors; the DJ follows them strictly</figcaption>
+</figure>
+
+<h3>Channel settings</h3>
+<ul>
+  <li><strong>Genres</strong> — toggle any combination of genre chips. The DJ stays within them.</li>
+  <li><strong>Region</strong> — filter by geographic origin of the music.</li>
+  <li><strong>Time period</strong> — decades (40s–Recent) or classical eras (Baroque, Romantic, etc.).</li>
+  <li><strong>Artists</strong> — quick-pick anchors derived from your genre/era/region selections. Toggling an artist tells the DJ to include music from that artist or similar ones.</li>
+  <li><strong>Popularity</strong> — slider from Obscure to Mainstream.</li>
+  <li><strong>Notes and hints</strong> — free-text instructions to the DJ: extra artists, moods, things to avoid. Example: <em>"lean Coltrane, no smooth jazz, upbeat only"</em>.</li>
+</ul>
+<p><em>Changes take effect on the next song the DJ picks.</em></p>
 
 <h3>What a channel stores</h3>
 <ul>
-  <li>Full listen history (Ratings)</li>
+  <li>Full listen history and star ratings</li>
   <li>Session history sent to the DJ</li>
   <li>AI taste profile</li>
-  <li>All settings: Discovery, Genres, Region, Time period, Popularity, Tell the DJ</li>
-  <li>Where you left off on the current song (playback position)</li>
+  <li>All settings above</li>
+  <li>Playback position on the current song</li>
 </ul>
 
-<h3>Managing channels</h3>
-<p>Use the <strong>Channels</strong> page (link in the header) to create, rename, and configure channels. Click <strong>+</strong> on the player page to go directly to a new channel.</p>
+<h3>The All channel</h3>
+<p>The <strong>All</strong> channel has no genre or region filters — the DJ explores freely across the entire taste space. It can't be deleted.</p>
 
 <hr>
 
-<h2 id="taste-space">The taste space</h2>
-
-<p>Soundings treats music as a <strong>high-dimensional space</strong> — not just genre tags. We know many things about songs: writers, performers, instruments, recording date, where it was recorded, and how it is categorized. <strong>All of those attributes can feed into a notion of distance</strong>: similar songs are <strong>close</strong>; different songs are farther apart.</p>
-
-<p>If you like a song, the DJ can look for <strong>nearby</strong> music you haven't heard yet. If you dislike something, it can learn to <strong>avoid that general region</strong> of the space — not by banning one label, but by steering away from that neighborhood of sound.</p>
-
-<hr>
-
-<h2 id="map">The map</h2>
+<h2 id="map">The music map</h2>
 
 <figure class="screenshot">
-  <img src="/guide/screenshots/music-map.svg" width="800" height="520" alt="Music map: green (liked), red (disliked), grey (not-now), genre labels">
-  <figcaption>Music map — liked (green), disliked (red), skipped (grey); genre labels show rough regions</figcaption>
+  <img class="zoomable" src="/guide/screenshots/music-map.png" alt="Music map: green dots (liked), red dots (disliked), grey dots (skipped)">
+  <figcaption>Music map — green: liked, red: disliked, grey: skipped; hover a dot for track details</figcaption>
 </figure>
 
-<p>The <strong>Ratings</strong> page includes a <strong>Music Map</strong> — a simple 2D projection showing all the songs you've heard:</p>
+<p>Each channel has a <strong>Music Map</strong> at the bottom of its page, showing all the songs you've heard plotted in taste space:</p>
 <ul>
-  <li><strong>X-axis:</strong> acoustic / live / traditional → electronic / synthesized</li>
-  <li><strong>Y-axis:</strong> calm / sparse / minimal → intense / energetic / driving</li>
+  <li><strong>X-axis</strong> — acoustic / traditional → electronic / synthesized</li>
+  <li><strong>Y-axis</strong> — calm / sparse → intense / energetic</li>
+  <li><strong>Z-axis (depth)</strong> — obscure / underground → mainstream</li>
 </ul>
-<p>Each dot is a song. Colored labels mark broad genre regions. The map shows where your taste clusters and what territory you haven't explored yet.</p>
+<p>Green dots are liked songs, red are disliked, grey are skipped. Hover any dot to see the track and rating. The map shows where your taste clusters and what territory is still unexplored. Drag to rotate.</p>
 
 <hr>
 
 <h2 id="status">Status and rate limiting</h2>
 
-<p>Soundings calls a music service (Spotify or YouTube) and an AI service. Occasionally:</p>
 <ul>
-  <li><strong>Spotify rate limiting</strong> — a yellow banner appears with an estimated wait time.
-    <ul>
-      <li>Click <strong>Try now</strong> to ping Spotify immediately. If it responds, the ban clears and music resumes.</li>
-      <li>Click <strong>Stats</strong> for a breakdown of API call counts.</li>
-    </ul>
-  </li>
-  <li><strong>YouTube quota</strong> — roughly 100 song lookups per day on the free tier. When exhausted, the player pauses new suggestions until midnight Pacific time.</li>
+  <li><strong>Spotify rate limiting</strong> — a yellow banner appears with an estimated wait time. Click <strong>Try now</strong> to check if the ban has lifted; click <strong>Stats</strong> for API call counts.</li>
+  <li><strong>YouTube quota</strong> — roughly 100 lookups per day. When exhausted, new suggestions pause until midnight Pacific.</li>
   <li><strong>"Asking the DJ…" spinner</strong> — the AI is generating suggestions. Normal; takes a few seconds.</li>
-  <li><strong>"LLM may be unavailable. Will retry."</strong> — the AI service returned an error. The app retries after 30 seconds.</li>
+  <li><strong>"LLM may be unavailable. Will retry."</strong> — the AI returned an error; the app retries after 30 seconds.</li>
 </ul>
 
 <hr>
@@ -491,21 +474,8 @@ const GUIDE_CONTENT = `
 <h2 id="mobile">Mobile</h2>
 
 <ul>
-  <li><strong>Tap album art</strong> — play/pause</li>
-  <li><strong>Drag progress bar to the end</strong> — advance to next song</li>
-  <li><strong>Pinch to zoom</strong> — supported; useful in portrait mode to reveal the sidebar</li>
+  <li><strong>Tap album art</strong> — play / pause</li>
+  <li><strong>Drag progress bar to the end</strong> — skip to next song</li>
+  <li>Turn off <strong>Auto-advance</strong> to keep a song playing without the screen staying active</li>
 </ul>
-
-<hr>
-
-<h2 id="provider">LLM provider</h2>
-
-<p>The <strong>Channels</strong> page lets you choose the AI model powering the DJ:</p>
-<ul>
-  <li><strong>DeepSeek</strong> (default) — fast and accurate</li>
-  <li><strong>Claude</strong> (Anthropic) — strong musical reasoning</li>
-  <li><strong>GPT-4o</strong> (OpenAI)</li>
-  <li><strong>Gemini</strong> (Google)</li>
-</ul>
-<p>Switching providers mid-session is fine — the session history is passed to whichever model is active.</p>
 `

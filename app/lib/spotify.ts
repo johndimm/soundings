@@ -130,6 +130,7 @@ export async function searchTrack(
     uri: track.uri,
     name: track.name,
     artist: track.artists[0]?.name ?? 'Unknown',
+    artists: (track.artists as { name: string }[]).map(a => a.name).filter(Boolean),
     album: track.album.name,
     albumArt: track.album.images[0]?.url ?? null,
     durationMs: track.duration_ms,
@@ -200,6 +201,7 @@ export async function getTracksByIds(
               uri: (track as { uri: string }).uri,
               name: (track as { name: string }).name,
               artist: ((track as { artists: { name: string }[] }).artists?.[0]?.name ?? 'Unknown') as string,
+              artists: ((track as { artists: { name: string }[] }).artists ?? []).map(a => a.name).filter(Boolean),
               album: ((track as { album: { name: string } }).album?.name ?? 'Unknown') as string,
               albumArt: (track as { album: { images: { url: string }[] } }).album?.images?.[0]?.url ?? null,
               durationMs: (track as { duration_ms: number }).duration_ms,
@@ -262,6 +264,8 @@ export interface SpotifyTrack {
   uri: string
   name: string
   artist: string
+  /** All credited artists, e.g. ["Miles Davis", "John Coltrane"]. Falls back to [artist] when unavailable. */
+  artists?: string[]
   album: string
   albumArt: string | null
   durationMs: number

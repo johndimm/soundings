@@ -1098,6 +1098,7 @@ export default function PlayerClient({
     setQueue(restoredQueue); queueRef.current = restoredQueue
     setSuggestionBuffer([]); suggestionBufferRef.current = []
     fetchingRef.current = false
+    resolvingRef.current = false   // discard any in-flight resolve from the previous channel
     lastPlayedUriRef.current = null
     playedUrisRef.current = new Set()
     fetchGenRef.current++
@@ -2926,7 +2927,12 @@ export default function PlayerClient({
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
   const startPlaybackFromSuggestions = useCallback(async () => {
+    const resolveChannelId = activeChannelIdRef.current
     while (!currentCardRef.current && suggestionBufferRef.current.length > 0) {
+      if (activeChannelIdRef.current !== resolveChannelId) {
+        console.info(DJQ, 'startPlaybackFromSuggestions: channel switched mid-resolve, discarding')
+        return
+      }
       const next = suggestionBufferRef.current[0]
       try {
         const card = await resolveOneSuggestion(next)
@@ -2971,7 +2977,12 @@ export default function PlayerClient({
 
   /** Resolve one suggestion at a time until queue has 3 items or buffer is empty. */
   const topUpQueueFromSuggestions = useCallback(async () => {
+    const resolveChannelId = activeChannelIdRef.current
     while (queueRef.current.length < 3 && suggestionBufferRef.current.length > 0) {
+      if (activeChannelIdRef.current !== resolveChannelId) {
+        console.info(DJQ, 'topUpQueueFromSuggestions: channel switched mid-resolve, discarding')
+        return
+      }
       const next = suggestionBufferRef.current[0]
       try {
         const card = await resolveOneSuggestion(next)
@@ -3023,6 +3034,7 @@ export default function PlayerClient({
    * Uses one `/api/next-song` call → `getTracksByIds` on the server.
    */
   const promoteDjPendingByIdOnly = useCallback(async (): Promise<PromoteDjResult> => {
+    const resolveChannelId = activeChannelIdRef.current
     if (isGuideDemo) {
       console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (guide demo)')
       return 'noop'
@@ -3033,16 +3045,10 @@ export default function PlayerClient({
     }
     const needCurrent = !currentCardRef.current
     const queueRoom = Math.max(0, 3 - queueRef.current.length)
-    /** With auto-advance off, only one track at a time — no Up Next until the user presses Next. */
-    const maxTakeRaw =
+    const maxTake =
       needCurrent && queueRef.current.length === 0
         ? 4
         : queueRoom
-    const maxTake = autoNextAtEndRef.current
-      ? maxTakeRaw
-      : needCurrent && queueRef.current.length === 0
-        ? 1
-        : 0
 
     if (maxTake <= 0) {
       console.info(DJQ, 'promoteDjPendingByIdOnly: skipped (no slots)', {
@@ -3151,6 +3157,10 @@ export default function PlayerClient({
       suggestionBufferRef.current = rest
       setSuggestionBuffer(rest)
 
+      if (activeChannelIdRef.current !== resolveChannelId) {
+        console.info(DJQ, 'promoteDjPendingByIdOnly: channel switched mid-resolve, discarding results')
+        return 'noop'
+      }
       console.info(DJQ, 'promoteDjPendingByIdOnly: applying', cards.length, 'cards to player')
       let restCards = cards
       if (!currentCardRef.current && queueRef.current.length === 0) {
@@ -3161,8 +3171,7 @@ export default function PlayerClient({
         setCurrentStars(null)
         currentStarsRef.current = null
         seen.add(trackPlayKey(first.track))
-        // With auto-advance on, queue up to 3; off, only now playing (rest stays in buffer).
-        restCards = autoNextAtEndRef.current ? afterFirst.slice(0, 3) : []
+        restCards = afterFirst.slice(0, 3)
       }
 
       const q = [...queueRef.current]
@@ -3286,7 +3295,6 @@ export default function PlayerClient({
             await startPlaybackFromSuggestions()
           }
           if (
-            autoNextAtEndRef.current &&
             currentCardRef.current &&
             queueRef.current.length < 3 &&
             suggestionBufferRef.current.length > 0
@@ -3419,9 +3427,9 @@ export default function PlayerClient({
         }
         return
       }
-      // Call LLM only when the suggestion buffer is empty (never while suggestions remain).
-      // Refill both "Up Next" and DJ buffer: either queue is short OR queue is full but we still need DJ rows.
-      if (!loadingQueue && suggestionBuffer.length === 0) {
+      // Call LLM when queue or suggestion buffer is running low (≤1 remaining).
+      // djInventoryFull + FETCH_COOLDOWN_MS prevent over-requesting.
+      if (!loadingQueue && (suggestionBuffer.length <= 1 || queue.length <= 1)) {
         const retryAfter = djLlmRetryAfterMsRef.current
         if (retryAfter > 0 && Date.now() < retryAfter) {
           const wait = retryAfter - Date.now()
@@ -3979,7 +3987,7 @@ export default function PlayerClient({
           )}
 
           {/* Decorative gradient — must not block iframe pointer events (YouTube) */}
-          <div className="absolute inset-0 z-[5] bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 z-[5] bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
           {/* Loading — connecting to Spotify, or actively fetching the next track; otherwise blank (e.g. new channel before DJ settings) */}
           {!currentCard && !error && (!deviceId || loadingQueue) && (
@@ -4056,10 +4064,15 @@ export default function PlayerClient({
                   {currentCard.track.name}
                 </a>
                 <p className="text-zinc-300 text-sm truncate">
-                  {currentCard.track.artist}
-                  {(currentCard.composed ?? currentCard.track.releaseYear) && (
-                    <span className="text-zinc-500 ml-2">{currentCard.composed ?? currentCard.track.releaseYear}</span>
-                  )}
+                  {(currentCard.track.artists && currentCard.track.artists.length > 1)
+                    ? currentCard.track.artists.join(', ')
+                    : currentCard.track.artist}
+                  {(() => {
+                    const ry = currentCard.track.releaseYear
+                    // Trust Spotify's release year for anything post-1990; only show composition year for classical / pre-1970 jazz standards.
+                    const year = (ry && ry > 1990) ? ry : (currentCard.composed ?? ry)
+                    return year ? <span className="text-zinc-500 ml-2">{year}</span> : null
+                  })()}
                 </p>
                 {currentCard.performer && (
                   <p className="text-zinc-400 text-xs truncate mt-0.5">

@@ -223,7 +223,7 @@ export default function MusicMap({
         project(0, 100, pz, rX, rY, W, H),
       ]
       ctx.globalAlpha = alpha
-      ctx.strokeStyle = '#52525b'
+      ctx.strokeStyle = '#71717a'
       ctx.lineWidth = 1.5
       ctx.beginPath()
       fc.forEach((c, i) => (i === 0 ? ctx.moveTo(c.sx, c.sy) : ctx.lineTo(c.sx, c.sy)))
@@ -235,7 +235,7 @@ export default function MusicMap({
     const front = face(0, 0.5)
     const back = face(100, 0.9)
 
-    ctx.strokeStyle = '#3f3f46'
+    ctx.strokeStyle = '#71717a'
     ctx.lineWidth = 1.5
     for (let i = 0; i < 4; i++) {
       ctx.beginPath()
@@ -244,7 +244,7 @@ export default function MusicMap({
       ctx.stroke()
     }
 
-    ctx.strokeStyle = '#3f3f46'
+    ctx.strokeStyle = '#71717a'
     ctx.lineWidth = 1
     const vm = [project(50, 0, 50, rX, rY, W, H), project(50, 100, 50, rX, rY, W, H)]
     const hm = [project(0, 50, 50, rX, rY, W, H), project(100, 50, 50, rX, rY, W, H)]

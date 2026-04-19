@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
+import MusicMap from '@/app/player/MusicMap'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
@@ -732,6 +733,16 @@ export default function ChannelsPage() {
                 })}
               </div>
             </div>
+
+            {history.length > 0 && (
+              <div className="px-4 pb-6 pt-2 border-t border-zinc-100">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
+                  <span className="text-xs text-zinc-600">{history.length} songs</span>
+                </div>
+                <MusicMap history={history.map(e => ({ ...e, albumArt: e.albumArt ?? null, uri: e.uri ?? null, stars: e.stars ?? null }))} width={560} height={380} embedded={false} />
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex-1 p-6 flex items-center justify-center">
