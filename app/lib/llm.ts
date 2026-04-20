@@ -362,8 +362,7 @@ export async function getNextSongQuery(
         result.songs = result.songs.filter(s => {
           const composed = s.composed
           if (composed === undefined) {
-            console.warn('[llm] dropping song with no composed year under year-range constraint:', s.search)
-            return false
+            return true
           }
           const ok = yearRanges.some(r => composed >= r.min && composed <= r.max)
           if (!ok) {
