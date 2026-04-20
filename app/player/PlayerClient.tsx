@@ -4185,7 +4185,7 @@ export default function PlayerClient({
                     <span className="text-zinc-600">perf. </span>{currentCard.performer}
                   </p>
                 )}
-                <p className="hidden sm:block text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
+                <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
                   {currentCard.reason}
                 </p>
 

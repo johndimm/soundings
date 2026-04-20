@@ -145,6 +145,9 @@ export default function SessionPanel({
                   <div className="flex-1 min-w-0">
                     <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
                     <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
+                    {card.reason && (
+                      <p className="text-zinc-500 text-xs italic leading-snug mt-0.5 line-clamp-2">{card.reason}</p>
+                    )}
                   </div>
                 </button>
                 <button
