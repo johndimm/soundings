@@ -295,7 +295,6 @@ export default function ChannelsPage() {
 
   const switchChannel = (id: string) => {
     setActiveChannelId(id)
-    setSelected(new Set())
     try {
       localStorage.setItem(ACTIVE_CHANNEL_KEY, id)
     } catch {}
