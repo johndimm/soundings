@@ -2,17 +2,15 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import AppHeader from '@/app/components/AppHeader'
-import MusicMap from '@/app/player/MusicMap'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
   genChannelId,
   normalizeChannelDiscovery,
   type Channel,
-  type HistoryEntry,
 } from '@/app/lib/channelsImportExport'
-import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
@@ -191,47 +189,6 @@ function Chip({
   )
 }
 
-function StarRating({
-  value,
-  onChange,
-}: {
-  value: number | null
-  onChange: (v: number | null) => void
-}) {
-  const [hovered, setHovered] = useState<number | null>(null)
-  const display = hovered ?? value ?? 0
-
-  return (
-    <div className="flex" onMouseLeave={() => setHovered(null)} style={{ gap: '0.1rem' }}>
-      {[1, 2, 3, 4, 5].map(star => {
-        const isFull = display >= star
-        const isHalf = !isFull && display >= star - 0.5
-        return (
-          <div key={star} className="relative select-none cursor-pointer" style={{ fontSize: '1.0rem', lineHeight: 1 }}>
-            <span className="text-zinc-300">★</span>
-            {(isFull || isHalf) && (
-              <span
-                className="absolute inset-0 text-amber-400 overflow-hidden"
-                style={isHalf ? { clipPath: 'inset(0 50% 0 0)' } : {}}
-              >★</span>
-            )}
-            <span
-              className="absolute inset-y-0 left-0 w-1/2"
-              onMouseEnter={() => setHovered(star - 0.5)}
-              onClick={() => onChange(value === star - 0.5 ? null : star - 0.5)}
-            />
-            <span
-              className="absolute inset-y-0 right-0 w-1/2"
-              onMouseEnter={() => setHovered(star)}
-              onClick={() => onChange(value === star ? null : star)}
-            />
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
 export default function ChannelsPage() {
   const searchParams = useSearchParams()
   const [channels, setChannels] = useState<Channel[]>([])
@@ -239,7 +196,6 @@ export default function ChannelsPage() {
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const [editingChannelName, setEditingChannelName] = useState('')
   const [mounted, setMounted] = useState(false)
-  const [selected, setSelected] = useState<Set<number>>(new Set())
 
   useEffect(() => {
     let loaded: Channel[] = []
@@ -409,39 +365,6 @@ export default function ChannelsPage() {
     })
   }
 
-  const handleRate = (index: number, stars: number | null) => {
-    if (!activeChannel) return
-    persist(
-      channels.map(c => {
-        if (c.id !== activeChannel.id) return c
-        const newHistory = [...c.cardHistory]
-        newHistory[index] = { ...newHistory[index], stars }
-        return { ...c, cardHistory: newHistory }
-      })
-    )
-  }
-
-  const handleRemoveMultiple = (indices: number[]) => {
-    if (!activeChannel) return
-    const set = new Set(indices)
-    persist(
-      channels.map(c => {
-        if (c.id !== activeChannel.id) return c
-        return { ...c, cardHistory: c.cardHistory.filter((_, i) => !set.has(i)) }
-      })
-    )
-    setSelected(new Set())
-  }
-
-  const toggleSelect = (i: number) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(i)) next.delete(i)
-      else next.add(i)
-      return next
-    })
-  }
-
   if (!mounted) {
     return (
       <div className="min-h-screen bg-white text-black flex flex-col">
@@ -457,7 +380,6 @@ export default function ChannelsPage() {
   const artists = ch?.artists ?? []
   const popularity = ch?.popularity ?? 50
   const notes = ch?.notes ?? ''
-  const history: HistoryEntry[] = ch?.cardHistory ?? []
 
   const popularityLabel = popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'
 
@@ -536,7 +458,7 @@ export default function ChannelsPage() {
         {ch ? (
           <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
 
-            {/* Settings (always) + ratings below */}
+            {/* Settings */}
             <div className="border-b border-zinc-200 px-4 pt-4 pb-5 flex flex-col gap-5">
               {ch.id === ALL_CHANNEL_ID ? null : (
                 <>
@@ -632,117 +554,15 @@ export default function ChannelsPage() {
               )}
             </div>
 
-            {/* Ratings list */}
-            <div className="flex-1 p-4 flex flex-col gap-2 border-t border-zinc-100">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs text-zinc-500 uppercase tracking-wide">
-                  Ratings ({history.length})
-                </span>
-                <div className="flex items-center gap-2">
-                  {history.length > 0 && (
-                    <>
-                      <button
-                        onClick={() => {
-                          if (selected.size === history.length && history.length > 0) {
-                            setSelected(new Set())
-                          } else {
-                            setSelected(new Set(history.map((_, i) => i)))
-                          }
-                        }}
-                        className="text-xs text-zinc-500 hover:text-black transition-colors"
-                      >
-                        {selected.size === history.length && history.length > 0 ? 'Deselect all' : 'Select all'}
-                      </button>
-                      {selected.size > 0 && (
-                        <button
-                          onClick={() => handleRemoveMultiple(Array.from(selected))}
-                          className="text-xs text-red-500 hover:text-red-400 transition-colors"
-                        >
-                          Delete {selected.size}
-                        </button>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {history.length === 0 && (
-                <p className="text-zinc-400 text-sm py-4">
-                  No ratings yet. Head to the{' '}
-                  <a href="/player" className="underline text-zinc-500 hover:text-black">
-                    Player
-                  </a>{' '}
-                  to start listening.
-                </p>
-              )}
-
-              <div className="flex flex-col gap-1">
-                {[...history].reverse().map((entry, i) => {
-                  const realIndex = history.length - 1 - i
-                  const isSelected = selected.has(realIndex)
-                  const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
-                  const canOpen = Boolean(playableTrackId) || entry.source === 'youtube'
-                  return (
-                    <div
-                      key={realIndex}
-                      className={`flex items-center gap-2 py-1 rounded-lg px-1 transition-colors ${
-                        isSelected ? 'bg-zinc-200' : 'hover:bg-zinc-100'
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(realIndex)}
-                        className="flex-shrink-0 accent-zinc-400 cursor-pointer"
-                      />
-                      <a
-                        href={
-                          entry.source === 'youtube'
-                            ? `https://www.youtube.com/watch?v=${entry.uri}`
-                            : `https://open.spotify.com/track/${playableTrackId ?? ''}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors ${
-                          !canOpen ? 'pointer-events-none' : ''
-                        }`}
-                      >
-                        {entry.albumArt ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={entry.albumArt}
-                            alt=""
-                            className="w-9 h-9 rounded-md object-cover flex-shrink-0"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-md bg-zinc-300 flex-shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-black text-xs font-medium truncate">{entry.track}</p>
-                          <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
-                        </div>
-                      </a>
-                      <div className="flex-shrink-0">
-                        <StarRating
-                          value={entry.stars ?? null}
-                          onChange={stars => handleRate(realIndex, stars)}
-                        />
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+            {/* Channel History link */}
+            <div className="border-t border-zinc-100 py-3 px-4">
+              <Link
+                href={`/ratings?channel=${activeChannel?.id ?? ''}`}
+                className="flex-1 block py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-medium transition-colors text-center"
+              >
+                Channel History
+              </Link>
             </div>
-
-            {history.length > 0 && (
-              <div className="px-4 pb-6 pt-2 border-t border-zinc-100">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs text-zinc-500 uppercase tracking-wide">Music map</span>
-                  <span className="text-xs text-zinc-600">{history.length} songs</span>
-                </div>
-                <MusicMap history={history.map(e => ({ ...e, albumArt: e.albumArt ?? null, uri: e.uri ?? null, stars: e.stars ?? null }))} width={560} height={380} embedded={false} />
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex-1 p-6 flex items-center justify-center">

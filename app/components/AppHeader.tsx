@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 const PAGE_LINKS = [
   { href: '/player', label: 'Player' },
   { href: '/channels', label: 'Channels' },
+  { href: '/ratings', label: 'History' },
   { href: '/settings', label: 'Settings' },
 ]
 

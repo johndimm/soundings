@@ -4327,8 +4327,22 @@ export default function PlayerClient({
       </div>
 
       {/* Footer */}
-      <div className="px-6 py-3 border-t border-zinc-900 text-center">
-        <a href="/status" className="text-xs text-zinc-700 hover:text-zinc-400 transition-colors">Status</a>
+      <div className="border-t border-zinc-900 py-3 flex justify-center">
+        <div className="flex items-center gap-3 w-full max-w-[800px] px-4">
+          <Link
+            href="/channels"
+            className="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors text-center"
+          >
+            Edit channel
+          </Link>
+          <Link
+            href={`/ratings?channel=${activeChannelId}`}
+            className="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors text-center"
+          >
+            Channel History
+          </Link>
+          <a href="/status" className="text-xs text-zinc-700 hover:text-zinc-400 transition-colors px-2">Status</a>
+        </div>
       </div>
     </div>
   )
