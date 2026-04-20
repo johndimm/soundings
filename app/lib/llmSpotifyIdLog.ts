@@ -3,7 +3,7 @@ import path from 'path'
 
 import type { LLMProvider } from '@/app/lib/llm'
 
-const LOG_DIR = path.join(process.cwd(), 'logs')
+const LOG_DIR = process.env.VERCEL ? '/tmp/logs' : path.join(process.cwd(), 'logs')
 const LOG_FILE = path.join(LOG_DIR, 'llm-spotify-ids.jsonl')
 
 function appendLine(obj: Record<string, unknown>) {
