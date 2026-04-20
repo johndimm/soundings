@@ -12,7 +12,7 @@ Everything is organized into channels. A channel is a named session with its own
 
 As you listen, the AI builds a written profile of your taste in plain language. This profile is shown to you and is also fed back to the AI as context for future suggestions, so its understanding of you accumulates across sessions.
 
-The app supports two playback sources: Spotify (if you have a Premium account) and YouTube. You can switch sources per channel. YouTube is quota-limited, so the app tracks how many searches remain today.
+The app supports two playback sources: Spotify (if you have a Premium account) and YouTube. The source is decided at login — Spotify OAuth picks Spotify, the YouTube button on the landing page picks YouTube — and logging out returns you to the picker. There is no in-app switcher, because mixing sources on the same channel leaves stale Spotify tracks queued when the app is running under YouTube (or vice versa). Channels keep their ratings, history, and taste profile when you log in under the other source; only the active track and the upcoming queue are cleared. YouTube is quota-limited, so the app tracks how many searches remain today.
 
 There is a history page that shows every song you've heard and how you rated it. You can re-rate songs here, delete them, or select multiple entries and delete them in bulk. Next to the history list is a three-dimensional map that plots every song you've heard in a musical space defined by three axes: how acoustic versus electronic it is, how calm versus intense, and how obscure versus mainstream. You can rotate this map to explore it.
 
@@ -62,7 +62,7 @@ The app presents one song at a time inside a "channel." The user listens, rates 
 - artistText: string (free-text artist constraint)
 - popularity: number 0–100 (0 = obscure, 100 = mainstream)
 - discovery: number 0–100 (0 = familiar, 100 = adventurous)
-- source: 'spotify' | 'youtube'
+- source: 'spotify' | 'youtube' (derived from login path, not user-editable in Settings)
 - playbackPositionMs: number (saved position when leaving channel)
 - playbackTrackUri: string (which track the position belongs to)
 
@@ -112,13 +112,17 @@ Left column — Album art panel (340×580px, full-bleed):
 
 Right column — SessionPanel:
 - "What I know about you" (ProfileView): shows LLM-generated taste profile in color-coded blocks (LIKED/DISLIKED/EXPLORED/NEXT). Edit button opens a textarea.
-- Source selector: Spotify / YouTube toggle buttons. YouTube shows remaining searches count.
 - Queue section (collapsible): list of upcoming songs with album art, name, artist. Click to play immediately. × to remove.
 - Up Next section (collapsible): DJ's pending suggestions (search string + reason), shown while resolving.
+- YouTube quota indicator (YouTube mode only): remaining searches count.
 
 **Playback logic:**
-- Spotify: uses the Web Playback SDK. Device ID obtained via SDK ready event. Playback controlled via Spotify Web API (play, seek, get state). Polls playback state every second. Crossfade at track end (fade out 800ms, brief pause, then play next).
-- YouTube: embeds YouTube iframe via IFrame API. Polls current time every 500ms. Auto-advances on "ended" event.
+- Spotify: uses the Web Playback SDK. Device ID obtained via SDK ready event. Playback controlled via Spotify Web API (play, seek, get state). Polls playback state every second. Crossfade at track end (fade out 800ms, brief pause, then play next). The SDK is not initialized at all in YouTube-only mode (guarded on \`youtubeOnly\`).
+- YouTube: embeds YouTube iframe via IFrame API. \`autoplay=1\` in the embed URL starts playback, but the React layer also imperatively calls \`play()\` on the \`YoutubePlayer\` handle when \`currentCard\` changes, because Chrome's cross-origin autoplay-with-sound policy blocks fresh iframes unreliably. The handle tries the YT JS API first, falls back to \`postMessage\` (target origin \`'*'\`, matching the upstream IFrame API's own behavior — specific origins fail against the iframe's \`about:blank\` pre-load state), and latches a \`pendingPlayRef\` for \`onReady\` to consume when the API handshake completes.
+- YouTube progress: PlayerClient polls \`getCurrentTime()\` / \`getDuration()\` every 250ms to drive the shared slider. Auto-advances when within 1.5s of \`duration\` and on the \`ended\` state event.
+- YouTube wrapper lifecycle: \`new YT.Player(iframe, ...)\` is invoked at most once per component instance (gated by a ref), because binding two wrappers to the same iframe (which Strict Mode's dev-mode double-invoke of effects would otherwise cause) leaves the second wrapper's \`onReady\` silently unfired. Cleanup does NOT call \`YT.Player.destroy()\` — that removes the iframe from the DOM out from under React; the iframe is removed on real unmount instead.
+- YouTube autoplay overlay: if playback hasn't visibly started within 3.5s of mount, a tap-to-play overlay appears. A parallel 500ms \`getCurrentTime()\` poll clears the overlay automatically the moment the clock advances, and the overlay click clears itself optimistically (waiting for \`onStateChange\` confirmation left it stuck when the event never arrived).
+- YouTube error handling: \`onError 150\` ("video unavailable for embedding") and any other player error auto-advances to the next queue item.
 - When "Next" is pressed: record percentListened and reaction for the current card, add to history, save channel, then play next song from queue.
 - Track progress is tracked as percentListened. "Reaction" defaults to 'move-on'. If the user drags the rating slider, that overrides percentListened.
 
@@ -228,6 +232,12 @@ Returns Spotify client token for Web Playback SDK initialization.
 ### /api/youtube/ping
 Checks YouTube API quota status.
 
+### /api/auth/youtube
+Enables YouTube-only mode. Sets the \`earprint_youtube_mode\` cookie (1 year) and redirects to /player?youtube_login=1.
+
+### /api/save-factory
+Developer-only snapshot route. POST with the current channels array. Accepts \`?source=spotify|youtube\` and writes to \`data/factory-channels.<source>.json\`; without the param, writes to the shared \`data/factory-channels.json\`. The blank-slate fetch and "reload factory channels" reset both try the source-specific file first, then the shared file, then the built-in import.
+
 ---
 
 ## Authentication Flow
@@ -236,15 +246,23 @@ Checks YouTube API quota status.
 1. User clicks "Sign in with Spotify" on login page.
 2. /api/auth/login redirects to Spotify OAuth with required scopes.
 3. Spotify redirects to /api/callback with code.
-4. Callback exchanges code for tokens, sets httpOnly cookies, redirects to /player.
+4. Callback exchanges code for tokens, sets httpOnly cookies, clears the \`earprint_youtube_mode\` cookie, and redirects to /player?spotify_login=1.
 5. Server reads \`spotify_access_token\` cookie on the /player route to verify session.
 6. PlayerClient calls /api/player-config to get an SDK token, initializes the Web Playback SDK.
 
 **YouTube path:**
-- No user auth. User visits /player?youtube=1.
+- No user auth. User clicks "YouTube" on the landing page → /api/auth/youtube sets the \`earprint_youtube_mode\` cookie and redirects to /player?youtube_login=1.
 - All playback uses the YouTube IFrame API.
 - Song searches use the YouTube Data API v3 search.list endpoint (server-side, uses API key from env).
 - Quota tracked in memory; shown in /status.
+
+**Fresh-login localStorage scrub:**
+- The \`?spotify_login=1\` / \`?youtube_login=1\` query marker tells the client a fresh login just happened.
+- \`app/lib/freshLogin.ts\` (module-level flag, called from both the \`PersistentPlayerHost\` render body and the top of \`PlayerClient\`'s hydration effect) rewrites \`earprint-settings.source\` to match the login path and strips every \`currentCard\` / \`queue\` entry whose \`track.source\` doesn't match. History, ratings, genres, notes, sliders, and taste profile are preserved.
+- Running from two call sites defeats a Suspense hydration race: \`useSearchParams\` in the host causes the server to render a \`<Suspense>\` fallback that includes \`PlayerClient\`, and that fallback hydrates before the Suspense resolves — so the scrub has to run at the earliest storage-read site, which is \`PlayerClient\` itself.
+
+**Logout:**
+- /api/auth/logout clears both Spotify token cookies and the \`earprint_youtube_mode\` cookie, returning the user to the landing picker.
 
 ---
 
@@ -277,6 +295,14 @@ When the user switches channels:
 - Load the incoming channel's state: history, queue, settings, profile.
 - If the incoming channel has a saved position for its currentCard, resume from there.
 - All LLM state (pending suggestions, buffer) is cleared.
+
+## Source Switching
+
+The source is decided at login, not in Settings. Switching sources requires logging out and back in via the other path. On fresh login (signaled by \`?spotify_login=1\` / \`?youtube_login=1\`):
+- \`earprint-settings.source\` is rewritten to the new source.
+- Every channel's \`currentCard\`, \`queue\`, \`playbackPositionMs\`, and \`playbackTrackUri\` are filtered: any entries whose \`track.source\` doesn't match the new source are dropped.
+- History, ratings, genres, notes, sliders, and taste profile are preserved on every channel.
+- The scrub runs synchronously during hydration (module-level idempotence flag in \`app/lib/freshLogin.ts\`) so \`PlayerClient\` never reads stale cross-source data from localStorage.
 
 ---
 

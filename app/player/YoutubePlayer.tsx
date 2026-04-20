@@ -150,6 +150,15 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const ytPlayerRef = useRef<YTPlayer | null>(null)
   /**
+   * Gate for wrapper creation. React Strict Mode invokes effects twice in dev: mount →
+   * cleanup → mount again, with the same refs. We want the `new YT.Player(iframe, ...)`
+   * call to happen exactly ONCE per component instance, because YouTube's postMessage
+   * handshake only reaches the first wrapper bound to a given iframe. Binding a second
+   * wrapper leaves `ytPlayerRef` pointing at a stub that never receives `onReady`, so
+   * `getCurrentTime()` returns 0 forever and the progress slider is stuck at 0.
+   */
+  const wrapperCreatedRef = useRef(false)
+  /**
    * Latch for "user asked to play before the API wrapper was ready." Overlay click sets it;
    * onReady consumes it. Without this, the first tap on the tap-to-play overlay is a no-op
    * whenever the YT script is still loading.
@@ -167,10 +176,9 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
 
   useEffect(() => {
     if (!normalizedId) return
-    console.info('[yt] mount', { videoId, normalizedId })
+    console.info('[yt] mount', { videoId, normalizedId, wrapperCreated: wrapperCreatedRef.current })
     setBlocked(false)
     pendingPlayRef.current = false
-    let destroyed = false
 
     /**
      * Poll getCurrentTime as a ground-truth fallback. The YT IFrame API handshake
@@ -182,7 +190,6 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
      */
     let lastPolledTime = 0
     const pollTimer = setInterval(() => {
-      if (destroyed) return
       const p = ytPlayerRef.current
       if (!p) return
       let t = 0
@@ -201,7 +208,6 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     }, 500)
 
     const autoplayTimer = setTimeout(() => {
-      if (destroyed) return
       // Final check via the poll's metric: if time is already advancing we shouldn't show
       // the overlay at all.
       const p = ytPlayerRef.current
@@ -217,83 +223,67 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       setBlocked(true)
     }, AUTOPLAY_TIMEOUT_MS)
 
-    whenYtReady(() => {
-      if (destroyed || !iframeRef.current || !window.YT?.Player) {
-        console.info('[yt] ready callback skipped', {
-          destroyed,
-          hasIframe: Boolean(iframeRef.current),
-          hasYT: Boolean(window.YT?.Player),
+    // Only create the YT.Player wrapper on the FIRST effect invocation (see comment on
+    // `wrapperCreatedRef`). Strict Mode's second invocation only sets up fresh timers on
+    // top of the wrapper the first invocation already established.
+    if (!wrapperCreatedRef.current) {
+      wrapperCreatedRef.current = true
+      whenYtReady(() => {
+        if (!iframeRef.current || !window.YT?.Player) {
+          console.info('[yt] ready callback skipped', {
+            hasIframe: Boolean(iframeRef.current),
+            hasYT: Boolean(window.YT?.Player),
+          })
+          return
+        }
+        const player = new window.YT.Player(iframeRef.current, {
+          events: {
+            onReady: e => {
+              // Canonical ref: `event.target` is the fully-initialized Player with methods
+              // attached. The value returned from `new YT.Player(...)` is sometimes a bare
+              // stub where `playVideo`/`pauseVideo` are missing — storing that causes
+              // "playVideo is not a function" on later taps.
+              ytPlayerRef.current = e.target
+              try {
+                const s = e.target.getPlayerState()
+                console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current })
+                if (s === 1 || s === 3) setBlocked(false)
+                if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
+                  pendingPlayRef.current = false
+                  e.target.playVideo()
+                }
+              } catch (err) {
+                console.warn('[yt] onReady play failed', err)
+              }
+            },
+            onStateChange: e => {
+              console.info('[yt] state', e.data)
+              if (e.data === 1 || e.data === 3) setBlocked(false)
+              if (e.data === 0) onEndedRef.current?.()
+            },
+            onError: e => {
+              console.warn('[yt] onError', e.data)
+              onErrorRef.current?.(e.data)
+            },
+          },
         })
-        return
-      }
-      const player = new window.YT.Player(iframeRef.current, {
-        events: {
-          onReady: e => {
-            // Stale callback from a previous (Strict-Mode-cleaned-up) effect: the effect's
-            // `destroyed` flag is our only way to tell this wrapper should not win.
-            if (destroyed) {
-              console.info('[yt] onReady ignored — effect destroyed')
-              return
-            }
-            // Canonical ref: `event.target` is the fully-initialized Player with methods
-            // attached. The value returned from `new YT.Player(...)` is sometimes a bare stub
-            // where `playVideo`/`pauseVideo` are missing.
-            ytPlayerRef.current = e.target
-            try {
-              const s = e.target.getPlayerState()
-              console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current })
-              // `autoplay=1` in the embed URL often has the video already playing/buffering
-              // by the time the JS wrapper attaches. `onStateChange` only fires on *changes*,
-              // so we'd never receive a state=1 event and the tap-to-play overlay would stay
-              // up covering the video. Clear it here.
-              if (s === 1 || s === 3) {
-                clearTimeout(autoplayTimer)
-                setBlocked(false)
-              }
-              if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
-                pendingPlayRef.current = false
-                e.target.playVideo()
-              }
-            } catch (err) {
-              console.warn('[yt] onReady play failed', err)
-            }
-          },
-          onStateChange: e => {
-            if (destroyed) return
-            console.info('[yt] state', e.data)
-            if (e.data === 1 || e.data === 3) {
-              clearTimeout(autoplayTimer)
-              setBlocked(false)
-            }
-            if (e.data === 0) onEndedRef.current?.()
-          },
-          onError: e => {
-            if (destroyed) return
-            console.warn('[yt] onError', e.data)
-            onErrorRef.current?.(e.data)
-          },
-        },
+        // Tentative assignment so getCurrentTime / getDuration have something to poll;
+        // onReady replaces it with the fully-initialized instance.
+        ytPlayerRef.current = player
       })
-      // Tentative assignment so getCurrentTime / getDuration have something to poll; onReady
-      // replaces it with the fully-initialized instance.
-      ytPlayerRef.current = player
-    })
+    }
 
     return () => {
-      destroyed = true
       clearTimeout(autoplayTimer)
       clearInterval(pollTimer)
-      // Intentionally NOT calling `ytPlayerRef.current?.destroy()` here:
-      //
-      // `YT.Player.destroy()` removes the <iframe> element from the DOM. In React Strict
-      // Mode (dev) the cleanup fires between two effect invocations while the component is
-      // still mounted — if we destroy the iframe now, the second effect invocation binds
-      // a new `YT.Player` to an iframe that's been torn out from under React, and the YT
-      // postMessage handshake silently fails (no onReady, no onStateChange, just a stuck
-      // overlay — which is exactly the bug reported). When the component truly unmounts,
-      // React removes the iframe itself, which stops playback. Memory for the wrapper's
-      // internal listeners is reclaimed on page unload; that's an acceptable leak.
-      ytPlayerRef.current = null
+      // Intentionally NOT calling `ytPlayerRef.current?.destroy()` here and NOT nulling
+      // `ytPlayerRef.current`. The wrapper is tied to the iframe's lifetime — when the
+      // component truly unmounts, React removes the iframe, which implicitly kills the
+      // wrapper. Strict Mode's dev-only cleanup happens between two effect invocations
+      // while the iframe is still mounted; if we destroyed the wrapper here, the next
+      // invocation would find `ytPlayerRef` gone and event handlers dead, with no
+      // reliable way to rebuild them (binding a second wrapper to the same iframe is
+      // what caused the original bug).
     }
   }, [normalizedId, videoId])
 

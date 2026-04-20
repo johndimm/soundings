@@ -20,6 +20,53 @@
 <body>
 <h1>Soundings Dev Diary</h1>
 
+<h2>2026-04-19</h2>
+
+<h3>Per-source factory channels</h3>
+<ul>
+  <li class="fix">Factory channel snapshots are now source-specific. The <code>save-factory</code> API accepts <code>?source=spotify|youtube</code> and writes <code>data/factory-channels.&lt;source&gt;.json</code>; the blank-slate fetch and "reload factory channels" reset both go through the same per-source path (with a shared <code>factory-channels.json</code> fallback, then the built-in import).</li>
+  <li class="fix">Added a dev-only "Save factory file" button in Settings that captures the current browser's channels as the factory default for whichever source is active. Distinct from the long-standing "Save current channels to server file" which still writes the shared snapshot.</li>
+</ul>
+
+<h3>Source switch clears per-channel playback, preserves user data</h3>
+<ul>
+  <li class="fix">Flipping source (or logging in via a different path) now wipes <code>currentCard</code>, <code>queue</code>, <code>playbackPositionMs</code>, and <code>playbackTrackUri</code> on every channel — but keeps history, ratings, genres, notes, sliders, and the taste profile. This was the fix for "selected YouTube but Spotify is playing": leftover Spotify tracks in each channel's queue were still being dispatched to the Spotify SDK.</li>
+</ul>
+
+<h3>Source selector removed from Settings</h3>
+<ul>
+  <li class="problem">The in-app "Playback Source" toggle was letting the user end up in a self-inconsistent state: source set to YouTube, localStorage still full of Spotify <code>currentCard</code> / <code>queue</code> entries, Spotify SDK still connected.</li>
+  <li class="fix">Removed the selector. Source is now implied purely by how the user signed in — Spotify OAuth callback appends <code>?spotify_login=1</code> and clears the YouTube cookie; <code>/api/auth/youtube</code> sets the YouTube cookie and appends <code>?youtube_login=1</code>. Logout clears both. One source of truth.</li>
+</ul>
+
+<h3>Fresh-login localStorage scrub</h3>
+<ul>
+  <li class="problem">Race condition: <code>PersistentPlayerHost</code> is wrapped in <code>&lt;Suspense&gt;</code> (for <code>useSearchParams</code>). On the server the fallback renders — which includes <code>PlayerClient</code> — and on the client that fallback hydrates <em>first</em>, letting <code>PlayerClient</code> read stale channel data from localStorage before the Suspense resolves and any parent-level reset could run.</li>
+  <li class="fix">Extracted the reset into <code>app/lib/freshLogin.ts</code> with a module-level "already applied" flag. Called from both <code>PersistentPlayerHostInner</code>'s render body and the top of <code>PlayerClient</code>'s hydration effect (before <code>loadChannels()</code>). Whichever fires first wins; the other is a no-op.</li>
+  <li class="fix">The scrub inspects each track's <code>source</code> field directly instead of trusting <code>settings.source</code>, so wrong-source entries get dropped even if the settings field already matches the new login.</li>
+</ul>
+
+<h3>YouTube playback: three separate failure modes fixed</h3>
+<ul>
+  <li class="problem"><strong>Autoplay reliability.</strong> Chrome frequently blocks cross-origin iframe autoplay-with-sound for freshly mounted iframes. <code>autoplay=1</code> in the embed URL was not enough on its own.</li>
+  <li class="fix"><code>PlayerClient</code> now imperatively calls <code>youtubePlayerRef.current?.play()</code> when <code>currentCard</code> changes to a YouTube track, letting the <code>YoutubePlayer</code> handle (YT JS API → postMessage fallback → <code>pendingPlayRef</code> latch for onReady) carry the user gesture forward.</li>
+
+  <li class="problem"><strong>postMessage origin mismatch.</strong> The fallback command path sent <code>postMessage</code> with target origin <code>https://www.youtube.com</code>. Chrome refuses to deliver when the iframe's <code>contentWindow.location</code> is still <code>about:blank</code> (freshly mounted) — silent failure, overlay stuck on top of a video that otherwise would have played.</li>
+  <li class="fix">Changed target origin to <code>'*'</code> — matches the upstream YT IFrame API's own behavior. Play/pause payloads have no sensitive data so wildcard is acceptable.</li>
+
+  <li class="problem"><strong>React Strict Mode double-wrap.</strong> Dev-mode Strict Mode invokes effects twice: mount → cleanup → mount. Each invocation was calling <code>new YT.Player(iframe, ...)</code>, leaving two wrappers bound to the same iframe. YouTube's postMessage handshake only reaches the first wrapper, so the second (which <code>ytPlayerRef</code> ended up pointing at) never received <code>onReady</code>. Result: video played but <code>getCurrentTime()</code> returned 0 forever and the progress slider was stuck.</li>
+  <li class="fix">Added a <code>wrapperCreatedRef</code> ref that gates wrapper creation to exactly once per component instance. Second invocation only installs fresh timers. Also stopped calling <code>YT.Player.destroy()</code> in cleanup — it removes the iframe from the DOM out from under React, breaking the subsequent effect invocation. React handles iframe removal on real unmount.</li>
+
+  <li class="fix">Added a 500ms poll of <code>getCurrentTime()</code> and a pre-check inside the autoplay-timeout handler: if time is advancing, the tap-to-play overlay is auto-cleared or suppressed. Ground-truth fallback for any future case where the API handshake silently fails.</li>
+  <li class="fix">Overlay click now clears <code>blocked</code> optimistically. Previous behavior waited for <code>onStateChange</code> confirmation — which sometimes never arrives — and left the user staring at a black overlay on top of a playing video.</li>
+</ul>
+
+<h3>Misleading "Connecting to Spotify…" in YouTube mode</h3>
+<ul>
+  <li class="problem">Landing on the player in YouTube-only mode still showed "Connecting to Spotify…" until the first YouTube track resolved — the loading message was keyed on <code>!deviceId</code>, which is forever-null when the Spotify SDK is deliberately not initialized.</li>
+  <li class="fix">Gated the message on source. Also confirmed via a <code>[spotify-sdk] skipping init — youtubeOnly=true</code> log that the SDK really does not run in YouTube mode.</li>
+</ul>
+
 <h2>2026-04-09</h2>
 
 <h3>Gemini model</h3>
