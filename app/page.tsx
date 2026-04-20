@@ -18,7 +18,9 @@ export default async function Home({
   }
 
   const loginUrl = base ? `${base}/api/auth/login` : '/api/auth/login'
-  const ytUrl = base ? `${base}/player?youtube=1` : '/player?youtube=1'
+  // Route handler sets the `earprint_youtube_mode` cookie so subsequent visits to
+  // `/player` (without `?youtube=1`) continue to work without a Spotify session.
+  const ytUrl = base ? `${base}/api/auth/youtube` : '/api/auth/youtube'
   const playerUrl = base ? `${base}/player` : '/player'
 
   return (

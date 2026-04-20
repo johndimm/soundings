@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { storeSpotifyTokensInResponse, type SpotifyTokenResponse } from '@/app/lib/spotify/tokens'
 import { getBaseUrl } from '@/app/lib/baseUrl'
+import { YOUTUBE_MODE_COOKIE } from '@/app/api/auth/youtube/route'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -51,12 +52,24 @@ export async function GET(req: NextRequest) {
   })
 
   const base = getBaseUrl() || req.nextUrl.origin
-  const res = NextResponse.redirect(new URL('/player', base), {
+  // `?spotify_login=1` signals to the client that the user just completed Spotify auth,
+  // so it can reset any leftover YouTube-mode localStorage (the source field, per-channel
+  // queues populated with YouTube tracks, etc.) and then strip the query parameter.
+  const redirectUrl = new URL('/player', base)
+  redirectUrl.searchParams.set('spotify_login', '1')
+  const res = NextResponse.redirect(redirectUrl, {
     status: 302,
     headers: { 'Cache-Control': 'no-store' },
   })
   // Single Set-Cookie path on the redirect response (avoids duplicate / merge quirks with cookies()).
   storeSpotifyTokensInResponse(res.cookies, tokens, requestIsHttps)
-  console.info('callback: cookies set on redirect response → /player')
+  // Selecting "Login with Spotify" is an explicit vote for Spotify mode — clear the
+  // YouTube-only marker so we don't fight the user's intent (landing page, player-page
+  // gate, layout seeding all key off this cookie).
+  res.cookies.set(YOUTUBE_MODE_COOKIE, '', {
+    path: '/',
+    maxAge: 0,
+  })
+  console.info('callback: cookies set on redirect response → /player?spotify_login=1')
   return res
 }

@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers'
 import { getBaseUrl } from '@/app/lib/baseUrl'
+import { YOUTUBE_MODE_COOKIE } from '@/app/api/auth/youtube/route'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,8 +14,11 @@ export default async function PlayerPage({
   const youtubeOnly = params['youtube'] === '1'
   const cookieStore = await cookies()
   const accessToken = cookieStore.get('spotify_access_token')?.value
+  // Cookie set by /api/auth/youtube — lets the user return to /player without the
+  // `?youtube=1` query string (header nav, Settings redirect, etc).
+  const youtubeCookieMode = cookieStore.get(YOUTUBE_MODE_COOKIE)?.value === '1'
 
-  if (!accessToken && !guideDemo && !youtubeOnly) {
+  if (!accessToken && !guideDemo && !youtubeOnly && !youtubeCookieMode) {
     const base = getBaseUrl()
     const loginUrl = base ? `${base}/api/auth/login` : '/api/auth/login'
     return (

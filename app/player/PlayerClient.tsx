@@ -26,6 +26,7 @@ import {
   isDevFactorySnapshotEnabled,
 } from '@/app/lib/devFactoryOverride'
 import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE, type CardState } from '@/app/lib/playback/types'
+import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
@@ -395,7 +396,10 @@ function peekNextCard(ch: Channel): CardState | null {
   return null
 }
 
-const HEARD_RATE_LIMIT_REASON = 'Replay from your Heard (while Spotify rate limits are active)'
+function heardRateLimitReason(src: 'spotify' | 'youtube' | undefined): string {
+  const label = src === 'youtube' ? 'YouTube' : 'Spotify'
+  return `Replay from your Heard (while ${label} rate limits are active)`
+}
 const HEARD_PLAYBACK_REASON = 'Replay from Heard'
 const HEARD_FALLBACK_DURATION_MS = 180_000
 
@@ -734,16 +738,45 @@ export default function PlayerClient({
   const [profile, setProfile] = useState('')
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [backoffUntil, setBackoffUntil] = useState<number | null>(null)
-  const backoffUntilRef = useRef<number | null>(null)
+  /**
+   * Per-source cooldowns. Splitting prevents a YouTube quota reset at midnight PT from freezing
+   * Spotify (and vice versa); earlier the single `backoffUntil` + `spotifyRateLimitUntil` key
+   * conflated the two and silently blocked the non-limited source.
+   */
+  const [spotifyBackoffUntil, setSpotifyBackoffUntil] = useState<number | null>(null)
+  const [youtubeBackoffUntil, setYoutubeBackoffUntil] = useState<number | null>(null)
+  const spotifyBackoffUntilRef = useRef<number | null>(null)
+  const youtubeBackoffUntilRef = useRef<number | null>(null)
   useEffect(() => {
-    backoffUntilRef.current = backoffUntil
-  }, [backoffUntil])
+    spotifyBackoffUntilRef.current = spotifyBackoffUntil
+  }, [spotifyBackoffUntil])
+  useEffect(() => {
+    youtubeBackoffUntilRef.current = youtubeBackoffUntil
+  }, [youtubeBackoffUntil])
 
-  /** True while Spotify resolve should be avoided (rate limit / gate). Profile-only LLM is skipped server-side when Spotify is offline. */
-  const isSpotifyBackoffActive = () => {
-    const u = backoffUntilRef.current
+  const BACKOFF_STORAGE_KEY: Record<'spotify' | 'youtube', string> = {
+    spotify: 'spotifyRateLimitUntil',
+    youtube: 'youtubeRateLimitUntil',
+  }
+  /** Current-source (or given source) cooldown expiry, or null if none. */
+  const getBackoffUntil = (src?: 'spotify' | 'youtube'): number | null => {
+    const s = src ?? sourceRef.current
+    return s === 'youtube' ? youtubeBackoffUntilRef.current : spotifyBackoffUntilRef.current
+  }
+  /** True while the given source (or current source) should not issue new resolve / search calls. */
+  const isBackoffActive = (src?: 'spotify' | 'youtube'): boolean => {
+    const u = getBackoffUntil(src)
     return Boolean(u && u > Date.now())
+  }
+  /** Set or clear one source's cooldown in state + localStorage in one step. */
+  const setBackoffFor = (src: 'spotify' | 'youtube', until: number | null) => {
+    if (src === 'youtube') setYoutubeBackoffUntil(until)
+    else setSpotifyBackoffUntil(until)
+    try {
+      const key = BACKOFF_STORAGE_KEY[src]
+      if (until && until > Date.now()) localStorage.setItem(key, String(until))
+      else localStorage.removeItem(key)
+    } catch {}
   }
 
   const [spotifyUser, setSpotifyUser] = useState<{ id: string; display_name?: string; product?: string } | null>(null)
@@ -994,7 +1027,8 @@ export default function PlayerClient({
     setProfile(demo.profile)
     setLoadingQueue(demo.loadingQueue)
     setError(null)
-    setBackoffUntil(demo.backoffUntil)
+    setSpotifyBackoffUntil(demo.backoffUntil)
+    setYoutubeBackoffUntil(null)
     setSpotifyUser(demo.spotifyUser)
     setPlayResponse(null)
     setNotes(demo.notes)
@@ -1293,19 +1327,30 @@ export default function PlayerClient({
     })
   }, [])
 
-  // Restore backoff timer from localStorage on mount
+  // Auto-clear each source's backoff banner when its cooldown expires (one timer per source).
   useEffect(() => {
     if (isGuideDemo) return
-    if (backoffUntil && backoffUntil > Date.now()) {
-      const remaining = backoffUntil - Date.now()
-      backoffTimerRef.current = setTimeout(() => {
-        setBackoffUntil(null)
-        setError(null)
-        try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
-      }, remaining)
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const schedule = (src: 'spotify' | 'youtube', until: number | null) => {
+      if (!until || until <= Date.now()) return
+      timers.push(
+        setTimeout(() => {
+          if (src === 'youtube') setYoutubeBackoffUntil(null)
+          else setSpotifyBackoffUntil(null)
+          setError(null)
+          try {
+            localStorage.removeItem(BACKOFF_STORAGE_KEY[src])
+          } catch {}
+        }, until - Date.now())
+      )
+    }
+    schedule('spotify', spotifyBackoffUntil)
+    schedule('youtube', youtubeBackoffUntil)
+    return () => {
+      timers.forEach(clearTimeout)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [isGuideDemo, spotifyBackoffUntil, youtubeBackoffUntil])
 
   useEffect(() => {
     providerRef.current = provider
@@ -1313,6 +1358,20 @@ export default function PlayerClient({
 
   useEffect(() => {
     sourceRef.current = source
+  }, [source])
+
+  /**
+   * When the active playback source changes (user flipped it in Settings, or a channel with a
+   * different `source` was selected), silence the OTHER engine. Without this, the Spotify Web
+   * Playback SDK keeps playing whatever was queued while YouTube starts on top of it (or vice
+   * versa). Both calls are no-ops when the corresponding player isn't connected yet.
+   */
+  useEffect(() => {
+    if (source === 'youtube') {
+      try { playerRef.current?.pause() } catch (err) { console.warn('[source-switch] spotify pause failed', err) }
+    } else {
+      try { youtubePlayerRef.current?.pause() } catch (err) { console.warn('[source-switch] youtube pause failed', err) }
+    }
   }, [source])
 
   /** Test mode: show a DJ suggestion immediately when switching to YouTube (no genre click required). */
@@ -1430,10 +1489,15 @@ export default function PlayerClient({
       discovery: s.discovery ?? 50,
     })
     try {
-      const stored = localStorage.getItem('spotifyRateLimitUntil')
-      if (stored) {
-        const until = Number(stored)
-        if (until > Date.now()) setBackoffUntil(until)
+      const spStored = localStorage.getItem('spotifyRateLimitUntil')
+      if (spStored) {
+        const until = Number(spStored)
+        if (until > Date.now()) setSpotifyBackoffUntil(until)
+      }
+      const ytStored = localStorage.getItem('youtubeRateLimitUntil')
+      if (ytStored) {
+        const until = Number(ytStored)
+        if (until > Date.now()) setYoutubeBackoffUntil(until)
       }
     } catch {}
     setSettingsHydrated(true)
@@ -1484,6 +1548,11 @@ export default function PlayerClient({
   useEffect(() => {
     if (isGuideDemo) return
     if (typeof window === 'undefined') return
+    // Must run BEFORE loadChannels(): if the URL carries `?spotify_login=1` or
+    // `?youtube_login=1`, this scrubs wrong-source `currentCard` / `queue` items from
+    // storage so the hydration below does not boot the player with stale data. The helper
+    // is idempotent (module-level flag) so it's safe to call from multiple places.
+    applyFreshLoginIfNeeded()
     try {
       localStorage.removeItem('earprint-factory-channels')
     } catch {}
@@ -1664,7 +1733,9 @@ export default function PlayerClient({
       void (async () => {
         let loaded = false
         try {
-          const r = await fetch('/api/factory-defaults', { credentials: 'same-origin', cache: 'no-store' })
+          // Per-source factory file first (falls back to the shared file server-side when missing).
+          const factorySrc = youtubeOnly ? 'youtube' : readSettingsSource()
+          const r = await fetch(`/api/factory-defaults?source=${factorySrc}`, { credentials: 'same-origin', cache: 'no-store' })
           const data = r.ok ? await r.json() : null
           if (
             data?.ok &&
@@ -1807,9 +1878,13 @@ export default function PlayerClient({
   // ── Spotify SDK ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (isGuideDemo) return
-    if (youtubeOnly) return
+    if (youtubeOnly) {
+      console.info('[spotify-sdk] skipping init — youtubeOnly=true')
+      return
+    }
     if (sdkReadyRef.current) return
     sdkReadyRef.current = true
+    console.info('[spotify-sdk] initializing', { source })
 
     let cancelled = false
     const previousOnReady = window.onSpotifyWebPlaybackSDKReady
@@ -2215,6 +2290,12 @@ export default function PlayerClient({
   }, [isGuideDemo])
 
   const togglePlayback = useCallback(() => {
+    const ytTrack = (currentCardRef.current?.track.source as string) === 'youtube'
+    console.info('[play] togglePlayback', {
+      isGuideDemo,
+      youtubeTrack: ytTrack,
+      paused: playbackState?.paused,
+    })
     if (isGuideDemo) {
       setPlaybackState(prev => {
         if (!prev) return prev
@@ -2222,6 +2303,17 @@ export default function PlayerClient({
         isPausedRef.current = paused
         return { ...prev, paused }
       })
+      return
+    }
+    // YouTube tracks are controlled by the iframe; route directly to the YouTube handle.
+    if (ytTrack) {
+      const yt = youtubePlayerRef.current
+      if (!yt) {
+        console.warn('[play] togglePlayback: youtubePlayerRef not ready')
+        return
+      }
+      if (isPausedRef.current) yt.play()
+      else yt.pause()
       return
     }
     if (playbackState?.paused) playerRef.current?.resume()
@@ -2232,20 +2324,32 @@ export default function PlayerClient({
   useEffect(() => {
     if (isGuideDemo) return
     if (!currentCard) return
-    if (!deviceId) return
+    const isYoutube = (currentCard.track.source as string) === 'youtube'
+    // YouTube does not use the Spotify Web Playback SDK, so the deviceId gate must not block it.
+    if (!isYoutube && !deviceId) return
     const key = trackPlayKey(currentCard.track)
     if (key === lastPlayedUriRef.current) return
     lastPlayedUriRef.current = key
     playedUrisRef.current.add(key)
     const resumeMs = pendingPlaybackPositionMsRef.current
     pendingPlaybackPositionMsRef.current = undefined
-    // YouTube playback handled by the YouTube iframe — reset slider and skip Spotify playTrack
-    if ((currentCard.track.source as string) === 'youtube') {
+    // YouTube playback handled by the YouTube iframe — reset slider and skip Spotify playTrack.
+    // We still explicitly call play() because the iframe's `autoplay=1` is unreliable for fresh
+    // cross-origin mounts (Chrome's autoplay policy frequently blocks autoplay-with-sound for
+    // new iframes even after a user gesture). The YoutubePlayer handle falls back to postMessage
+    // when the JS API isn't attached yet, and latches via pendingPlayRef so onReady can play.
+    if (isYoutube) {
+      console.info('[play] currentCard → YouTube', { id: currentCard.track.id, name: currentCard.track.name })
       sliderRef.current = 0
       setSliderPosition(0)
       durationRef.current = 0
       setYoutubeDuration(0)
       autoAdvanceRef.current = false
+      try {
+        youtubePlayerRef.current?.play()
+      } catch (err) {
+        console.warn('[play] youtube play() threw', err)
+      }
       return
     }
     const doPlay = async () => {
@@ -2540,7 +2644,7 @@ export default function PlayerClient({
       const { entry, track } = candidates[0]
       const card: CardState = {
         track,
-        reason: HEARD_RATE_LIMIT_REASON,
+        reason: heardRateLimitReason(sourceRef.current),
         category: entry.category,
         coords: entry.coords,
       }
@@ -2559,7 +2663,7 @@ export default function PlayerClient({
       seen.add(tk)
       newQ.push({
         track,
-        reason: HEARD_RATE_LIMIT_REASON,
+        reason: heardRateLimitReason(sourceRef.current),
         category: entry.category,
         coords: entry.coords,
       })
@@ -2738,9 +2842,9 @@ export default function PlayerClient({
     if (force) {
       djLlmRetryAfterMsRef.current = 0
     }
-    // Constraint path resolves LLM suggestions to tracks on Spotify — skip while backoff.
-    if (onCards && isSpotifyBackoffActive()) {
-      console.info('fetchToBuffer: skipping constraint path, Spotify backoff (needs resolve)')
+    // Constraint path resolves LLM suggestions to tracks on the active source — skip only that source's backoff.
+    if (onCards && isBackoffActive()) {
+      console.info('fetchToBuffer: skipping constraint path,', sourceRef.current, 'backoff (needs resolve)')
       return
     }
 
@@ -2868,16 +2972,8 @@ export default function PlayerClient({
         if (err instanceof RateLimitError) {
           const waitMs = (err.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
           const until = Date.now() + waitMs
-          setBackoffUntil(until)
-          try { localStorage.setItem('spotifyRateLimitUntil', String(until)) } catch {}
-          if (backoffTimerRef.current) {
-            clearTimeout(backoffTimerRef.current)
-          }
-          backoffTimerRef.current = setTimeout(() => {
-            setBackoffUntil(null)
-            setError(null)
-            try { localStorage.removeItem('spotifyRateLimitUntil') } catch {}
-          }, waitMs)
+          // Scope to the current source — the backoff-expiry effect will auto-clear it.
+          setBackoffFor(sourceRef.current, until)
           setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
           return
@@ -2885,8 +2981,8 @@ export default function PlayerClient({
 
         if (err instanceof AuthError) {
           setError('Authentication error (401). Access token may be invalid or missing.')
-          const far = Date.now() + 300_000
-          setBackoffUntil(far)
+          // Spotify AuthError only — YouTube path has no Spotify token; apply to Spotify source.
+          setBackoffFor('spotify', Date.now() + 300_000)
           return
         }
 
@@ -2958,7 +3054,7 @@ export default function PlayerClient({
         if (e instanceof RateLimitError) {
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
           console.warn(DJQ, 'startPlaybackFromSuggestions: RateLimitError', waitMs)
-          setBackoffUntil(Date.now() + waitMs)
+          setBackoffFor(sourceRef.current, Date.now() + waitMs)
           setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
         } else if (e instanceof AuthError) {
@@ -3014,7 +3110,7 @@ export default function PlayerClient({
         if (e instanceof RateLimitError) {
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
           console.warn(DJQ, 'topUpQueueFromSuggestions: RateLimitError', waitMs)
-          setBackoffUntil(Date.now() + waitMs)
+          setBackoffFor(sourceRef.current, Date.now() + waitMs)
           setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
           fillFromHeardWhenRateLimited()
         } else if (e instanceof AuthError) {
@@ -3092,7 +3188,9 @@ export default function PlayerClient({
           errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
         console.warn(DJQ, 'promoteDjPendingByIdOnly: HTTP 429', errBody)
         const waitMs = (retryMs ?? 60_000) + 5_000
-        setBackoffUntil(Date.now() + waitMs)
+        // promoteDjPendingByIdOnly returns early for YouTube source, so the message is
+        // always about Spotify here.
+        setBackoffFor('spotify', Date.now() + waitMs)
         setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
         fillFromHeardWhenRateLimited()
         return 'rate_limited'
@@ -3227,10 +3325,9 @@ export default function PlayerClient({
         return
       }
 
-      // Avoid hammering Spotify: effect re-runs when backoffUntil changes — without this we loop 429 → setBackoff → effect → consume → 429.
-      const backoffActive = Boolean(backoffUntilRef.current && backoffUntilRef.current > Date.now())
-      if (backoffActive) {
-        console.info(DJQ, 'consume: skipped (Spotify backoff active)', label)
+      // Skip only when the CURRENT source's cooldown is active — YouTube quota must not block Spotify.
+      if (isBackoffActive()) {
+        console.info(DJQ, 'consume: skipped (', sourceRef.current, 'backoff active)', label)
         if (userInitiated) {
           setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate-limited — try again after the cooldown.`)
         }
@@ -3245,7 +3342,7 @@ export default function PlayerClient({
         bufferLen: suggestionBufferRef.current.length,
         slots,
         hadSpotifyIds: hadIds,
-        clientBackoffHint: isSpotifyBackoffActive(),
+        clientBackoffHint: isBackoffActive(),
       })
 
       resolvingRef.current = true
@@ -3325,7 +3422,7 @@ export default function PlayerClient({
 
         if (
           userInitiated &&
-          isSpotifyBackoffActive() &&
+          isBackoffActive() &&
           suggestionBufferRef.current.length > 0
         ) {
           setError(`${sourceRef.current === 'youtube' ? 'YouTube' : 'Spotify'} is rate-limited — try again after the cooldown.`)
@@ -3363,9 +3460,10 @@ export default function PlayerClient({
       }
       return
     }
-    // Backoff active: fill from Heard. For YouTube-only (no Spotify token at all) stop here;
+    // Backoff active for the current source: fill from Heard. For YouTube-only (no Spotify token at all) stop here;
     // for Spotify, the LLM profileOnly path must still run to refill the buffer — do NOT return.
-    if (backoffUntil && backoffUntil > Date.now()) {
+    const activeBackoffUntil = source === 'youtube' ? youtubeBackoffUntil : spotifyBackoffUntil
+    if (activeBackoffUntil && activeBackoffUntil > Date.now()) {
       if (!fetchingRef.current && !resolvingRef.current) {
         resolvingRef.current = true
         try {
@@ -3400,9 +3498,9 @@ export default function PlayerClient({
           })
           return
         }
-        if (isSpotifyBackoffActive()) {
-          const u = backoffUntilRef.current
-          console.info(DJQ, 'auto-fill effect: skip consume (Spotify backoff); scheduling retry', {
+        if (isBackoffActive()) {
+          const u = getBackoffUntil()
+          console.info(DJQ, 'auto-fill effect: skip consume (', sourceRef.current, 'backoff); scheduling retry', {
             untilMs: u ?? 0,
           })
           if (u && u > Date.now() && !cooldownRetryTimerRef.current) {
@@ -3417,7 +3515,7 @@ export default function PlayerClient({
         console.info(DJQ, 'auto-fill effect: calling consume', {
           slots,
           suggestionBufferLen: suggestionBuffer.length,
-          clientBackoffHint: isSpotifyBackoffActive(),
+          clientBackoffHint: isBackoffActive(),
         })
         try {
           await consumeDjSuggestionBuffer({ userInitiated: false })
@@ -3478,7 +3576,9 @@ export default function PlayerClient({
     loadingQueue,
     historyReady,
     fetchToBuffer,
-    backoffUntil,
+    spotifyBackoffUntil,
+    youtubeBackoffUntil,
+    source,
     cooldownTick,
     isGuideDemo,
     consumeDjSuggestionBuffer,
@@ -3713,22 +3813,16 @@ export default function PlayerClient({
     try {
       const res = await fetch('/api/spotify/ping').then(r => r.json()).catch(() => null)
       if (res?.ok) {
-        setBackoffUntil(null)
+        setBackoffFor('spotify', null)
         setError(null)
-        if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
-        try {
-          localStorage.removeItem('spotifyRateLimitUntil')
-        } catch {}
       } else if (res?.retryAfterMs) {
         const until = Date.now() + res.retryAfterMs + 5_000
-        setBackoffUntil(until)
-        try {
-          localStorage.setItem('spotifyRateLimitUntil', String(until))
-        } catch {}
+        setBackoffFor('spotify', until)
       }
     } finally {
       setSpotifyPingInFlight(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const handleYoutubePingRetry = useCallback(async () => {
@@ -3736,15 +3830,16 @@ export default function PlayerClient({
     try {
       const res = await fetch('/api/youtube/ping').then(r => r.json()).catch(() => null)
       if (res?.ok) {
-        setBackoffUntil(null)
+        setBackoffFor('youtube', null)
         setError(null)
-        if (backoffTimerRef.current) clearTimeout(backoffTimerRef.current)
       } else if (res?.retryAfterMs) {
-        setBackoffUntil(Date.now() + res.retryAfterMs + 5_000)
+        const until = Date.now() + res.retryAfterMs + 5_000
+        setBackoffFor('youtube', until)
       }
     } finally {
       setSpotifyPingInFlight(false)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const playUri = useCallback(async (uri: string | null, label: string): Promise<boolean> => {
@@ -3787,9 +3882,16 @@ export default function PlayerClient({
 
   const handlePlayHistoryItem = useCallback(
     async (entry: HistoryEntry) => {
+      // History-replay currently only supports Spotify tracks (the builder normalizes to
+      // `spotify:track:…` URIs). In YouTube mode we bail with a neutral message rather than
+      // dangle a Spotify-specific error in front of the user.
+      if (sourceRef.current === 'youtube') {
+        setPlayResponse('Replaying from Heard is not supported in YouTube mode yet.')
+        return
+      }
       const track = historyEntryToTrack(entry)
       if (!track) {
-        setPlayResponse('Cannot replay: no valid Spotify track id for this entry.')
+        setPlayResponse('Cannot replay: this entry has no valid track id.')
         return
       }
       const card: CardState = {
@@ -3812,9 +3914,12 @@ export default function PlayerClient({
   )
   const duration = playbackState?.duration ?? 0
 
+  // Banner reflects ONLY the current source's cooldown — a YouTube quota lockout must not
+  // show up while the user is listening on Spotify (and vice versa).
+  const activeBackoffUntilForBanner = source === 'youtube' ? youtubeBackoffUntil : spotifyBackoffUntil
   const spotifyStatusMessage =
-    backoffUntil && backoffUntil > Date.now()
-      ? `${source === 'youtube' ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(backoffUntil).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+    activeBackoffUntilForBanner && activeBackoffUntilForBanner > Date.now()
+      ? `${source === 'youtube' ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : null
 
   return (
@@ -3990,10 +4095,11 @@ export default function PlayerClient({
           <div className="absolute inset-0 z-[5] bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
 
           {/* Loading — connecting to Spotify, or actively fetching the next track; otherwise blank (e.g. new channel before DJ settings) */}
-          {!currentCard && !error && (!deviceId || loadingQueue) && (
+          {/* YouTube mode has no Spotify device to wait on, so we only show the spinner while a queue fetch is in flight. */}
+          {!currentCard && !error && (source === 'youtube' ? loadingQueue : (!deviceId || loadingQueue)) && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-zinc-400">
               <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin" />
-              <p className="text-sm">{deviceId ? 'Finding your next song…' : 'Connecting to Spotify…'}</p>
+              <p className="text-sm">{source === 'youtube' || deviceId ? 'Finding your next song…' : 'Connecting to Spotify…'}</p>
             </div>
           )}
 

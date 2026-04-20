@@ -344,6 +344,7 @@ export default function RatingsPage() {
                     localStorage.removeItem(HISTORY_STORAGE_KEY)
                     localStorage.removeItem(SETTINGS_STORAGE_KEY)
                     localStorage.removeItem('spotifyRateLimitUntil')
+                    localStorage.removeItem('youtubeRateLimitUntil')
                   } catch {}
                   window.location.href = '/player'
                 }}

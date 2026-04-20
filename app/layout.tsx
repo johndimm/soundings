@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import "./globals.css";
 import PersistentPlayerHost from "./(earprint)/PersistentPlayerHost";
 import { isYoutubeResolveTestServerEnabled } from "@/app/lib/youtubeResolveTestEnv";
+import { YOUTUBE_MODE_COOKIE } from "@/app/api/auth/youtube/route";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,6 +34,10 @@ export default async function RootLayout({
 }>) {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("spotify_access_token")?.value ?? "";
+  // Only force YouTube-only mode when the user has no Spotify session; a cookie alone
+  // shouldn't override a real Spotify login (Settings can flip the source at runtime).
+  const youtubeModeFromCookie =
+    !accessToken && cookieStore.get(YOUTUBE_MODE_COOKIE)?.value === "1";
   const youtubeResolveTestFromServer = isYoutubeResolveTestServerEnabled();
 
   return (
@@ -44,6 +49,7 @@ export default async function RootLayout({
         <PersistentPlayerHost
           accessToken={accessToken}
           youtubeResolveTestFromServer={youtubeResolveTestFromServer}
+          youtubeModeFromCookie={youtubeModeFromCookie}
         >
           {children}
         </PersistentPlayerHost>

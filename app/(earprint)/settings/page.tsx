@@ -55,11 +55,6 @@ const LLM_OPTIONS: { value: LLMProvider; label: string; sub: string }[] = [
   { value: 'gemini', label: 'Gemini', sub: 'Google' },
 ]
 
-const SOURCE_OPTIONS: { value: PlaybackSource; label: string; sub: string }[] = [
-  { value: 'spotify', label: 'Spotify', sub: 'Requires Premium' },
-  { value: 'youtube', label: 'YouTube', sub: '~100 searches/day' },
-]
-
 function readSettings(): { provider: LLMProvider; source: PlaybackSource; globalNotes: string } {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
@@ -90,10 +85,18 @@ export default function SettingsPage() {
   const [globalNotes, setGlobalNotes] = useState('')
   const [mounted, setMounted] = useState(false)
   const [confirm, setConfirm] = useState<
-    'system-reset' | 'factory-reset' | 'save-server-factory' | null
+    'system-reset' | 'factory-reset' | 'save-server-factory' | 'save-source-factory' | null
   >(null)
   const [serverFactoryPresent, setServerFactoryPresent] = useState(false)
   const [serverFactorySavedAt, setServerFactorySavedAt] = useState<string | null>(null)
+  const [sourceFactoryPresent, setSourceFactoryPresent] = useState<Record<PlaybackSource, boolean>>({
+    spotify: false,
+    youtube: false,
+  })
+  const [sourceFactorySavedAt, setSourceFactorySavedAt] = useState<Record<PlaybackSource, string | null>>({
+    spotify: null,
+    youtube: null,
+  })
   const [factoryFileNotice, setFactoryFileNotice] = useState<string | null>(null)
   const [factoryWriteToken, setFactoryWriteToken] = useState('')
   const [importDialog, setImportDialog] = useState<{
@@ -125,6 +128,24 @@ export default function SettingsPage() {
           setServerFactoryPresent(false)
           setServerFactorySavedAt(null)
         })
+      // Probe both per-source factory files — only reports the FILE, so includes shared-fallback=false.
+      const probe = async (src: PlaybackSource) => {
+        try {
+          const r = await fetch(`/api/factory-defaults?source=${src}`, { cache: 'no-store' })
+          const d = r.ok ? await r.json() : null
+          const isPerSourceFile = d?.ok && d?.file === `source:${src}`
+          setSourceFactoryPresent(prev => ({ ...prev, [src]: Boolean(isPerSourceFile) }))
+          setSourceFactorySavedAt(prev => ({
+            ...prev,
+            [src]: isPerSourceFile && typeof d.savedAt === 'string' ? d.savedAt : null,
+          }))
+        } catch {
+          setSourceFactoryPresent(prev => ({ ...prev, [src]: false }))
+          setSourceFactorySavedAt(prev => ({ ...prev, [src]: null }))
+        }
+      }
+      void probe('spotify')
+      void probe('youtube')
     }
     setMounted(true)
   }, [])
@@ -132,11 +153,6 @@ export default function SettingsPage() {
   const handleProviderChange = (p: LLMProvider) => {
     setProvider(p)
     writeSettings({ provider: p })
-  }
-
-  const handleSourceChange = (s: PlaybackSource) => {
-    setSource(s)
-    writeSettings({ source: s })
   }
 
   const handleGlobalNotesChange = (value: string) => {
@@ -152,6 +168,7 @@ export default function SettingsPage() {
       localStorage.removeItem(LEGACY_FACTORY_CHANNELS_KEY)
       localStorage.removeItem(DEV_FACTORY_OVERRIDE_STORAGE_KEY)
       localStorage.removeItem('spotifyRateLimitUntil')
+      localStorage.removeItem('youtubeRateLimitUntil')
       sessionStorage.clear()
     } catch {}
     router.push('/player')
@@ -159,7 +176,11 @@ export default function SettingsPage() {
 
   const handleFactoryReset = async () => {
     try {
-      const r = await fetch('/api/factory-defaults', { credentials: 'same-origin', cache: 'no-store' })
+      // Prefer the per-source file, then fall back to shared, then to the bundled built-in.
+      const r = await fetch(`/api/factory-defaults?source=${source}`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
       const d = r.ok ? await r.json() : null
       if (d?.ok && Array.isArray(d.channels) && d.channels.length > 0) {
         localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(d.channels))
@@ -173,9 +194,53 @@ export default function SettingsPage() {
       }
       localStorage.removeItem(HISTORY_STORAGE_KEY)
       localStorage.removeItem('spotifyRateLimitUntil')
+      localStorage.removeItem('youtubeRateLimitUntil')
       localStorage.removeItem(LEGACY_FACTORY_CHANNELS_KEY)
     } catch {}
     router.push('/player')
+  }
+
+  /**
+   * Save the current browser channel set as the factory file for the CURRENT playback source.
+   * Workflow: pick the source in Settings, fill channels with that source's tracks, then save here.
+   * Result: `data/factory-channels.<source>.json` — loaded by Factory reset and blank-slate when
+   * that source is active. The shared `data/factory-channels.json` (the other button) is left alone.
+   */
+  const handleSaveSourceFactoryFile = async () => {
+    try {
+      const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
+      const channels = raw ? JSON.parse(raw) : []
+      const activeChannelId = localStorage.getItem(ACTIVE_CHANNEL_KEY)
+      const res = await fetch(`/api/factory-defaults?source=${source}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channels,
+          activeChannelId,
+          source,
+          writeToken: factoryWriteToken.trim() || undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setFactoryFileNotice(
+          typeof data.error === 'string' ? `Save failed: ${data.error}` : `Save failed (${res.status})`,
+        )
+        setConfirm(null)
+        return
+      }
+      const label = source === 'youtube' ? 'YouTube' : 'Spotify'
+      setFactoryFileNotice(
+        `Wrote data/factory-channels.${source}.json (${channels.length} ${label} channel${channels.length !== 1 ? 's' : ''}).`,
+      )
+      setSourceFactoryPresent(prev => ({ ...prev, [source]: true }))
+      if (typeof data.savedAt === 'string') {
+        setSourceFactorySavedAt(prev => ({ ...prev, [source]: data.savedAt as string }))
+      }
+    } catch {
+      setFactoryFileNotice('Save failed (network or server).')
+    }
+    setConfirm(null)
   }
 
   const handleSaveServerFactoryFile = async () => {
@@ -239,31 +304,6 @@ export default function SettingsPage() {
                 onClick={() => handleProviderChange(opt.value)}
                 className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
                   provider === opt.value
-                    ? 'bg-black text-white border-black'
-                    : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-500 hover:text-black'
-                }`}
-              >
-                {opt.label}
-                <span className="ml-1.5 text-xs opacity-60">{opt.sub}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Source */}
-        <section className="flex flex-col gap-3">
-          <div>
-            <h2 className="text-sm font-semibold">Playback Source</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">Where music is streamed from. Applies to all channels.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {SOURCE_OPTIONS.map(opt => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => handleSourceChange(opt.value)}
-                className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
-                  source === opt.value
                     ? 'bg-black text-white border-black'
                     : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-500 hover:text-black'
                 }`}
@@ -447,12 +487,31 @@ export default function SettingsPage() {
               >
                 Save current channels to server file
               </button>
+              <button
+                type="button"
+                onClick={() => setConfirm('save-source-factory')}
+                className="px-4 py-2 rounded-lg border border-amber-300 text-amber-950 text-sm hover:bg-amber-100/80 transition-colors"
+                title={`Writes data/factory-channels.${source}.json`}
+              >
+                Save factory file ({source === 'youtube' ? 'YouTube' : 'Spotify'})
+              </button>
             </div>
             <p className="text-xs text-amber-900/70">
-              Server file:{' '}
+              Shared file:{' '}
               {serverFactoryPresent
                 ? `present${serverFactorySavedAt ? ` · saved ${new Date(serverFactorySavedAt).toLocaleString()}` : ''}`
-                : 'not found (blank slate uses code defaults)'}
+                : 'not found (blank slate falls back to code defaults)'}
+            </p>
+            <p className="text-xs text-amber-900/70">
+              Spotify file:{' '}
+              {sourceFactoryPresent.spotify
+                ? `present${sourceFactorySavedAt.spotify ? ` · saved ${new Date(sourceFactorySavedAt.spotify).toLocaleString()}` : ''}`
+                : 'not saved yet'}
+              {' · '}
+              YouTube file:{' '}
+              {sourceFactoryPresent.youtube
+                ? `present${sourceFactorySavedAt.youtube ? ` · saved ${new Date(sourceFactorySavedAt.youtube).toLocaleString()}` : ''}`
+                : 'not saved yet'}
             </p>
           </section>
         )}
@@ -554,6 +613,23 @@ export default function SettingsPage() {
                 <div className="flex justify-end gap-3">
                   <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>
                   <button onClick={() => void handleSaveServerFactoryFile()} className="px-4 py-2 text-sm rounded-lg bg-black hover:bg-zinc-800 text-white">Save</button>
+                </div>
+              </>
+            )}
+            {SHOW_SERVER_FACTORY_UI && confirm === 'save-source-factory' && (
+              <>
+                <h3 className="text-base font-semibold mb-2">
+                  Save {source === 'youtube' ? 'YouTube' : 'Spotify'} factory file?
+                </h3>
+                <p className="text-sm text-zinc-500 mb-6">
+                  Writes <code className="text-zinc-700">data/factory-channels.{source}.json</code> on the server using
+                  your current browser channels. Factory reset and blank slates load this file whenever the{' '}
+                  <strong className="text-zinc-700">{source === 'youtube' ? 'YouTube' : 'Spotify'}</strong> source is
+                  active.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>
+                  <button onClick={() => void handleSaveSourceFactoryFile()} className="px-4 py-2 text-sm rounded-lg bg-black hover:bg-zinc-800 text-white">Save</button>
                 </div>
               </>
             )}
