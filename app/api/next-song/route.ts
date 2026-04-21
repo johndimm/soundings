@@ -190,7 +190,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ songs: foundSongs })
   }
 
-  if (profileOnly === true && youtubeResolveTestEffective && !hasResolveOnly) {
+  // The fixture is a YouTube track — only short-circuit when the caller is in
+  // YouTube mode. Otherwise a Spotify client would get a YouTube suggestion it
+  // can't play, fail to resolve, and retry forever (see the flicker loop fixed
+  // on the client in `resolveOneSuggestion` / `fetchSuggestions` / `fetchProfileOnly`).
+  if (
+    profileOnly === true &&
+    youtubeResolveTestEffective &&
+    !hasResolveOnly &&
+    rawSource === 'youtube'
+  ) {
     console.info('[next-song] YOUTUBE_RESOLVE_TEST: skipping LLM — fixture suggestion only', {
       rawSource: rawSource || '(missing)',
       devBodyFallback: !isYoutubeResolveTestServerEnabled() && body.youtubeResolveTest === true,

@@ -11,10 +11,7 @@ import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { isYoutubeResolveTestClientEnabled } from '@/app/lib/youtubeResolveTestClient'
-import {
-  getYoutubeResolveTestFixtureSuggestion,
-  isYoutubeResolveTestFixtureSuggestion,
-} from '@/app/lib/youtubeResolveTestDefaults'
+import { getYoutubeResolveTestFixtureSuggestion } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
@@ -1354,6 +1351,74 @@ export default function PlayerClient({
     })
   }, [])
 
+  /**
+   * Load startup channels from the server-side factory files the user curated:
+   *   - YouTube  → data/factory-channels-youtube.json
+   *   - Spotify  → data/factory-channels.json
+   *
+   * Exposed via the "Load startup channels" button that appears on the player
+   * when the only channel is the empty All row (typically after System Reset).
+   */
+  const [loadingStartupChannels, setLoadingStartupChannels] = useState(false)
+  const [startupChannelsError, setStartupChannelsError] = useState<string | null>(null)
+  const handleLoadStartupChannels = useCallback(async () => {
+    if (loadingStartupChannels) return
+    setStartupChannelsError(null)
+    setLoadingStartupChannels(true)
+    const src: PlaybackSource = youtubeOnly ? 'youtube' : sourceRef.current
+    try {
+      const r = await fetch(`/api/startup-channels?source=${src}`, {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      const data = r.ok ? await r.json() : null
+      if (!data?.ok || !Array.isArray(data.channels) || data.channels.length === 0) {
+        const reason = data?.reason ?? 'unknown'
+        setStartupChannelsError(`No startup channels available (${reason}).`)
+        console.warn('[startup-channels] load failed', { reason, source: src })
+        return
+      }
+      const parsed = parseChannelsImport({
+        channels: data.channels,
+        activeChannelId:
+          typeof data.activeChannelId === 'string' ? data.activeChannelId : undefined,
+      })
+      if (!parsed) {
+        setStartupChannelsError('Startup channel file had an unexpected shape.')
+        return
+      }
+      const merged = ensureAllChannel(parsed.channels.map(withFixedDiscovery))
+      saveChannels(merged)
+      setChannels(merged)
+      channelsRef.current = merged
+      const preferredActive =
+        parsed.activeChannelId && merged.some(c => c.id === parsed.activeChannelId)
+          ? parsed.activeChannelId
+          : merged.find(c => c.id !== ALL_CHANNEL_ID)?.id ?? merged[0].id
+      const activeCh = merged.find(c => c.id === preferredActive)
+      if (activeCh) {
+        loadChannelIntoState(activeCh)
+      } else {
+        setActiveChannelId(preferredActive)
+        activeChannelIdRef.current = preferredActive
+        try {
+          localStorage.setItem(ACTIVE_CHANNEL_KEY, preferredActive)
+        } catch {}
+      }
+      console.info('[startup-channels] loaded', {
+        source: src,
+        file: data.file,
+        channels: merged.length,
+        active: preferredActive,
+      })
+    } catch (e) {
+      console.warn('[startup-channels] error', e)
+      setStartupChannelsError('Failed to load startup channels.')
+    } finally {
+      setLoadingStartupChannels(false)
+    }
+  }, [loadingStartupChannels, youtubeOnly, loadChannelIntoState])
+
   // Auto-clear each source's backoff banner when its cooldown expires (one timer per source).
   useEffect(() => {
     if (isGuideDemo) return
@@ -2496,7 +2561,11 @@ export default function PlayerClient({
       forceTextSearch?: boolean,
       numSongs?: number
     ): Promise<{ suggestions: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> => {
-      if (youtubeResolveTestActive) {
+      // Test-mode fixture is YouTube-only — if source is Spotify, never inject the fixture
+      // (it has no Spotify uri, so the resolve step would loop forever trying to play it).
+      const testModeForSource =
+        youtubeResolveTestActive && sourceRef.current === 'youtube'
+      if (testModeForSource) {
         console.info(
           DJQ,
           'fetchSuggestions: YOUTUBE_RESOLVE_TEST — skipping LLM; one fixture suggestion only'
@@ -2549,7 +2618,9 @@ export default function PlayerClient({
           ...payload,
           accessToken: accessTokenRef.current,
           source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
-          youtubeResolveTest: youtubeResolveTestActive,
+          // Match testModeForSource above: never advertise YouTube test mode on Spotify
+          // requests, or the server will echo a YouTube fixture that breaks playback.
+          youtubeResolveTest: testModeForSource,
         }),
       })
 
@@ -2598,9 +2669,13 @@ export default function PlayerClient({
   const resolveOneSuggestion = useCallback(async (s: SongSuggestion): Promise<CardState | null> => {
     // Do not preflight on client backoff — stale localStorage spotifyRateLimitUntil can block all
     // resolves while LLM (profileOnly) still works. Rely on HTTP 429 to set backoff.
-    const ytResolveTest =
-      youtubeResolveTestActive &&
-      (sourceRef.current === 'youtube' || isYoutubeResolveTestFixtureSuggestion(s))
+    //
+    // Test-mode gate MUST check `sourceRef.current === 'youtube'` exclusively. Using
+    // `|| isYoutubeResolveTestFixtureSuggestion(s)` here caused an infinite flicker on
+    // Spotify login: the server echoed a fixture back for profile-only calls whenever
+    // `youtubeResolveTest: true` crossed the wire, we'd then hit /api/youtube-resolve-test,
+    // get a YouTube-typed track that Spotify can't play, fail, and retry forever.
+    const ytResolveTest = youtubeResolveTestActive && sourceRef.current === 'youtube'
     const resolveUrl = ytResolveTest ? '/api/youtube-resolve-test' : '/api/next-song'
     if (ytResolveTest) {
       console.info(DJQ, 'resolveOneSuggestion: using /api/youtube-resolve-test (fixture, no search quota)')
@@ -2616,7 +2691,10 @@ export default function PlayerClient({
         // Prefer GET /v1/tracks?ids= when LLM supplies an id (not Search); fall back to search if no id or lookup fails.
         forceTextSearch: !normalizeSpotifyTrackId(s.spotifyId),
         source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
-        youtubeResolveTest: youtubeResolveTestActive,
+        // Only advertise test mode to the server when we're actually on YouTube.
+        // Otherwise the server's profile-only branch returns a YouTube fixture that
+        // breaks Spotify playback. See comment on `ytResolveTest` above.
+        youtubeResolveTest: ytResolveTest,
       }),
     })
 
@@ -2817,7 +2895,10 @@ export default function PlayerClient({
       profileOnly: true,
       accessToken: accessTokenRef.current,
       source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
-      youtubeResolveTest: youtubeResolveTestActive,
+      // YouTube test fixture is Spotify-incompatible — gate by source to avoid
+      // the profile-only flicker loop on Spotify logins.
+      youtubeResolveTest:
+        youtubeResolveTestActive && sourceRef.current === 'youtube',
     }
     fetch('/api/next-song', {
       method: 'POST',
@@ -4060,12 +4141,33 @@ export default function PlayerClient({
               )}
             </div>
           ))}
+          {/*
+            Starter-channels pill: shows inline with the tabs when the user has no channels of
+            their own (i.e. only All). Sits in front of the "+" so the reset / first-run path
+            is one click away, without commandeering the whole player.
+          */}
+          {channels.length <= 1 && (
+            <button
+              type="button"
+              onClick={handleLoadStartupChannels}
+              disabled={loadingStartupChannels}
+              title={`Load starter channels for ${(youtubeOnly || source === 'youtube') ? 'YouTube' : 'Spotify'}`}
+              className="px-3 py-1 rounded-full text-xs border border-indigo-400/70 bg-indigo-950/60 text-indigo-100 hover:bg-indigo-900/70 hover:border-indigo-300 shadow-[0_0_0_1px_rgba(99,102,241,0.25)] disabled:opacity-60 disabled:cursor-wait flex-shrink-0 transition-colors"
+            >
+              {loadingStartupChannels ? 'Loading…' : 'Load starter channels'}
+            </button>
+          )}
           <Link
             href="/channels?new=1"
             className="px-2 py-1 text-lg leading-none text-zinc-400 hover:text-white flex-shrink-0 transition-colors"
             title="New channel"
           >+</Link>
         </div>
+        </div>
+      )}
+      {startupChannelsError && channels.length <= 1 && (
+        <div className="px-6 py-2 text-xs text-red-400 text-center border-b border-zinc-900">
+          {startupChannelsError}
         </div>
       )}
 
@@ -4135,9 +4237,12 @@ export default function PlayerClient({
               onEnded={() => {
                 if (autoNextAtEndRef.current) advanceRef.current?.(true)
               }}
-              onPlayerError={_code => {
-                // Any YouTube player error means this video can't play — skip to next.
-                advanceRef.current?.(false)
+              onPlayerError={code => {
+                // Error 5 (HTML5/autoplay) is handled in YoutubePlayer itself (shows tap-to-play overlay).
+                // Here we only receive truly unplayable errors: 2 (invalid ID), 100 (not found), 101/150 (embedding disabled).
+                // Show error in UI instead of auto-advancing, to avoid burning search quota on cascading failures.
+                console.warn('[player] YouTube unplayable error', code)
+                setError(`YouTube video unavailable (error ${code}). Open YouTube to watch it there, or press Next.`)
               }}
             />
           )}
@@ -4306,10 +4411,9 @@ export default function PlayerClient({
                     min={0}
                     max={(currentCard.track.source as string) === 'youtube' ? (youtubeDuration || 1) : (duration || 1)}
                     value={sliderPosition}
-                    onMouseDown={() => { if ((currentCard.track.source as string) !== 'youtube') isSeekingRef.current = true }}
-                    onTouchStart={() => { if ((currentCard.track.source as string) !== 'youtube') isSeekingRef.current = true }}
+                    onMouseDown={() => { isSeekingRef.current = true }}
+                    onTouchStart={() => { isSeekingRef.current = true }}
                     onChange={e => {
-                      if ((currentCard.track.source as string) === 'youtube') return
                       const v = Number(e.currentTarget.value)
                       setSliderPosition(v)
                       sliderRef.current = v
@@ -4317,8 +4421,9 @@ export default function PlayerClient({
                     onMouseUp={e => {
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
-                      if ((currentCard.track.source as string) === 'youtube') return
-                      if (duration > 0 && v >= duration - 1500) {
+                      if ((currentCard.track.source as string) === 'youtube') {
+                        youtubePlayerRef.current?.seek(v)
+                      } else if (duration > 0 && v >= duration - 1500) {
                         if (autoNextAtEndRef.current) advanceWithFade()
                         else playerRef.current?.seek(v)
                       } else {
@@ -4328,8 +4433,9 @@ export default function PlayerClient({
                     onTouchEnd={e => {
                       const v = Number(e.currentTarget.value)
                       isSeekingRef.current = false
-                      if ((currentCard.track.source as string) === 'youtube') return
-                      if (duration > 0 && v >= duration - 1500) {
+                      if ((currentCard.track.source as string) === 'youtube') {
+                        youtubePlayerRef.current?.seek(v)
+                      } else if (duration > 0 && v >= duration - 1500) {
                         if (autoNextAtEndRef.current) advanceWithFade()
                         else playerRef.current?.seek(v)
                       } else {
@@ -4337,7 +4443,6 @@ export default function PlayerClient({
                       }
                     }}
                     className={`flex-1 cursor-pointer ${(currentCard.track.source as string) === 'youtube' ? 'accent-red-400' : 'accent-[#1DB954]'}`}
-                    style={(currentCard.track.source as string) === 'youtube' ? { pointerEvents: 'none' } : {}}
                   />
                   <span className="text-zinc-400 text-xs w-8 tabular-nums">
                     {formatMs((currentCard.track.source as string) === 'youtube' ? youtubeDuration : duration)}

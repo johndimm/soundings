@@ -25,23 +25,61 @@ function decodeHtmlEntities(s: string): string {
 // Cache aggressively to disk so restarts don't re-burn quota.
 const CACHE_FILE = join(process.cwd(), '.youtube-cache.json')
 
-function loadCache(): Map<string, YouTubeTrack> {
+export type YouTubeTrack = Track & { source: 'youtube'; videoId: string }
+
+/** One alternative video from the same search query. Stored alongside the primary track. */
+type YouTubeCandidate = {
+  videoId: string
+  name: string
+  artist: string
+  albumArt: string | null
+}
+
+/** New-format cache entry: primary track + ordered fallback candidates from the same search. */
+type YouTubeCacheEntry = {
+  track: YouTubeTrack
+  candidates: YouTubeCandidate[]
+}
+
+/** Disk format: each value is either legacy YouTubeTrack or new YouTubeCacheEntry. */
+type CacheDiskValue = YouTubeTrack | YouTubeCacheEntry
+
+function isCacheEntry(v: CacheDiskValue): v is YouTubeCacheEntry {
+  return typeof (v as YouTubeCacheEntry).track === 'object'
+}
+
+function toEntry(v: CacheDiskValue): YouTubeCacheEntry {
+  if (isCacheEntry(v)) return v
+  return { track: v, candidates: [] }
+}
+
+function loadCache(): Map<string, YouTubeCacheEntry> {
   try {
     if (existsSync(CACHE_FILE)) {
-      const data = JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as Record<string, YouTubeTrack>
-      return new Map(Object.entries(data))
+      const data = JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as Record<string, CacheDiskValue>
+      const map = new Map<string, YouTubeCacheEntry>()
+      for (const [k, v] of Object.entries(data)) map.set(k, toEntry(v))
+      return map
     }
   } catch {}
   return new Map()
 }
 
-function persistCache(cache: Map<string, YouTubeTrack>) {
+function persistCache(cache: Map<string, YouTubeCacheEntry>) {
   try {
     writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)))
   } catch {}
 }
 
 const searchCache = loadCache()
+
+// Reverse lookup: videoId → cache key (query). Rebuilt on load + updated on new searches.
+// Used by getNextYouTubeCandidate to find the entry without the original query string.
+const videoIdToKey = new Map<string, string>()
+for (const [key, entry] of searchCache) {
+  videoIdToKey.set(entry.track.videoId, key)
+  for (const c of entry.candidates) videoIdToKey.set(c.videoId, key)
+}
 
 // Searches used this server session (resets on restart or when quota resets).
 let searchesUsed = 0
@@ -74,8 +112,6 @@ export function isYouTubeQuotaExceeded(): boolean {
 export function getYouTubeQuotaWaitMs(): number {
   return Math.max(0, quotaExceededUntil - Date.now())
 }
-
-export type YouTubeTrack = Track & { source: 'youtube'; videoId: string }
 
 export type YouTubeSearchResult =
   | { status: 'ok'; track: YouTubeTrack }
@@ -119,6 +155,40 @@ export function youtubeTrackFromVideoId(videoId: string, searchHint: string): Yo
     albumArt: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
     durationMs: 0,
   }
+}
+
+/**
+ * Given a video ID that failed with error 101/150 (embedding disabled), return the next
+ * alternative candidate from the same search query, skipping all excluded IDs.
+ * Returns null if no candidates remain — caller should skip the track.
+ * Zero quota cost: uses already-cached search results.
+ */
+export function getNextYouTubeCandidate(
+  failedVideoId: string,
+  excludeVideoIds: string[]
+): YouTubeTrack | null {
+  const key = videoIdToKey.get(failedVideoId)
+  if (!key) return null
+  const entry = searchCache.get(key)
+  if (!entry) return null
+  const excludeSet = new Set(excludeVideoIds)
+  for (const c of entry.candidates) {
+    if (excludeSet.has(c.videoId)) continue
+    const track: YouTubeTrack = {
+      id: c.videoId,
+      videoId: c.videoId,
+      source: 'youtube',
+      name: c.name,
+      artist: c.artist,
+      album: '',
+      albumArt: c.albumArt,
+      durationMs: 0,
+    }
+    console.info(`[youtube] next-candidate for ${failedVideoId}: ${c.videoId} (excluded: ${excludeVideoIds.join(',')})`)
+    return track
+  }
+  console.info(`[youtube] no more candidates for ${failedVideoId} (tried ${excludeVideoIds.length} already)`)
+  return null
 }
 
 function getApiKey(): string | null {
@@ -188,6 +258,22 @@ async function pickBestEmbeddableVideoId(
   return null
 }
 
+/** True for YouTube auto-generated "Artist - Topic" channels and VEVO — reliably non-embeddable. */
+function isLikelyNonEmbeddableChannel(channelTitle: string): boolean {
+  const t = channelTitle.trim()
+  if (t.endsWith(' - Topic')) return true
+  if (/vevo/i.test(t)) return true
+  return false
+}
+
+function parseNameArtist(title: string, channelTitle: string): { name: string; artist: string } {
+  const dashIdx = title.indexOf(' - ')
+  if (dashIdx !== -1) {
+    return { artist: title.slice(0, dashIdx).trim(), name: title.slice(dashIdx + 3).trim() }
+  }
+  return { name: title, artist: channelTitle }
+}
+
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult> {
   if (isYoutubeResolveTestServerEnabled()) {
     console.info('[youtube] searchYouTube: YOUTUBE_RESOLVE_TEST — skipping Data API, using fixture')
@@ -205,7 +291,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const cached = searchCache.get(cacheKey)
   if (cached) {
     console.info(`[youtube] cache hit: "${query}"`)
-    return { status: 'ok', track: cached }
+    return { status: 'ok', track: cached.track }
   }
 
   const qTrim = query.trim()
@@ -214,7 +300,9 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     const hint = searchHintForResolvedQuery(qTrim, idFromQuery)
     const track = youtubeTrackFromVideoId(idFromQuery, hint)
     if (track) {
-      searchCache.set(cacheKey, track)
+      const entry: YouTubeCacheEntry = { track, candidates: [] }
+      searchCache.set(cacheKey, entry)
+      videoIdToKey.set(track.videoId, cacheKey)
       persistCache(searchCache)
       const how =
         idFromQuery === qTrim ? 'bare id' : extractYoutubeVideoId(qTrim) ? 'URL' : 'URL in text'
@@ -271,7 +359,15 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     return { status: 'not_found' }
   }
 
-  const orderedIds = items.map(i => i.id?.videoId).filter((id): id is string => Boolean(id))
+  // Filter out Topic/VEVO channels (reliably non-embeddable) for both primary and candidates.
+  const allItems = items.filter(i => {
+    const ch = decodeHtmlEntities((i.snippet?.channelTitle as string) ?? '')
+    return !isLikelyNonEmbeddableChannel(ch)
+  })
+  // If filtering removed everything, fall back to all items (better than no results).
+  const filteredItems = allItems.length > 0 ? allItems : items
+
+  const orderedIds = filteredItems.map(i => i.id?.videoId).filter((id): id is string => Boolean(id))
   const runEmbedCheck = shouldRunVideosListEmbedCheck()
   const chosenId = runEmbedCheck
     ? await pickBestEmbeddableVideoId(orderedIds, apiKey)
@@ -280,7 +376,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   if (!chosenId) {
     return { status: 'not_found' }
   }
-  const item = items.find(i => i.id?.videoId === chosenId) ?? items[0]
+  const item = filteredItems.find(i => i.id?.videoId === chosenId) ?? filteredItems[0]
   const videoId: string = chosenId
 
   const snippet = (item.snippet ?? {}) as Record<string, unknown>
@@ -292,14 +388,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const thumbnailUrl: string | null =
     thumbs?.high?.url ?? thumbs?.medium?.url ?? thumbs?.default?.url ?? null
 
-  // Parse "Artist - Title" from the video title when possible; otherwise use channel as artist
-  let name = title
-  let artist = channelTitle
-  const dashIdx = title.indexOf(' - ')
-  if (dashIdx !== -1) {
-    artist = title.slice(0, dashIdx).trim()
-    name = title.slice(dashIdx + 3).trim()
-  }
+  const { name, artist } = parseNameArtist(title, channelTitle)
 
   const track: YouTubeTrack = {
     id: videoId,
@@ -313,8 +402,25 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     durationMs: 0,
   }
 
-  searchCache.set(cacheKey, track)
+  // Store up to 4 additional candidates from the same search for zero-quota retries on error 150.
+  const candidates: YouTubeCandidate[] = filteredItems
+    .filter(i => i.id?.videoId && i.id.videoId !== videoId)
+    .slice(0, 4)
+    .map(i => {
+      const s = (i.snippet ?? {}) as Record<string, unknown>
+      const t = decodeHtmlEntities((s.title as string) ?? '')
+      const ch = decodeHtmlEntities((s.channelTitle as string) ?? '')
+      const th = s.thumbnails as typeof thumbs
+      const art = th?.high?.url ?? th?.medium?.url ?? th?.default?.url ?? null
+      const { name: n, artist: a } = parseNameArtist(t, ch)
+      return { videoId: i.id!.videoId!, name: n, artist: a, albumArt: art }
+    })
+
+  const entry: YouTubeCacheEntry = { track, candidates }
+  searchCache.set(cacheKey, entry)
+  videoIdToKey.set(videoId, cacheKey)
+  for (const c of candidates) videoIdToKey.set(c.videoId, cacheKey)
   persistCache(searchCache)
-  console.info(`[youtube] found: "${title}" (${videoId})`)
+  console.info(`[youtube] found: "${title}" (${videoId}) + ${candidates.length} fallback candidates`)
   return { status: 'ok', track }
 }

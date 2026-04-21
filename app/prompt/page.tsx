@@ -249,6 +249,13 @@ Enables YouTube-only mode. Sets the \`earprint_youtube_mode\` cookie (1 year) an
 ### /api/save-factory
 Developer-only snapshot route. POST with the current channels array. Accepts \`?source=spotify|youtube\` and writes to \`data/factory-channels.<source>.json\`; without the param, writes to the shared \`data/factory-channels.json\`. The blank-slate fetch and "reload factory channels" reset both try the source-specific file first, then the shared file, then the built-in import.
 
+### /api/startup-channels
+Backs the "Load startup channels" button that appears on the player when the user has no channels (only an empty All row, typically after System Reset). GET with \`?source=spotify|youtube\`:
+- \`source=youtube\` → reads \`data/factory-channels-youtube.json\`
+- \`source=spotify\` (or omitted) → reads \`data/factory-channels.json\`
+
+Returns \`{ ok, channels, activeChannelId?, savedAt?, source, file }\`. Missing file responds with \`{ ok: false, reason: 'missing_file' }\`. Unlike \`/api/factory-defaults\`, there is no fallback chain — each source maps to one file, named exactly as committed in the repo.
+
 ---
 
 ## Authentication Flow

@@ -133,13 +133,14 @@ export type YoutubePlayerHandle = {
   getDuration: () => number
   play: () => void
   pause: () => void
+  seek: (ms: number) => void
 }
 
 function buildEmbedSrc(videoId: string): string {
+  // playsinline: required for inline playback on iOS / many mobile WebViews.
+  // start=0: force playback from the top.
+  // origin: required for the IFrame API postMessage handshake.
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  // playsinline: required for inline playback on iOS / many mobile WebViews (http://localhost too).
-  // start=0: force playback from the top. Without it, YouTube's "resume where you left off"
-  // feature can return signed-in viewers to a saved offset (we've seen tracks start at ~30s).
   return (
     `https://www.youtube.com/embed/${encodeURIComponent(videoId)}` +
     `?autoplay=1&playsinline=1&enablejsapi=1&start=0&origin=${encodeURIComponent(origin)}`
@@ -293,7 +294,14 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             },
             onError: e => {
               console.warn('[yt] onError', e.data)
-              onErrorRef.current?.(e.data)
+              // Error 5 = HTML5 player / autoplay blocked — not unplayable, just needs a user gesture.
+              // Show the tap-to-play overlay instead of skipping the track.
+              // Errors 2, 100, 101, 150 = invalid ID / video unavailable / embedding disabled — truly unplayable.
+              if (e.data === 5) {
+                setBlocked(true)
+              } else {
+                onErrorRef.current?.(e.data)
+              }
             },
           },
         })
@@ -334,6 +342,9 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       const via = invoke(ytPlayerRef.current, iframeRef.current, 'pauseVideo')
       console.info('[yt] handle.pause', { via, hasPlayer: Boolean(ytPlayerRef.current) })
     },
+    seek: (ms: number) => {
+      try { ytPlayerRef.current?.seekTo(ms / 1000, true) } catch {}
+    },
   }), [])
 
   if (!normalizedId) {
@@ -352,7 +363,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
         title="YouTube video player"
         src={embedSrc}
         allow={IFRAME_ALLOW}
-        referrerPolicy="strict-origin-when-cross-origin"
+        referrerPolicy="no-referrer"
         allowFullScreen
         className="absolute inset-0 h-full w-full border-0"
       />

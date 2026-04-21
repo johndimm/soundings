@@ -1,5 +1,6 @@
 {
-  "savedAt": "2026-04-18T01:54:28.529Z",
+  "earprintExportVersion": 1,
+  "exportedAt": "2026-04-21T22:39:36.563Z",
   "activeChannelId": "mo3m9pld7vzd",
   "channels": [
     {
@@ -10,16 +11,6 @@
       "sessionHistory": [],
       "profile": "You're clearly drawn to late-50s/early-60s cool jazz that's calm, harmonically rich, and introspective. You prefer piano trios and lyrical melodies over driving intensity, and you respond to sparse arrangements with emotional depth—Bill Evans seems to be a touchstone for your taste.",
       "createdAt": 0,
-      "genres": [],
-      "genreText": "",
-      "timePeriod": "",
-      "notes": "",
-      "regions": [],
-      "artists": [],
-      "artistText": "",
-      "popularity": 50,
-      "discovery": 50,
-      "source": "spotify",
       "currentCard": {
         "track": {
           "id": "0aWMVrwxPNYkKmFthzmpRi",
@@ -41,9 +32,18 @@
         "composed": 1959
       },
       "queue": [],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
       "timePeriods": [],
+      "notes": "",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 100,
+      "playbackPositionMs": 0,
       "playbackTrackUri": "spotify:track:0aWMVrwxPNYkKmFthzmpRi",
-      "playbackPositionMs": 0
+      "artists": [],
+      "artistText": ""
     },
     {
       "id": "mo3jvkdzl7ci",
@@ -103,18 +103,6 @@
       ],
       "profile": "You're exploring the core spectrum of American soul, blues, and R&B from the 50s–70s — from polished Motown harmonies to raw blues emotion, intimate ballads to explosive funk rhythms. We're mapping energy, production style, and cultural reach within this foundational era.",
       "createdAt": 1776469170167,
-      "genres": [
-        "Jazz"
-      ],
-      "genreText": "",
-      "timePeriod": "1950s and 1960s",
-      "notes": "cool jazz",
-      "regions": [],
-      "artists": [],
-      "artistText": "",
-      "popularity": 50,
-      "discovery": 0,
-      "source": "spotify",
       "currentCard": {
         "track": {
           "id": "3XiG3nHzUX3TJQ3D3UwFJ5",
@@ -180,12 +168,23 @@
           "composed": 1956
         }
       ],
+      "genres": [
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1950s and 1960s",
       "timePeriods": [
         "1950s",
         "1960s"
       ],
+      "notes": "cool jazz",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 64418,
       "playbackTrackUri": "spotify:track:3XiG3nHzUX3TJQ3D3UwFJ5",
-      "playbackPositionMs": 64418
+      "artists": [],
+      "artistText": ""
     },
     {
       "id": "mo3m9pld7vzd",
@@ -303,106 +302,82 @@
           "uri": "spotify:track:6XoM0xsbAjwdjfIph7DYEd",
           "category": "Classical > Classical Era Chamber Music",
           "source": "spotify"
-        }
-      ],
-      "sessionHistory": [
+        },
         {
-          "track": "Piano Trio No. 39 in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese (Presto) - Live",
-          "artist": "Joseph Haydn",
-          "stars": null,
-          "coords": {
-            "x": 12,
-            "y": 75,
-            "z": 50
-          }
-        }
-      ],
-      "profile": "You responded strongly to the driving, folk‑tinged intensity of Grieg's quartet, showing an appetite for dramatic narrative in chamber music. Your skipped Britten suggests less interest in purely sparse, pastoral solos. The Romantic and Classical piano trio territory remains unexplored — let's see where lyrical interplay lands.",
-      "createdAt": 1776473189329,
-      "genres": [
-        "Classical"
-      ],
-      "genreText": "",
-      "timePeriod": "Classical era and Romantic era and 20th century classical",
-      "notes": "chamber music, quartets, trios, piano, Glenn Gould, Vladimir Ashkenazy, Mitsuko Uchida, Vladimir Horowitz",
-      "regions": [
-        "Western Europe"
-      ],
-      "artists": [],
-      "artistText": "",
-      "popularity": 50,
-      "discovery": 50,
-      "timePeriods": [
-        "Classical era",
-        "Romantic era",
-        "20th century classical"
-      ],
-      "source": "spotify",
-      "currentCard": {
-        "track": {
-          "id": "1q3tWQD6EYggQi1q4EKjUs",
-          "uri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
-          "name": "Piano Sonata No. 30 in E Major, Op. 109: III. Gesangvoll, mit innigster Empfindung. Andante molto cantabile ed espressivo",
+          "track": "Piano Sonata No. 30 in E Major, Op. 109: III. Gesangvoll, mit innigster Empfindung. Andante molto cantabile ed espressivo",
           "artist": "Ludwig van Beethoven",
-          "album": "Glenn Gould plays Beethoven: Piano Sonatas Nos. 1-3; 5-10; 12-14; 15-18; 23; 30-32",
+          "stars": 2,
+          "coords": {
+            "x": 15,
+            "y": 35,
+            "z": 70
+          },
           "albumArt": "https://i.scdn.co/image/ab67616d0000b2735493dbe5586227e003b9138e",
-          "durationMs": 459480,
-          "releaseYear": 1965,
+          "uri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
+          "category": "Classical > Piano Sonata",
           "source": "spotify"
         },
-        "reason": "Slot 1 - NEARBY: A late Beethoven piano sonata performed by Glenn Gould, offering introspective, structurally innovative 19th-century music adjacent to your interest in 20th-century experimentation, with Gould's distinctive touch.",
-        "category": "Classical > Piano Sonata",
-        "coords": {
-          "x": 15,
-          "y": 35,
-          "z": 70
-        },
-        "composed": 1820,
-        "performer": "Glenn Gould"
-      },
-      "queue": [
         {
-          "track": {
-            "id": "2LNHA8xdPWTqWl1fjuJevk",
-            "uri": "spotify:track:2LNHA8xdPWTqWl1fjuJevk",
-            "name": "String Quartet No. 1 in C Major, Op. 49: I. Moderato",
-            "artist": "Dmitri Shostakovich",
-            "album": "Shostakovich: String Quartets Nos. 1, 8 & 14",
-            "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
-            "durationMs": 267920,
-            "releaseYear": 2015,
-            "source": "spotify"
-          },
-          "reason": "Slot 1 — NEARBY: 20th-century quartet with modernist tension and sparse, introspective passages, exploring harmonic experimentation adjacent to Britten and Messiaen.",
-          "category": "Classical > 20th century chamber music",
+          "track": "String Quartet No. 1 in C Major, Op. 49: I. Moderato",
+          "artist": "Dmitri Shostakovich",
+          "stars": 0,
           "coords": {
             "x": 15,
             "y": 48,
             "z": 35
           },
-          "composed": 1938
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
+          "uri": "spotify:track:2LNHA8xdPWTqWl1fjuJevk",
+          "category": "Classical > 20th century chamber music",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Piano Sonata No. 30 in E Major, Op. 109: III. Gesangvoll, mit innigster Empfindung. Andante molto cantabile ed espressivo",
+          "artist": "Ludwig van Beethoven",
+          "stars": 2,
+          "coords": {
+            "x": 15,
+            "y": 35,
+            "z": 70
+          }
         },
         {
-          "track": {
-            "id": "15OYOsjhgsfYUAOx9ocEbm",
-            "uri": "spotify:track:15OYOsjhgsfYUAOx9ocEbm",
-            "name": "Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929: II. Andante con moto",
-            "artist": "Franz Schubert",
-            "album": "Schubert: Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929",
-            "albumArt": "https://i.scdn.co/image/ab67616d0000b273a2376e7fe1516e8680f70491",
-            "durationMs": 620693,
-            "releaseYear": 2026,
-            "source": "spotify"
-          },
-          "reason": "Slot 2 — FAR: Romantic-era trio with lyrical, songful intimacy—uncharted emotional warmth and melodic richness far from 20th-century textures.",
-          "category": "Classical > Romantic chamber music",
+          "track": "String Quartet No. 1 in C Major, Op. 49: I. Moderato",
+          "artist": "Dmitri Shostakovich",
+          "stars": 0,
           "coords": {
-            "x": 10,
-            "y": 32,
-            "z": 65
-          },
-          "composed": 1827
+            "x": 15,
+            "y": 48,
+            "z": 35
+          }
+        }
+      ],
+      "profile": "You've shown interest in dramatic, narrative chamber music like Grieg's quartet, while skipping both a sparse solo work and a lively Classical trio. This suggests you prefer Romantic-era intensity and complex ensemble interplay over purely decorative or solo textures.",
+      "createdAt": 1776473189329,
+      "currentCard": {
+        "track": {
+          "id": "15OYOsjhgsfYUAOx9ocEbm",
+          "uri": "spotify:track:15OYOsjhgsfYUAOx9ocEbm",
+          "name": "Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929: II. Andante con moto",
+          "artist": "Franz Schubert",
+          "album": "Schubert: Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929",
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273a2376e7fe1516e8680f70491",
+          "durationMs": 620693,
+          "releaseYear": 2026,
+          "source": "spotify"
         },
+        "reason": "Slot 2 — FAR: Romantic-era trio with lyrical, songful intimacy—uncharted emotional warmth and melodic richness far from 20th-century textures.",
+        "category": "Classical > Romantic chamber music",
+        "coords": {
+          "x": 10,
+          "y": 32,
+          "z": 65
+        },
+        "composed": 1827
+      },
+      "queue": [
         {
           "track": {
             "id": "1zwNC4HIvgQQ6nga0ygjIg",
@@ -423,10 +398,77 @@
             "z": 45
           },
           "composed": 1960
+        },
+        {
+          "track": {
+            "id": "7azxNVzn68pB1wiV4yuBnt",
+            "uri": "spotify:track:7azxNVzn68pB1wiV4yuBnt",
+            "name": "String Quartet No.2 in A Minor, Op. 51 No. 2: III. Quasi minuetto, moderato",
+            "artist": "Johannes Brahms",
+            "artists": [
+              "Johannes Brahms",
+              "Tokyo String Quartet"
+            ],
+            "album": "Brahms: String Quartet No.2 in A Minor, Op. 51 No. 2: III. Quasi minuetto, moderato",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b27351d03a11b744ed7eb80e5722",
+            "durationMs": 328878,
+            "releaseYear": 2026,
+            "source": "spotify"
+          },
+          "reason": "Brahms' mature chamber writing balances Classical structure with Romantic warmth and rhythmic complexity, probing a different corner of the quartet repertoire than the Grieg you enjoyed.",
+          "category": "Classical > String Quartet",
+          "coords": {
+            "x": 8,
+            "y": 45,
+            "z": 65
+          }
+        },
+        {
+          "track": {
+            "id": "2LgjcWjFkDchhIBseKQ1OY",
+            "uri": "spotify:track:2LgjcWjFkDchhIBseKQ1OY",
+            "name": "Piano Trio No. 1 in D Minor, Op. 49: I. Molto allegro ed agitato",
+            "artist": "Felix Mendelssohn",
+            "artists": [
+              "Felix Mendelssohn",
+              "Trio Wanderer"
+            ],
+            "album": "Mendelssohn: Piano Trios",
+            "albumArt": "https://i.scdn.co/image/ab67616d0000b2733848c889f1d1181738a3fc20",
+            "durationMs": 526266,
+            "releaseYear": 2007,
+            "source": "spotify"
+          },
+          "reason": "A dramatic, urgent Romantic trio that contrasts with the lighter Classical trios you've encountered, showcasing intense interplay between piano, violin, and cello.",
+          "category": "Classical > Piano Trio",
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 60
+          }
         }
       ],
-      "playbackTrackUri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
-      "playbackPositionMs": 157008
+      "genres": [
+        "Classical"
+      ],
+      "genreText": "",
+      "timePeriod": "Classical era and Romantic era and 20th century classical",
+      "timePeriods": [
+        "Classical era",
+        "Romantic era",
+        "20th century classical"
+      ],
+      "notes": "chamber music, quartets, trios, piano, Glenn Gould, Vladimir Ashkenazy, Mitsuko Uchida, Vladimir Horowitz",
+      "regions": [
+        "Western Europe"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 1000,
+      "playbackTrackUri": "spotify:track:15OYOsjhgsfYUAOx9ocEbm",
+      "artists": [],
+      "artistText": "",
+      "source": "spotify"
     },
     {
       "id": "mo3mflyc45k4",
@@ -436,25 +478,6 @@
       "sessionHistory": [],
       "profile": "You're exploring the intersection of electronic beats and jazz sensibility, from soulful deep house to French touch and live-instrumented nu jazz. Your range spans high-energy dance tracks and late-night chillout, with a clear affinity for groove, melody, and fusion styles from the 2000s onward.",
       "createdAt": 1776473464548,
-      "genres": [
-        "Electronic",
-        "Jazz"
-      ],
-      "genreText": "",
-      "timePeriod": "1990s and 2000s and 2010s and after 2020",
-      "notes": "Deep House, Kaskade, Daft Punk, Andy Caldwell, Blue Six, Llorca, Mark Farina",
-      "regions": [],
-      "artists": [],
-      "artistText": "",
-      "popularity": 50,
-      "discovery": 50,
-      "timePeriods": [
-        "1990s",
-        "2000s",
-        "2010s",
-        "after 2020"
-      ],
-      "source": "spotify",
       "currentCard": {
         "track": {
           "id": "1L803aXwjhfOVC5HRoFGib",
@@ -520,8 +543,26 @@
           "composed": 1999
         }
       ],
+      "genres": [
+        "Electronic",
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1990s and 2000s and 2010s and after 2020",
+      "timePeriods": [
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "notes": "Deep House, Kaskade, Daft Punk, Andy Caldwell, Blue Six, Llorca, Mark Farina",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 127518,
       "playbackTrackUri": "spotify:track:1L803aXwjhfOVC5HRoFGib",
-      "playbackPositionMs": 127518
+      "artists": [],
+      "artistText": ""
     },
     {
       "id": "mo3mpve3gv91",
@@ -571,26 +612,6 @@
       ],
       "profile": "You're exploring the core spectrum of mid-century American R&B, from the polished drive of Motown to the raw ache of the blues. We're testing your response to deep soul emotion, cool instrumental grooves, and the heavier, resigned sound of electric blues.",
       "createdAt": 1776473943339,
-      "genres": [
-        "Soul",
-        "Blues",
-        "R&B"
-      ],
-      "genreText": "",
-      "timePeriods": [
-        "1950s",
-        "1960s",
-        "1970s"
-      ],
-      "notes": "Detroit Motown, Howlin' Wolf, Albert King, Muddy Waters",
-      "regions": [
-        "US & Canada"
-      ],
-      "artists": [],
-      "artistText": "",
-      "popularity": 50,
-      "discovery": 50,
-      "source": "spotify",
       "currentCard": {
         "track": {
           "id": "3Um9toULmYFGCpvaIPFw7l",
@@ -677,9 +698,28 @@
           "composed": 1962
         }
       ],
+      "genres": [
+        "Soul",
+        "Blues",
+        "R&B"
+      ],
+      "genreText": "",
       "timePeriod": "1950s and 1960s and 1970s",
+      "timePeriods": [
+        "1950s",
+        "1960s",
+        "1970s"
+      ],
+      "notes": "Detroit Motown, Howlin' Wolf, Albert King, Muddy Waters",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 49233,
       "playbackTrackUri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
-      "playbackPositionMs": 49233
+      "artists": [],
+      "artistText": ""
     },
     {
       "id": "mo3mt22qd0m4",
@@ -689,27 +729,6 @@
       "sessionHistory": [],
       "profile": "You're exploring the foundational sounds of American soul, blues, and R&B from the 50s-70s, starting with Detroit's polished Motown. Your electronic/jazz fusion background suggests you might appreciate both the tight arrangements and the raw emotional core of these genres.",
       "createdAt": 1776474091970,
-      "genres": [
-        "Hip-Hop"
-      ],
-      "genreText": "",
-      "timePeriod": "1980s and 1990s and 2000s and 2010s and after 2020",
-      "notes": "Jay-Z, Tupac Shakur, Nas, Eminem, The Notorious B.I.G., Rakim, and Kendrick Lamar",
-      "regions": [
-        "US & Canada"
-      ],
-      "artists": [],
-      "artistText": "",
-      "popularity": 50,
-      "discovery": 0,
-      "timePeriods": [
-        "1980s",
-        "1990s",
-        "2000s",
-        "2010s",
-        "after 2020"
-      ],
-      "source": "spotify",
       "currentCard": {
         "track": {
           "id": "5DuTNKFEjJIySAyJH1yNDU",
@@ -796,8 +815,28 @@
           "composed": 2012
         }
       ],
+      "genres": [
+        "Hip-Hop"
+      ],
+      "genreText": "",
+      "timePeriod": "1980s and 1990s and 2000s and 2010s and after 2020",
+      "timePeriods": [
+        "1980s",
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "notes": "Jay-Z, Tupac Shakur, Nas, Eminem, The Notorious B.I.G., Rakim, and Kendrick Lamar",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 74684,
       "playbackTrackUri": "spotify:track:5DuTNKFEjJIySAyJH1yNDU",
-      "playbackPositionMs": 74684
+      "artists": [],
+      "artistText": ""
     }
   ]
 }

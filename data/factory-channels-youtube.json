@@ -1,0 +1,886 @@
+{
+  "earprintExportVersion": 1,
+  "exportedAt": "2026-04-21T21:52:21.952Z",
+  "activeChannelId": "mo3mt22qd0m4",
+  "channels": [
+    {
+      "id": "earprint-all",
+      "name": "All",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're clearly drawn to late-50s/early-60s cool jazz that's calm, harmonically rich, and introspective. You prefer piano trios and lyrical melodies over driving intensity, and you respond to sparse arrangements with emotional depth—Bill Evans seems to be a touchstone for your taste.",
+      "createdAt": 0,
+      "currentCard": null,
+      "queue": [],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 100,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo3jvkdzl7ci",
+      "name": "Cool Jazz",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Ghost of a Chance",
+          "artist": "Lennie Tristano",
+          "stars": 4,
+          "coords": {
+            "x": 25,
+            "y": 45,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273797d6a7438bde2cf9d890be0",
+          "uri": "spotify:track:5vTBSWHl0qXtM1980R2pVM",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Blue Rondo à la Turk",
+          "artist": "The Dave Brubeck Quartet",
+          "stars": 4,
+          "coords": {
+            "x": 22,
+            "y": 65,
+            "z": 70
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b6bd44cf06bf8f4d5ce1e080",
+          "uri": "spotify:track:7CrNF9zL7tIQ2269DVxzST",
+          "category": "Jazz > Cool Jazz/West Coast Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Israel",
+          "artist": "Bill Evans Trio",
+          "stars": 4,
+          "coords": {
+            "x": 20,
+            "y": 45,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273cab935f4386e58f05a9705bc",
+          "uri": "spotify:track:3XiG3nHzUX3TJQ3D3UwFJ5",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "The Opium Eaters",
+          "artist": "Dean Omori",
+          "stars": 0.5,
+          "coords": {
+            "x": 22,
+            "y": 40,
+            "z": 50
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733fad4aa33bd407f5de83dcd0",
+          "uri": "spotify:track:77dUlFRxKG5WYl6qwwmXGu",
+          "category": "Jazz > West Coast Jazz",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're exploring sophisticated, melodic late-50s and early-60s jazz—drawn to harmonically rich arrangements, piano-forward textures, and modal explorations that balance innovation with accessibility. The cerebral yet relaxed mood of cool jazz resonates more than aggressive approaches.",
+      "createdAt": 1776469170167,
+      "currentCard": {
+        "track": {
+          "id": "OCqZE6oBSsQ",
+          "videoId": "OCqZE6oBSsQ",
+          "source": "youtube",
+          "name": "My Funny Valentine",
+          "artist": "Miles Davis",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/OCqZE6oBSsQ/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A quintessential cool jazz ballad with muted trumpet and spacious arrangement, exploring the tender, introspective side of the genre with modal harmony.",
+        "category": "Jazz > Cool Jazz",
+        "coords": {
+          "x": 20,
+          "y": 25,
+          "z": 75
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "c5QfXjsoNe4",
+            "videoId": "c5QfXjsoNe4",
+            "source": "youtube",
+            "name": "&quot;The Girl from Ipanema&quot;  Astrud Gilberto, João Gilberto and Stan Getz",
+            "artist": "catman916",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/c5QfXjsoNe4/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Bossa nova fusion that brought cool jazz sensibility to Brazilian rhythms—melodic, breezy, and internationally influential in the early 60s.",
+          "category": "Jazz > Bossa Nova",
+          "coords": {
+            "x": 22,
+            "y": 30,
+            "z": 85
+          }
+        },
+        {
+          "track": {
+            "id": "Cv9NSR-2DwM",
+            "videoId": "Cv9NSR-2DwM",
+            "source": "youtube",
+            "name": "Moanin&#39;",
+            "artist": "Art Blakey &amp; the Jazz Messengers",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Cv9NSR-2DwM/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Hard bop with a bluesy, soulful melody and driving rhythm—offers a contrast in energy while staying within late 50s jazz innovation.",
+          "category": "Jazz > Hard Bop",
+          "coords": {
+            "x": 25,
+            "y": 70,
+            "z": 65
+          }
+        },
+        {
+          "track": {
+            "id": "TLDflhhdPCg",
+            "videoId": "TLDflhhdPCg",
+            "source": "youtube",
+            "name": "Blue In Green (Official Audio)",
+            "artist": "Miles Davis",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/TLDflhhdPCg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A profoundly sparse and modal piece from 'Kind of Blue', emphasizing harmonic subtlety and introspective piano-trigger interplay.",
+          "category": "Jazz > Modal Jazz",
+          "coords": {
+            "x": 18,
+            "y": 22,
+            "z": 80
+          }
+        }
+      ],
+      "genres": [
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1950s and 1960s",
+      "timePeriods": [
+        "1950s",
+        "1960s"
+      ],
+      "notes": "cool jazz",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [],
+      "artistText": "",
+      "source": "youtube"
+    },
+    {
+      "id": "mo3m9pld7vzd",
+      "name": "Chamber Music",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "String Quartet No. 14 in D Minor, D. 810 \"Der Tod und das Mädchen\": II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": null,
+          "coords": {
+            "x": 5,
+            "y": 45,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273ffe506f95384e9dbbe961e26",
+          "uri": "spotify:track:7hLxTkJ1Yc1NiZijaX4loF",
+          "category": "Classical > Chamber Music > String Quartet",
+          "source": "spotify"
+        },
+        {
+          "track": "Clair de lune from Suite bergamasque",
+          "artist": "Claude Debussy",
+          "stars": null,
+          "coords": {
+            "x": 8,
+            "y": 20,
+            "z": 85
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27389b3fc504f6ffe51a0ca02ab",
+          "uri": "spotify:track:0pHFAoFikRaLe6tUMbB9FT",
+          "category": "Classical > Impressionist > Piano Solo",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 2 in E-Flat Major, D. 929: II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": null,
+          "coords": {
+            "x": 6,
+            "y": 40,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27392045137235fe6a64e471e31",
+          "uri": "spotify:track:2GiNqtvA87QYLkdJuZWByl",
+          "category": "Classical > Chamber Music > Piano Trio",
+          "source": "spotify"
+        },
+        {
+          "track": "Quatuor pour la fin du temps: V. Louange a l'eternite de Jesus",
+          "artist": "Olivier Messiaen",
+          "stars": 3.5,
+          "coords": {
+            "x": 25,
+            "y": 22,
+            "z": 45
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2737fc1508f3588fe3ccd6392ef",
+          "uri": "spotify:track:1svfczKYFHKcfmLMo54Q3v",
+          "category": "Classical > 20th Century Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese. Presto (Arr. for Piano by Anthony Goldstone)",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 70,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27370dc44edd71e5913e04a5ea2",
+          "uri": "spotify:track:2b2xrD2R5UkcHtiCBp7NSl",
+          "category": "Classical > Classical Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 1 in G Minor, Op. 27: III. Intermezzo. Allegro molto marcato – Più vivo e scherzando",
+          "artist": "Edvard Grieg",
+          "stars": 4.5,
+          "coords": {
+            "x": 10,
+            "y": 68,
+            "z": 35
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273f8d47d9a23eb0de05d2d7ca9",
+          "uri": "spotify:track:2CRzpmeOayycp7NFktyhYQ",
+          "category": "Classical > Romantic Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Six Metamorphoses after Ovid for Solo Oboe, Op. 49: I. Pan (Senza misura)",
+          "artist": "Benjamin Britten",
+          "stars": null,
+          "coords": {
+            "x": 15,
+            "y": 25,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dcb478d9ada77ebb3f43f129",
+          "uri": "spotify:track:2XsFd9a9Xdc4sw2xmOHW4F",
+          "category": "Classical > 20th Century Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 39 in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese (Presto) - Live",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 75,
+            "z": 50
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273266449a992b69ffde2002a02",
+          "uri": "spotify:track:6XoM0xsbAjwdjfIph7DYEd",
+          "category": "Classical > Classical Era Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Quintet in A Major, D.667, \"Trout\" (Opus 114) : Theme: Andantino; Variations 1-5: Allegretto",
+          "artist": "Emanuel Ax - Topic",
+          "stars": 3,
+          "coords": {
+            "x": 10,
+            "y": 55,
+            "z": 65
+          },
+          "albumArt": "https://i.ytimg.com/vi/-yMP9pJJk28/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Chamber Music",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're showing interest in Romantic-era chamber music with dramatic narrative arcs and folk influences. The dialogue between piano and strings in trios and quartets resonates, while sparse solo works haven't captured you yet. You appreciate clear structural development and emotional intensity in ensemble settings.",
+      "createdAt": 1776473189329,
+      "currentCard": {
+        "track": {
+          "id": "-PAFzEnJ6NU",
+          "videoId": "-PAFzEnJ6NU",
+          "source": "youtube",
+          "name": "Trio no.1 in d-minor, op.49 - live at Wigmore Hall",
+          "artist": "ATOS Trio: Mendelssohn",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/-PAFzEnJ6NU/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A Romantic piano trio full of urgency and lyrical dialogue between piano, violin, and cello, offering the structural drama and ensemble narrative you've shown interest in.",
+        "category": "Classical > Chamber Music",
+        "coords": {
+          "x": 12,
+          "y": 70,
+          "z": 60
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "-0nKJoZY64A",
+            "videoId": "-0nKJoZY64A",
+            "source": "youtube",
+            "name": "String Quartet No. 8",
+            "artist": "Dmitri Shostakovich",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/-0nKJoZY64A/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A stark, intense 20th-century quartet with raw emotional narrative and folk-like motifs, providing a sharp contrast in mood and cultural context within the chamber music form.",
+          "category": "Classical > Chamber Music",
+          "coords": {
+            "x": 18,
+            "y": 80,
+            "z": 50
+          }
+        },
+        {
+          "track": {
+            "id": "qSRRbOvpaXg",
+            "videoId": "qSRRbOvpaXg",
+            "source": "youtube",
+            "name": "Janine Jansen & Friends - Kamermuziek Festival 2011",
+            "artist": "Schubert: Pianotrio in Bes-groot, D 898",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/qSRRbOvpaXg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A expansive, lyrical Schubert trio with flowing melodies and rich piano-string dialogue, exploring a more expansive and harmonically warm side of Romantic chamber music.",
+          "category": "Classical > Chamber Music",
+          "coords": {
+            "x": 10,
+            "y": 50,
+            "z": 55
+          }
+        },
+        {
+          "track": {
+            "id": "LYE0j0KBazA",
+            "videoId": "LYE0j0KBazA",
+            "source": "youtube",
+            "name": "Andante - Adagio",
+            "artist": "Leoš Janáček: String Quartet No. 2 Intimate Letters, 3. Moderato",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/LYE0j0KBazA/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A deeply personal, narrative-driven 20th-century quartet with folk-inflected rhythms and intense emotional dialogue, offering a wild card in its programmatic intensity and modernist expression.",
+          "category": "Classical > Chamber Music",
+          "coords": {
+            "x": 20,
+            "y": 65,
+            "z": 40
+          }
+        }
+      ],
+      "genres": [
+        "Classical"
+      ],
+      "genreText": "",
+      "timePeriod": "Classical era and Romantic era and 20th century classical",
+      "timePeriods": [
+        "Classical era",
+        "Romantic era",
+        "20th century classical"
+      ],
+      "notes": "chamber music, quartets, trios, piano, Glenn Gould, Vladimir Ashkenazy, Mitsuko Uchida, Vladimir Horowitz",
+      "regions": [
+        "Western Europe"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [],
+      "artistText": "",
+      "source": "youtube"
+    },
+    {
+      "id": "mo3mflyc45k4",
+      "name": "Deep House",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Indigo Blues - Original Radio Edit",
+          "artist": "Llorca",
+          "stars": 3,
+          "coords": {
+            "x": 60,
+            "y": 45,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27359adaa206b0626b255fcd15a",
+          "uri": "spotify:track:1L803aXwjhfOVC5HRoFGib",
+          "category": "Electronic > Deep House / Nu Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Music Sounds Better With You",
+          "artist": "Stardust",
+          "stars": 4.5,
+          "coords": {
+            "x": 88,
+            "y": 78,
+            "z": 75
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b98afa12c212cbbda4f1799b",
+          "uri": "spotify:track:303ccTay2FiDTZ9fZ2AdBt",
+          "category": "Electronic > French House",
+          "source": "spotify"
+        },
+        {
+          "track": "Only Real Ones Know Siren Head 🚨 #shorts",
+          "artist": "ItssIMANNN",
+          "stars": 4.5,
+          "coords": {
+            "x": 68,
+            "y": 45,
+            "z": 35
+          },
+          "albumArt": "https://i.ytimg.com/vi/zESAaUJxUqE/hqdefault.jpg",
+          "uri": null,
+          "category": "Electronic > Nu-Jazz / Deep House",
+          "source": "youtube"
+        },
+        {
+          "track": "Les Djinns (Trentemoller Remix)",
+          "artist": "Djuma Soundsystem",
+          "stars": 4,
+          "coords": {
+            "x": 75,
+            "y": 38,
+            "z": 40
+          },
+          "albumArt": "https://i.ytimg.com/vi/2qzEEISZYbI/hqdefault.jpg",
+          "uri": null,
+          "category": "Electronic > Cinematic Deep House",
+          "source": "youtube"
+        },
+        {
+          "track": "Tudo Que Voce Podia Ser",
+          "artist": "Azymuth",
+          "stars": 0.5,
+          "coords": {
+            "x": 55,
+            "y": 42,
+            "z": 30
+          },
+          "albumArt": "https://i.ytimg.com/vi/9p9cAxSK1cE/hqdefault.jpg",
+          "uri": null,
+          "category": "Jazz > Nu-Jazz / Brazilian Jazz",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're clearly drawn to the cinematic side of electronic-jazz fusion—smooth Rhodes, atmospheric textures, and crisp lounge rhythms. You loved the moody, organic deep house of 'Les Djinns' but strongly rejected the more traditional jazz-funk of Azymuth, suggesting you prefer modern, production-forward blends over retro sounds.",
+      "createdAt": 1776473464548,
+      "currentCard": {
+        "track": {
+          "id": "6QImCMjW-PM",
+          "videoId": "6QImCMjW-PM",
+          "source": "youtube",
+          "name": "Rose rouge",
+          "artist": "St Germain - Topic",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/6QImCMjW-PM/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "The definitive 2000 jazz-house anthem, built around a live jazz sample, driving percussion, and hypnotic Rhodes—a cornerstone of the genre you're navigating.",
+        "category": "Electronic > Jazz House",
+        "coords": {
+          "x": 70,
+          "y": 60,
+          "z": 70
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "TwDOa-lvizM",
+            "videoId": "TwDOa-lvizM",
+            "source": "youtube",
+            "name": "You Wish",
+            "artist": "Nightmares on Wax",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/TwDOa-lvizM/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A 2006 cut that blends deep, jazzy basslines, soulful Rhodes chords, and crisp breakbeats—offering a slightly more upbeat but still organic fusion sound.",
+          "category": "Electronic > Trip-Hop / Downtempo",
+          "coords": {
+            "x": 62,
+            "y": 52,
+            "z": 50
+          }
+        },
+        {
+          "track": {
+            "id": "vTKw4QgDDuo",
+            "videoId": "vTKw4QgDDuo",
+            "source": "youtube",
+            "name": "Awkward moment Brigitte Macron breaks Royal protocol as she tries to hold Queen Camilla's hand",
+            "artist": "Palace Confidential",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/vTKw4QgDDuo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A deep house track with prominent jazz elements—double bass, Rhodes piano, and saxophone—that sits at the intersection of electronic production and live instrumentation, capturing the smooth, lounge-ready sound you're exploring.",
+          "category": "Electronic > Nu-Jazz / Deep House",
+          "coords": {
+            "x": 65,
+            "y": 48,
+            "z": 60
+          }
+        },
+        {
+          "track": {
+            "id": "D6o5HuDM1xI",
+            "videoId": "D6o5HuDM1xI",
+            "source": "youtube",
+            "name": "FUN - Michael Badal Remix",
+            "artist": "Kaskade",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/D6o5HuDM1xI/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A vocal deep house cut with jazzy chord progressions and a warm, soulful atmosphere—representing the more polished, accessible side of the genre while staying true to its rhythmic and harmonic roots.",
+          "category": "Electronic > Deep House",
+          "coords": {
+            "x": 80,
+            "y": 60,
+            "z": 75
+          }
+        }
+      ],
+      "genres": [
+        "Electronic",
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1990s and 2000s and 2010s and after 2020",
+      "timePeriods": [
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "notes": "Deep House, Kaskade, Daft Punk, Andy Caldwell, Blue Six, Llorca, Mark Farina",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [],
+      "artistText": "",
+      "source": "youtube"
+    },
+    {
+      "id": "mo3mpve3gv91",
+      "name": "Motown",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "I Heard It Through The Grapevine",
+          "artist": "Marvin Gaye",
+          "stars": 4,
+          "coords": {
+            "x": 30,
+            "y": 75,
+            "z": 90
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273aff6573c5110e0732fbab3d8",
+          "uri": "spotify:track:1tqT6DhmsrtQgyCKUwotiw",
+          "category": "Soul > Motown",
+          "source": "spotify"
+        },
+        {
+          "track": "Smokestack Lightnin'",
+          "artist": "Howlin' Wolf",
+          "stars": null,
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736181b1ed45a906d5b2c89af3",
+          "uri": "spotify:track:2HUZVffVPXvqnrml0gXggp",
+          "category": "Blues > Chicago Blues",
+          "source": "spotify"
+        },
+        {
+          "track": "What's Going On",
+          "artist": "Marvin Gaye",
+          "stars": 3.5,
+          "coords": {
+            "x": 35,
+            "y": 50,
+            "z": 92
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
+          "uri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
+          "category": "Soul > Progressive Soul",
+          "source": "spotify"
+        },
+        {
+          "track": "Papa Was A Rollin' Stone - Single Version",
+          "artist": "The Temptations",
+          "stars": 3.5,
+          "coords": {
+            "x": 40,
+            "y": 65,
+            "z": 80
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dabb260cf41a2fbb2c842787",
+          "uri": "spotify:track:7MiLmLbwNoyf47xQ4TCVYp",
+          "category": "Soul > Psychedelic Soul",
+          "source": "spotify"
+        },
+        {
+          "track": "Respect Yourself",
+          "artist": "The Staple Singers",
+          "stars": 3,
+          "coords": {
+            "x": 20,
+            "y": 70,
+            "z": 75
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b2ab737f6a57a42a04cb5e19",
+          "uri": "spotify:track:46JKtJ4Ws9VgtUVxFjcDlQ",
+          "category": "Soul > Southern Soul",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're exploring the rich terrain of classic American soul and blues, from Motown's polished urgency to the raw power of Chicago blues. Your path shows an openness to both narrative drive and deep emotional expression, with gospel undertones and electric guitar yet to be fully mapped.",
+      "createdAt": 1776473943339,
+      "currentCard": {
+        "track": {
+          "id": "ABfQuZqq8wg",
+          "videoId": "ABfQuZqq8wg",
+          "source": "youtube",
+          "name": "Ain't No Mountain High Enough",
+          "artist": "Marvin Gaye - Topic",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/ABfQuZqq8wg/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Classic Motown duet with polished production and driving energy, exploring the upbeat, romantic side of the genre you've engaged with.",
+        "category": "Soul > Motown",
+        "coords": {
+          "x": 35,
+          "y": 75,
+          "z": 85
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "uIPGhI7Gl_0",
+            "videoId": "uIPGhI7Gl_0",
+            "source": "youtube",
+            "name": "Born Under A Bad Sign (Official Lyric Video)",
+            "artist": "Albert King",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/uIPGhI7Gl_0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A foundational electric blues track with a cool, confident groove, introducing the guitar-heavy, slower-burning side of the blues spectrum.",
+          "category": "Blues > Electric Blues",
+          "coords": {
+            "x": 25,
+            "y": 45,
+            "z": 70
+          }
+        },
+        {
+          "track": {
+            "id": "UnPMoAb4y8U",
+            "videoId": "UnPMoAb4y8U",
+            "source": "youtube",
+            "name": "Try A Little Tenderness",
+            "artist": "Otis Redding",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/UnPMoAb4y8U/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A soul powerhouse performance that builds from a gentle plea to a cathartic, raw climax, bridging polished arrangement with intense emotion.",
+          "category": "Soul > Southern Soul",
+          "coords": {
+            "x": 30,
+            "y": 70,
+            "z": 80
+          }
+        },
+        {
+          "track": {
+            "id": "e_l6A7krjrQ",
+            "videoId": "e_l6A7krjrQ",
+            "source": "youtube",
+            "name": "Hoochie Coochie Man (Live)",
+            "artist": "Muddy Waters",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/e_l6A7krjrQ/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A raw, swaggering Chicago blues standard with a hypnotic groove, moving deeper into the traditional, less-polished roots of the genre.",
+          "category": "Blues > Chicago Blues",
+          "coords": {
+            "x": 15,
+            "y": 55,
+            "z": 65
+          }
+        }
+      ],
+      "genres": [
+        "Soul",
+        "Blues",
+        "R&B"
+      ],
+      "genreText": "",
+      "timePeriod": "1950s and 1960s and 1970s",
+      "timePeriods": [
+        "1950s",
+        "1960s",
+        "1970s"
+      ],
+      "notes": "Detroit Motown, Howlin' Wolf, Albert King, Muddy Waters",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [],
+      "artistText": "",
+      "source": "youtube"
+    },
+    {
+      "id": "mo3mt22qd0m4",
+      "name": "Hip Hop",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're exploring Romantic and 20th-century chamber music with a clear preference for ensemble dialogue—especially piano trios and quartets with dramatic development. Folk influences and emotional intensity resonate, while sparse solo works haven't captured you yet.",
+      "createdAt": 1776474091970,
+      "currentCard": {
+        "track": {
+          "id": "gYMkEMCHtJ4",
+          "videoId": "gYMkEMCHtJ4",
+          "source": "youtube",
+          "name": "The Message (Official Video)",
+          "artist": "Grandmaster Flash & The Furious Five",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/gYMkEMCHtJ4/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A foundational 1982 track that established hip-hop's social commentary tradition with sparse, early electronic production and urgent street-level storytelling.",
+        "category": "Hip-Hop > Old School",
+        "coords": {
+          "x": 65,
+          "y": 60,
+          "z": 75
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "Ne_hVxwEGCg",
+            "videoId": "Ne_hVxwEGCg",
+            "source": "youtube",
+            "name": "Nuthin' But a G Thang Ft. Snoop Dogg (Dirty) Music Video",
+            "artist": "Dr. Dre",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Ne_hVxwEGCg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "The 1992 West Coast G-funk anthem with smooth synthesizers, laid-back tempo, and melodic bass that defined a mainstream California sound.",
+          "category": "Hip-Hop > G-Funk",
+          "coords": {
+            "x": 75,
+            "y": 45,
+            "z": 85
+          }
+        },
+        {
+          "track": {
+            "id": "fXJc2NYwHjw",
+            "videoId": "fXJc2NYwHjw",
+            "source": "youtube",
+            "name": "93 'Til Infinity (Official Video)",
+            "artist": "Souls Of Mischief",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/fXJc2NYwHjw/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A 1993 jazz-sampled, lyrically intricate track from the Bay Area's Hieroglyphics crew, representing the underground, introspective side of East Coast-influenced West Coast hip-hop.",
+          "category": "Hip-Hop > Jazz Rap",
+          "coords": {
+            "x": 40,
+            "y": 30,
+            "z": 25
+          }
+        },
+        {
+          "track": {
+            "id": "MYxAiK6VnXw",
+            "videoId": "MYxAiK6VnXw",
+            "source": "youtube",
+            "name": "Ms. Jackson (Official HD Video)",
+            "artist": "Outkast",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/MYxAiK6VnXw/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A 2000 genre-blending hit from Atlanta with soulful production, emotional vulnerability, and pop crossover appeal that expanded hip-hop's sonic palette.",
+          "category": "Hip-Hop > Southern Hip-Hop",
+          "coords": {
+            "x": 50,
+            "y": 55,
+            "z": 90
+          }
+        }
+      ],
+      "genres": [
+        "Hip-Hop"
+      ],
+      "genreText": "",
+      "timePeriod": "1980s and 1990s and 2000s and 2010s and after 2020",
+      "timePeriods": [
+        "1980s",
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "notes": "Jay-Z, Tupac Shakur, Nas, Eminem, The Notorious B.I.G., Rakim, and Kendrick Lamar",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [],
+      "artistText": "",
+      "source": "youtube"
+    }
+  ]
+}

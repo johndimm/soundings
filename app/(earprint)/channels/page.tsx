@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import AppHeader from '@/app/components/AppHeader'
+import { getBundledFactoryChannelsForReset } from '@/app/lib/demoChannel'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
@@ -368,6 +369,31 @@ export default function ChannelsPage() {
     })
   }
 
+  const mergeFactoryChannels = async () => {
+    try {
+      const r = await fetch('/api/factory-defaults', { credentials: 'same-origin', cache: 'no-store' })
+      const d = r.ok ? await r.json() : null
+      let incoming: Channel[] = []
+      let firstId = ''
+      if (d?.ok && Array.isArray(d.channels) && d.channels.length > 0) {
+        incoming = d.channels as Channel[]
+        firstId = typeof d.activeChannelId === 'string' ? d.activeChannelId : incoming[0]?.id ?? ''
+      } else {
+        const fb = getBundledFactoryChannelsForReset()
+        incoming = fb.channels as Channel[]
+        firstId = fb.activeChannelId
+      }
+      if (!incoming.length) return
+      const cur: Channel[] = channels
+      const existingIds = new Set(cur.map(c => c.id))
+      const toAdd = incoming.filter(c => !existingIds.has(c.id))
+      const merged = [...cur, ...toAdd]
+      persist(merged)
+      const newActive = firstId && merged.find(c => c.id === firstId) ? firstId : (toAdd[0]?.id ?? cur[0]?.id ?? '')
+      if (newActive) switchChannel(newActive)
+    } catch {}
+  }
+
   if (!mounted) {
     return (
       <div className="min-h-screen bg-white text-black flex flex-col">
@@ -463,7 +489,18 @@ export default function ChannelsPage() {
 
             {/* Settings */}
             <div className="border-b border-zinc-200 px-4 pt-4 pb-5 flex flex-col gap-5">
-              {ch.id === ALL_CHANNEL_ID ? null : (
+              {ch.id === ALL_CHANNEL_ID && channels.length === 1 ? (
+                <div className="flex flex-col gap-3 py-2">
+                  <p className="text-sm text-zinc-500">No custom channels yet.</p>
+                  <button
+                    type="button"
+                    onClick={() => void mergeFactoryChannels()}
+                    className="self-start px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-medium transition-colors"
+                  >
+                    Merge factory channels
+                  </button>
+                </div>
+              ) : ch.id === ALL_CHANNEL_ID ? null : (
                 <>
                   {/* Genres */}
                   <div className="flex flex-col gap-2">

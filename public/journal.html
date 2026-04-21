@@ -22,6 +22,27 @@
 
 <h2>2026-04-19</h2>
 
+<h3>"Load startup channels" button</h3>
+<ul>
+  <li>After System Reset the persisted channel list is exactly one empty <code>All</code> row. The blank-slate auto-loader intentionally skips the server fetch in that case (<code>allOnlyEmptyWipe</code> short-circuit), so the user lands on a barren player with nothing to play and no obvious next step.</li>
+  <li><span class="fix">Fix:</span> player now renders a <code>Load startup channels</code> button in the empty state (no current card, no queue, channels ≤ 1 and either empty or the empty All). Clicking it hits <code>GET /api/startup-channels?source=spotify|youtube</code>, which reads the user-curated bundles:
+    <ul>
+      <li><code>source=youtube</code> → <code>data/factory-channels-youtube.json</code></li>
+      <li><code>source=spotify</code> → <code>data/factory-channels.json</code></li>
+    </ul>
+  </li>
+  <li>Response is parsed through <code>parseChannelsImport</code>, wrapped with <code>ensureAllChannel</code>, persisted via <code>saveChannels</code>, and the preferred active channel is hydrated through <code>loadChannelIntoState</code>. A missing file or invalid shape renders a small error under the button instead of silently failing.</li>
+  <li>The button is source-aware: if the user is in YouTube-only mode (or has Spotify picked in settings) the label copy and the file it fetches follow suit, so the Spotify bundle never leaks into a YouTube session and vice-versa.</li>
+</ul>
+
+<h3>Spotify login flicker loop (YouTube-test fixture leak)</h3>
+<ul>
+  <li>Symptom: logout → pick Spotify → screen flickers; server log floods with <code>POST /api/youtube-resolve-test 200</code>.</li>
+  <li>Root cause: when <code>youtubeResolveTestActive</code> was true (which can linger in a dev server whose <code>YOUTUBE_RESOLVE_TEST</code> env was set before a <code>.env.local</code> edit without restart), the client sent <code>youtubeResolveTest: true</code> on every <code>/api/next-song</code> call — regardless of source. The server's profile-only branch then returned a YouTube fixture for <em>every</em> suggestion, even to Spotify callers. The fixture landed in the suggestion buffer, <code>resolveOneSuggestion</code> noticed it via <code>isYoutubeResolveTestFixtureSuggestion(s)</code> and hit <code>/api/youtube-resolve-test</code>, got a YouTube track, Spotify couldn't play it, the advance retried, and the cycle repeated.</li>
+  <li><span class="fix">Fix (client):</span> renamed the effective flag to <code>testModeForSource = youtubeResolveTestActive &amp;&amp; sourceRef.current === 'youtube'</code>. Used in <code>fetchSuggestions</code> (fixture short-circuit), the <code>youtubeResolveTest</code> body field on all three call sites (<code>fetchSuggestions</code>, <code>fetchProfileOnly</code>, <code>resolveOneSuggestion</code>), and the <code>/api/youtube-resolve-test</code> URL switch. Dropped the <code>isYoutubeResolveTestFixtureSuggestion(s)</code> OR condition — it was the amplifier that turned one server slip into a loop.</li>
+  <li><span class="fix">Fix (server):</span> added <code>rawSource === 'youtube'</code> to the guard on <code>/api/next-song</code>'s fixture short-circuit. Belt-and-suspenders so a misbehaving or legacy client can't trick the server into returning a YouTube fixture to a Spotify session.</li>
+</ul>
+
 <h3>YouTube: force start at 0s</h3>
 <ul>
   <li>Symptom: some tracks jumped straight to ~30s on first play, cutting off the intro.</li>
