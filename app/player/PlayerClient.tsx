@@ -129,6 +129,33 @@ function deriveChannelName(history: HistoryEntry[], profile: string): string {
 
 const ALL_CHANNEL_ID = 'earprint-all'
 
+/**
+ * When the All channel merges every channel's history for the LLM, cap what
+ * each non-All channel contributes so the payload stays small and diverse.
+ * Picks: most-recent + highest-rated + lowest-rated (duplicates removed by the
+ * Map-based dedup in getDjContextHistories). Active-channel (All's own) refs
+ * are never sampled — we send All's full history for current-direction fidelity.
+ */
+const PER_CHANNEL_SAMPLE_RECENT = 15
+const PER_CHANNEL_SAMPLE_TOP = 10
+const PER_CHANNEL_SAMPLE_BOTTOM = 5
+const PER_CHANNEL_SAMPLE_TOTAL =
+  PER_CHANNEL_SAMPLE_RECENT + PER_CHANNEL_SAMPLE_TOP + PER_CHANNEL_SAMPLE_BOTTOM
+
+function sampleForAllChannel<T extends { stars?: number | null }>(entries: T[]): T[] {
+  if (entries.length <= PER_CHANNEL_SAMPLE_TOTAL) return entries
+  const n = entries.length
+  const recent = entries.slice(n - PER_CHANNEL_SAMPLE_RECENT)
+  const rated = entries.filter(e => typeof e.stars === 'number' && e.stars !== null)
+  const top = [...rated]
+    .sort((a, b) => (b.stars ?? 0) - (a.stars ?? 0))
+    .slice(0, PER_CHANNEL_SAMPLE_TOP)
+  const bottom = [...rated]
+    .sort((a, b) => (a.stars ?? 0) - (b.stars ?? 0))
+    .slice(0, PER_CHANNEL_SAMPLE_BOTTOM)
+  return [...recent, ...top, ...bottom]
+}
+
 function makeAllChannel(): Channel {
   return {
     id: ALL_CHANNEL_ID,
@@ -2404,6 +2431,62 @@ export default function PlayerClient({
     }
   }, [currentCard?.track.uri ?? currentCard?.track.id])
 
+  // ── All-channel merged histories ─────────────────────────────────────────
+  // The All channel has no config; instead it learns from every channel's
+  // history. When active is ALL, merge sessionHistory / cardHistory from all
+  // channels (All's own refs take precedence as freshest). Otherwise return
+  // the active channel's live refs unchanged.
+  const getDjContextHistories = useCallback((): {
+    sessionHistory: ListenEvent[]
+    cardHistory: HistoryEntry[]
+  } => {
+    if (activeChannelIdRef.current !== ALL_CHANNEL_ID) {
+      return {
+        sessionHistory: sessionHistoryRef.current,
+        cardHistory: cardHistoryRef.current,
+      }
+    }
+    const sessionMap = new Map<string, ListenEvent>()
+    const cardMap = new Map<string, HistoryEntry>()
+    for (const ev of sessionHistoryRef.current) {
+      sessionMap.set(`${ev.track}|${ev.artist}`, ev)
+    }
+    for (const entry of cardHistoryRef.current) {
+      cardMap.set(`${entry.track}|${entry.artist}`, entry)
+    }
+    const perChannelCounts: { id: string; session: number; card: number }[] = []
+    for (const ch of channelsRef.current) {
+      if (ch.id === ALL_CHANNEL_ID) continue
+      const sampledSession = sampleForAllChannel(ch.sessionHistory ?? [])
+      const sampledCards = sampleForAllChannel(ch.cardHistory ?? [])
+      perChannelCounts.push({
+        id: ch.id,
+        session: sampledSession.length,
+        card: sampledCards.length,
+      })
+      for (const ev of sampledSession) {
+        const key = `${ev.track}|${ev.artist}`
+        if (!sessionMap.has(key)) sessionMap.set(key, ev)
+      }
+      for (const entry of sampledCards) {
+        const key = `${entry.track}|${entry.artist}`
+        if (!cardMap.has(key)) cardMap.set(key, entry)
+      }
+    }
+    const merged = {
+      sessionHistory: Array.from(sessionMap.values()),
+      cardHistory: dedupeHistory(Array.from(cardMap.values())),
+    }
+    console.info(DJQ, 'All channel: merged histories from all channels', {
+      channels: channelsRef.current.length,
+      sessionEvents: merged.sessionHistory.length,
+      cardEntries: merged.cardHistory.length,
+      perChannelSample: `recent=${PER_CHANNEL_SAMPLE_RECENT} top=${PER_CHANNEL_SAMPLE_TOP} bottom=${PER_CHANNEL_SAMPLE_BOTTOM}`,
+      contributions: perChannelCounts,
+    })
+    return merged
+  }, [dedupeHistory])
+
   // ── LLM batch: suggestions only (no Spotify) ─────────────────────────────
   const fetchSuggestions = useCallback(
     async (
@@ -2425,9 +2508,10 @@ export default function PlayerClient({
         }
       }
       const cur = currentCardRef.current
+      const djCardHistory = getDjContextHistories().cardHistory
       const alreadyHeard = [
         ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
-        ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
+        ...djCardHistory.map(e => `${e.track} by ${e.artist}`),
         ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
         ...suggestionBufferRef.current.map(s => s.search),
       ]
@@ -2507,7 +2591,7 @@ export default function PlayerClient({
         : []
       return { suggestions, profile: data.profile, suggestedArtists }
     },
-    [youtubeResolveTestActive]
+    [youtubeResolveTestActive, getDjContextHistories]
   )
 
   /** Single Spotify search when a suggestion is promoted to Up Next / now playing. */
@@ -2704,8 +2788,9 @@ export default function PlayerClient({
     }
     const gen = ++profileGenRef.current
     fetchingRef.current = true
+    const { sessionHistory: djSessionHistory, cardHistory: djCardHistory } = getDjContextHistories()
     const payload: Record<string, unknown> = {
-      sessionHistory: sessionHistoryRef.current,
+      sessionHistory: djSessionHistory,
       priorProfile: priorProfileRef.current || undefined,
       provider: providerRef.current,
       notes: buildCombinedNotes(
@@ -2722,7 +2807,7 @@ export default function PlayerClient({
         const cur = currentCardRef.current
         const list = [
           ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
-          ...cardHistoryRef.current.map(e => `${e.track} by ${e.artist}`),
+          ...djCardHistory.map(e => `${e.track} by ${e.artist}`),
           ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
           ...suggestionBufferRef.current.map(s => s.search),
         ]
@@ -2783,7 +2868,7 @@ export default function PlayerClient({
       .finally(() => {
         fetchingRef.current = false
       })
-  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer])
+  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer, getDjContextHistories])
 
   // ── Fetch from LLM → suggestion buffer (Spotify only when promoting to queue / now playing) ──
   const fetchToBuffer = useCallback(
@@ -2908,7 +2993,7 @@ export default function PlayerClient({
       resolveRate: Math.round(getResolveSuccessRate() * 100) + '%',
       resolveStats: { ...resolveStatsRef.current },
     })
-    const sentHistory = [...sessionHistoryRef.current]
+    const sentHistory = [...getDjContextHistories().sessionHistory]
     const sentProfile = priorProfileRef.current
     setLoadingQueue(true)
     fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch, numSongs)
@@ -3019,6 +3104,7 @@ export default function PlayerClient({
     discovery,
     playerConfigDj,
     youtubeResolveTestFromServer,
+    getDjContextHistories,
   ])
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
@@ -4324,9 +4410,45 @@ export default function PlayerClient({
             onRemoveQueueItem={(index) => {
               const q = queueRef.current
               if (index < 0 || index >= q.length) return
+              const removed = q[index]
               const remaining = q.filter((_, i) => i !== index)
               setQueue(remaining)
               queueRef.current = remaining
+
+              // Deleting from the queue is an implicit "skip this sound" —
+              // record a 0.5-star rating so the DJ steers away, unless the
+              // track is already in history (don't overwrite existing ratings).
+              if (!removed) return
+              const base = cardHistoryRef.current
+              const alreadyRated = base.some(
+                e => e.track === removed.track.name && e.artist === removed.track.artist,
+              )
+              if (alreadyRated) return
+              const event: ListenEvent = {
+                track: removed.track.name,
+                artist: removed.track.artist,
+                stars: 0.5,
+                coords: removed.coords,
+              }
+              const historyEntry: HistoryEntry = {
+                ...event,
+                albumArt: removed.track.albumArt,
+                uri: removed.track.uri ?? null,
+                category: removed.category,
+                coords: removed.coords,
+                source: removed.track.source as PlaybackSource | undefined,
+              }
+              const newCardHistory = dedupeHistory([...base, historyEntry])
+              setCardHistory(newCardHistory)
+              cardHistoryRef.current = newCardHistory
+              const newSession = [...sessionHistoryRef.current, event]
+              setSessionHistory(newSession)
+              sessionHistoryRef.current = newSession
+              console.info(
+                DJQ,
+                'queue-remove: recorded 0.5★',
+                `${removed.track.name} — ${removed.track.artist}`,
+              )
             }}
             onPlayQueueItem={(index) => {
               const q = queueRef.current
@@ -4350,12 +4472,14 @@ export default function PlayerClient({
       {/* Footer */}
       <div className="border-t border-zinc-900 py-3 flex justify-center">
         <div className="flex items-center gap-3 w-full max-w-[800px] px-4">
-          <Link
-            href="/channels"
-            className="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors text-center"
-          >
-            Edit channel
-          </Link>
+          {activeChannelId !== ALL_CHANNEL_ID && (
+            <Link
+              href="/channels"
+              className="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors text-center"
+            >
+              Edit channel
+            </Link>
+          )}
           <Link
             href={`/ratings?channel=${activeChannelId}`}
             className="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium transition-colors text-center"

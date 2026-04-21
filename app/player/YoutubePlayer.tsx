@@ -10,6 +10,7 @@ interface YTPlayer {
   getPlayerState(): number
   pauseVideo(): void
   playVideo(): void
+  seekTo(seconds: number, allowSeekAhead?: boolean): void
   setVolume(v: number): void
   destroy(): void
 }
@@ -137,9 +138,11 @@ export type YoutubePlayerHandle = {
 function buildEmbedSrc(videoId: string): string {
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   // playsinline: required for inline playback on iOS / many mobile WebViews (http://localhost too).
+  // start=0: force playback from the top. Without it, YouTube's "resume where you left off"
+  // feature can return signed-in viewers to a saved offset (we've seen tracks start at ~30s).
   return (
     `https://www.youtube.com/embed/${encodeURIComponent(videoId)}` +
-    `?autoplay=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(origin)}`
+    `?autoplay=1&playsinline=1&enablejsapi=1&start=0&origin=${encodeURIComponent(origin)}`
   )
 }
 
@@ -164,6 +167,13 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
    * whenever the YT script is still loading.
    */
   const pendingPlayRef = useRef(false)
+  /**
+   * One-shot latch: fire seekTo(0) at most once on the first PLAYING state
+   * transition if YouTube's resume-watching feature puts us past the intro.
+   * Component is keyed by track id in the parent, so this naturally resets
+   * for each new track.
+   */
+  const didSeekToZeroOnPlayRef = useRef(false)
   const onEndedRef = useRef(onEnded)
   const onErrorRef = useRef(onPlayerError)
   onEndedRef.current = onEnded
@@ -246,6 +256,11 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
               ytPlayerRef.current = e.target
               try {
                 const s = e.target.getPlayerState()
+                // Belt-and-suspenders start-from-zero. `start=0` in the URL usually works,
+                // but we've seen signed-in viewers land at a saved offset anyway; seekTo(0)
+                // on the first onReady guarantees the user hears the intro. The component
+                // is keyed by track id, so onReady fires once per track → one seek only.
+                try { e.target.seekTo(0, true) } catch {}
                 console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current })
                 if (s === 1 || s === 3) setBlocked(false)
                 if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
@@ -259,6 +274,21 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             onStateChange: e => {
               console.info('[yt] state', e.data)
               if (e.data === 1 || e.data === 3) setBlocked(false)
+              // Safety net: if playback starts at a non-trivial offset (YouTube's
+              // resume-watching feature sneaking past `start=0` and the onReady seek),
+              // snap back to the beginning on the first PLAYING transition. Runs at
+              // most once per mount because we clear the flag after firing.
+              if (e.data === 1 && !didSeekToZeroOnPlayRef.current) {
+                didSeekToZeroOnPlayRef.current = true
+                const p = ytPlayerRef.current
+                try {
+                  const t = p?.getCurrentTime?.() ?? 0
+                  if (t > 1.5) {
+                    console.info('[yt] detected resume offset, snapping to 0', { t })
+                    p?.seekTo?.(0, true)
+                  }
+                } catch {}
+              }
               if (e.data === 0) onEndedRef.current?.()
             },
             onError: e => {

@@ -20,6 +20,8 @@ Each channel on the channels settings page also shows a compact version of this 
 
 There is a channel settings page where you configure the DJ constraints described above and choose which AI model to use.
 
+Every channel list starts with a special channel named "All." "All" has no configuration — no genres, regions, artists, notes, popularity, or time period — and its discovery slider is pinned to 100. What makes it special is that it learns from your entire listening history across every channel. Whatever you rate on "Jazz" or "Baroque" immediately informs "All" on the next DJ turn; ratings from every channel are merged (deduped by track+artist) before the LLM is queried. To keep payloads small, each non-All channel contributes a stratified sample — its most recent listens plus its highest- and lowest-rated tracks — rather than its full history. All's own history is sent in full. Each channel still keeps its own persisted history; the merge is read-only at query time.
+
 The app works in a demo mode with no login required, using preloaded history data, so anyone can try it before signing up.`
 
 const PROMPT = `Build a web application called Soundings: an AI-powered music discovery app that acts as a personal DJ, learning the user's taste over time through listening and rating.
@@ -112,7 +114,7 @@ Left column — Album art panel (340×580px, full-bleed):
 
 Right column — SessionPanel:
 - "What I know about you" (ProfileView): shows LLM-generated taste profile in color-coded blocks (LIKED/DISLIKED/EXPLORED/NEXT). Edit button opens a textarea.
-- Queue section (collapsible): list of upcoming songs with album art, name, artist. Click to play immediately. × to remove.
+- Queue section (collapsible): list of upcoming songs with album art, name, artist. Click to play immediately. × to remove. Removing a track records a 0.5-star rating (implicit skip) in both \`cardHistory\` and \`sessionHistory\` so the DJ learns to avoid that sound — unless the track is already in history, in which case the existing rating is preserved.
 - Up Next section (collapsible): DJ's pending suggestions (search string + reason), shown while resolving.
 - YouTube quota indicator (YouTube mode only): remaining searches count.
 
@@ -123,6 +125,7 @@ Right column — SessionPanel:
 - YouTube wrapper lifecycle: \`new YT.Player(iframe, ...)\` is invoked at most once per component instance (gated by a ref), because binding two wrappers to the same iframe (which Strict Mode's dev-mode double-invoke of effects would otherwise cause) leaves the second wrapper's \`onReady\` silently unfired. Cleanup does NOT call \`YT.Player.destroy()\` — that removes the iframe from the DOM out from under React; the iframe is removed on real unmount instead.
 - YouTube autoplay overlay: if playback hasn't visibly started within 3.5s of mount, a tap-to-play overlay appears. A parallel 500ms \`getCurrentTime()\` poll clears the overlay automatically the moment the clock advances, and the overlay click clears itself optimistically (waiting for \`onStateChange\` confirmation left it stuck when the event never arrived).
 - YouTube error handling: \`onError 150\` ("video unavailable for embedding") and any other player error auto-advances to the next queue item.
+- YouTube start-from-zero: signed-in viewers can otherwise get YouTube's "resume where you left off" offset even on embedded iframes, landing mid-track. Three guards: \`&start=0\` in the embed URL, unconditional \`seekTo(0)\` in \`onReady\` before \`playVideo()\`, and a one-shot safety seek on the first PLAYING state if \`getCurrentTime() > 1.5\`.
 - When "Next" is pressed: record percentListened and reaction for the current card, add to history, save channel, then play next song from queue.
 - Track progress is tracked as percentListened. "Reaction" defaults to 'move-on'. If the user drags the rating slider, that overrides percentListened.
 
@@ -134,6 +137,14 @@ Right column — SessionPanel:
 - After getting LLM response, resolve each song via Spotify search (if Spotify source) or YouTube search (if YouTube source).
 - Rate-limit handling: if Spotify or YouTube returns 429, back off with exponential backoff and show a yellow banner.
 - "settingsDirty" flag: when user changes genres/artists/notes since last LLM call, re-queue LLM with updated constraints on next "Next" press.
+
+**All channel (\`earprint-all\`):**
+- Reserved id; always first in the channel list; cannot be deleted or configured (no genre/region/artist/notes/popularity/time-period inputs).
+- Discovery is pinned to 100 (\`ALL_CHANNEL_DISCOVERY_DEFAULT\`).
+- At DJ query time, a helper \`getDjContextHistories()\` in \`PlayerClient.tsx\` returns the merged \`sessionHistory\` and \`cardHistory\` across every channel, deduped by \`track|artist\`. All's own refs take precedence (freshest), with other channels overlaid after. Used by \`fetchSuggestions\` (alreadyHeard), \`fetchToBuffer\` (sentHistory), and \`fetchProfileOnly\` (sessionHistory + alreadyHeard).
+- **Per-channel sampling** (\`sampleForAllChannel\`) caps each non-All channel's contribution to a stratified sample: last \`PER_CHANNEL_SAMPLE_RECENT\` (15) recent entries + \`PER_CHANNEL_SAMPLE_TOP\` (10) highest-rated + \`PER_CHANNEL_SAMPLE_BOTTOM\` (5) lowest-rated. Channels with ≤30 entries return unchanged. All's own history is not sampled.
+- For non-All channels, the helper returns the active channel's live refs unchanged — no behavior change, no sampling.
+- Each channel still persists its own history; the merge is read-only at query time and does not mutate any channel's stored state.
 
 **Rate limiting and quota tracking:**
 - Record all fetch calls with timestamps in memory.

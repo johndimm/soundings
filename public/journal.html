@@ -22,6 +22,37 @@
 
 <h2>2026-04-19</h2>
 
+<h3>YouTube: force start at 0s</h3>
+<ul>
+  <li>Symptom: some tracks jumped straight to ~30s on first play, cutting off the intro.</li>
+  <li>Root cause: YouTube's "resume where you left off" feature remembers playback offsets for signed-in viewers and applies them even to embedded iframes, overriding our <code>autoplay=1</code>.</li>
+  <li><span class="fix">Fix (three layers):</span>
+    <ul>
+      <li>Added <code>&amp;start=0</code> to the embed URL — declarative hint.</li>
+      <li>In <code>onReady</code>, unconditionally <code>seekTo(0, true)</code> before <code>playVideo()</code> — runs exactly once per mount (component is keyed by track id).</li>
+      <li>Safety net in <code>onStateChange</code>: on the first <code>PLAYING</code> transition, if <code>getCurrentTime() &gt; 1.5</code>, <code>seekTo(0)</code> and log <code>[yt] detected resume offset, snapping to 0</code>. A one-shot ref (<code>didSeekToZeroOnPlayRef</code>) guarantees it fires at most once.</li>
+    </ul>
+  </li>
+  <li>The YTPlayer TypeScript interface gained a <code>seekTo(seconds, allowSeekAhead?)</code> method to match the IFrame API.</li>
+</ul>
+
+<h3>Queue delete = 0.5★ skip</h3>
+<ul>
+  <li>Clicking <code>×</code> on an Up Next row used to just drop the track silently. The DJ had no idea the user rejected it and would happily suggest the same sonic territory again.</li>
+  <li><span class="fix">Fix:</span> removing a track from the queue now records a 0.5-star rating (lowest rung above zero — "skip this sound"), added to both <code>cardHistory</code> and <code>sessionHistory</code>. The auto-persist effect writes it to the channel on the next tick.</li>
+  <li>Guard: if the track is already in history (user previously rated it), we do <strong>not</strong> overwrite that rating — a thoughtful 4★ stays 4★ even if you later clear it from the queue.</li>
+  <li>New log: <code>[dj-queue] queue-remove: recorded 0.5★ &lt;track&gt; — &lt;artist&gt;</code>.</li>
+</ul>
+
+<h3>All channel learns from every channel</h3>
+<ul>
+  <li>The <code>All</code> channel has always been special — no genre/region/artist/notes config, just discovery pinned to 100. Previously its DJ context was only its own <code>sessionHistory</code> / <code>cardHistory</code>, so moods developed on <code>Jazz</code> or <code>Baroque</code> never informed <code>All</code>.</li>
+  <li><span class="fix">Fix:</span> when the active channel is <code>earprint-all</code>, the DJ now merges <code>sessionHistory</code> and <code>cardHistory</code> across every channel before calling the LLM. All's own refs take precedence (freshest), and other channels overlay dedup-by-<code>track|artist</code>. Applied to <code>fetchSuggestions</code> (alreadyHeard), <code>fetchToBuffer</code> (sentHistory), and <code>fetchProfileOnly</code> (sessionHistory + alreadyHeard).</li>
+  <li><strong>Per-channel sampling</strong> keeps the payload small: each non-All channel contributes a stratified sample — last <code>15</code> recent + top <code>10</code> highest-rated + <code>5</code> lowest-rated (dedup happens in the merge map). Channels with ≤30 entries contribute everything; larger channels stay bounded. All's own history is sent in full (current-direction fidelity for the active channel).</li>
+  <li>Each channel keeps its own persisted history — All's merge is read-only at query time. Ratings you leave on <code>Jazz</code> contribute to All's taste profile on the next DJ turn without mutating Jazz's channel file.</li>
+  <li>New log: <code>[dj-queue] All channel: merged histories from all channels {channels, sessionEvents, cardEntries, perChannelSample, contributions}</code> fires on every DJ call while All is active.</li>
+</ul>
+
 <h3>Per-source factory channels</h3>
 <ul>
   <li class="fix">Factory channel snapshots are now source-specific. The <code>save-factory</code> API accepts <code>?source=spotify|youtube</code> and writes <code>data/factory-channels.&lt;source&gt;.json</code>; the blank-slate fetch and "reload factory channels" reset both go through the same per-source path (with a shared <code>factory-channels.json</code> fallback, then the built-in import).</li>
