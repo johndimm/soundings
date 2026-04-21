@@ -408,12 +408,12 @@ export default function SettingsPage() {
 
         <hr className="border-zinc-200" />
 
-        {/* System Reset */}
+        {/* Remove all channels */}
         <section className="flex flex-col gap-2">
           <div>
-            <h2 className="text-sm font-semibold">System reset</h2>
+            <h2 className="text-sm font-semibold">Remove all channels</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              <strong className="text-zinc-600 font-medium">Deletes</strong> every custom channel and all ratings. You
+              <strong className="text-zinc-600 font-medium">Deletes</strong> every custom channel and all history. You
               are left with only the <strong className="text-zinc-600 font-medium">All</strong> channel (the catch-all
               with no filters). Nothing else is recreated until you add channels.
             </p>
@@ -424,17 +424,17 @@ export default function SettingsPage() {
               onClick={() => setConfirm('system-reset')}
               className="px-4 py-2 rounded-lg border border-red-200 text-red-600 text-sm hover:bg-red-50 transition-colors"
             >
-              Reset all channels
+              Remove all channels
             </button>
           </div>
         </section>
 
-        {/* Factory reset */}
+        {/* Merge factory channels */}
         <section className="flex flex-col gap-2">
           <div>
-            <h2 className="text-sm font-semibold">Factory reset</h2>
+            <h2 className="text-sm font-semibold">Merge factory channels</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              <strong className="text-zinc-600 font-medium">Loads</strong> the <strong className="text-zinc-600 font-medium">Factory default</strong> channel set (from the server file when your host ships one, otherwise the built-in starter list). Ratings are cleared. Use this after a system reset when you want the full default lineup back — system reset removes channels; factory reset adds the defaults.
+              <strong className="text-zinc-600 font-medium">Adds</strong> the factory default channels (from the server when your host ships them, otherwise the built-in starter set) into your current channel list. Existing channels and history are kept.
             </p>
           </div>
           <div>
@@ -443,7 +443,7 @@ export default function SettingsPage() {
               onClick={() => setConfirm('factory-reset')}
               className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm hover:border-zinc-500 hover:text-black transition-colors"
             >
-              Factory reset
+              Merge factory channels
             </button>
           </div>
         </section>

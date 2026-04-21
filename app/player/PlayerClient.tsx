@@ -3261,7 +3261,7 @@ export default function PlayerClient({
       }
       console.info(DJQ, 'promoteDjPendingByIdOnly: applying', cards.length, 'cards to player')
       let restCards = cards
-      if (!currentCardRef.current && queueRef.current.length === 0) {
+      if (!currentCardRef.current) {
         const [first, ...afterFirst] = restCards
         currentCardRef.current = first
         setCurrentCard(first)
@@ -4100,6 +4100,27 @@ export default function PlayerClient({
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-zinc-400">
               <div className="w-8 h-8 border-2 border-zinc-600 border-t-white rounded-full animate-spin" />
               <p className="text-sm">{source === 'youtube' || deviceId ? 'Finding your next song…' : 'Connecting to Spotify…'}</p>
+            </div>
+          )}
+
+          {/* Queue ready but nothing playing yet — show ▶ so the user can start */}
+          {!currentCard && !error && !loadingQueue && queue.length > 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-zinc-400">
+              <button
+                type="button"
+                onClick={() => {
+                  const [next, ...rest] = queueRef.current
+                  if (!next) return
+                  currentCardRef.current = next
+                  setCurrentCard(next)
+                  setQueue(rest)
+                  queueRef.current = rest
+                }}
+                className="text-5xl leading-none text-white/80 hover:text-white transition-colors"
+              >
+                ▶
+              </button>
+              <p className="text-sm">{queue.length} track{queue.length !== 1 ? 's' : ''} ready</p>
             </div>
           )}
 

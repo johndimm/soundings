@@ -44,13 +44,13 @@ export default function AppHeader() {
           </Link>
         ))}
 
-        <span className={`mx-1 hidden sm:inline ${isPlayer ? 'text-zinc-700' : 'text-zinc-300'}`}>·</span>
+        <span className={`mx-1 ${isPlayer ? 'text-zinc-700' : 'text-zinc-300'}`}>·</span>
 
         {FILE_LINKS.map(({ href, label }) => (
           <Link
             key={href}
             href={href}
-            className={`text-xs transition-colors px-1 hidden sm:inline ${
+            className={`text-xs transition-colors px-1 ${
               isActive(href)
                 ? isPlayer ? 'text-zinc-300' : 'text-zinc-700'
                 : isPlayer ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-700'

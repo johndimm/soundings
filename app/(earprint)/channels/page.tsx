@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import AppHeader from '@/app/components/AppHeader'
 import {
@@ -191,6 +191,8 @@ function Chip({
 
 export default function ChannelsPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const newHandled = useRef(false)
   const [channels, setChannels] = useState<Channel[]>([])
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
@@ -210,7 +212,8 @@ export default function ChannelsPage() {
       setActiveChannelId(activeId ?? loaded[0]?.id ?? null)
     } catch {}
 
-    if (searchParams.get('new') === '1') {
+    if (searchParams.get('new') === '1' && !newHandled.current) {
+      newHandled.current = true
       const newCh: Channel = {
         id: genChannelId(),
         name: 'New Channel',
@@ -236,6 +239,7 @@ export default function ChannelsPage() {
         localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(updated))
         localStorage.setItem(ACTIVE_CHANNEL_KEY, newCh.id)
       } catch {}
+      router.replace('/channels', { scroll: false })
     }
 
     setMounted(true)
