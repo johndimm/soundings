@@ -363,7 +363,11 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
         title="YouTube video player"
         src={embedSrc}
         allow={IFRAME_ALLOW}
-        referrerPolicy="no-referrer"
+        // YouTube validates the embedder via the Referer header on production HTTPS — sending
+        // `no-referrer` causes many videos to refuse to play on Vercel even though they work
+        // on localhost (where Referer behavior is looser). Keep this as the cross-origin
+        // default so YouTube can verify the embedding origin.
+        referrerPolicy="strict-origin-when-cross-origin"
         allowFullScreen
         className="absolute inset-0 h-full w-full border-0"
       />
