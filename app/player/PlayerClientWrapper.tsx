@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import dynamic from 'next/dynamic'
 
 const PlayerClient = dynamic(() => import('./PlayerClient'), { ssr: false })
@@ -16,11 +17,13 @@ export default function PlayerClientWrapper({
   youtubeOnly?: boolean
 }) {
   return (
-    <PlayerClient
-      accessToken={accessToken}
-      guideDemo={guideDemo}
-      youtubeResolveTestFromServer={youtubeResolveTestFromServer}
-      youtubeOnly={youtubeOnly}
-    />
+    <Suspense fallback={null}>
+      <PlayerClient
+        accessToken={accessToken}
+        guideDemo={guideDemo}
+        youtubeResolveTestFromServer={youtubeResolveTestFromServer}
+        youtubeOnly={youtubeOnly}
+      />
+    </Suspense>
   )
 }

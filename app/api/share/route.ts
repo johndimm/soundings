@@ -6,7 +6,7 @@ import { kvGet, kvSet } from '@/app/lib/kvStore'
  *
  *   POST /api/share
  *     body: { channel: ChannelMeta, track: CardState, source: 'spotify' | 'youtube' }
- *     → { ok: true, id } on success; share persists in Vercel KV for ~90 days.
+ *     → { ok: true, id } on success; share persists in Redis REST (Marketplace KV) for ~90 days.
  *
  *   GET  /api/share?id=<id>
  *     → { ok: true, payload } | { ok: false, reason }

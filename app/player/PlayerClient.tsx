@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useSearchParams } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { parseShareId } from '@/app/lib/shareId'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
@@ -826,6 +826,9 @@ export default function PlayerClient({
   /** False until loadSettings runs — prevents persist effects from overwriting localStorage with empty defaults on first paint. */
   const [settingsHydrated, setSettingsHydrated] = useState(false)
   const pathname = usePathname()
+  const searchParams = useSearchParams()
+  /** Dependency for share recipient: re-run on client navigations to a new `?share=`. */
+  const shareQueryKey = searchParams.get('share') ?? ''
   /** Bumps when navigating onto /player (e.g. from /channels) so persist runs without putting `pathname` in persist deps. */
   const [playerRouteGeneration, setPlayerRouteGeneration] = useState(0)
   /** Bumps when user presses Next (etc.) so the play effect re-runs even if the next track has the same URI as before. */
@@ -1430,7 +1433,7 @@ export default function PlayerClient({
   /**
    * Build a URL the current user can send to others.
    *
-   * POSTs the active channel's settings + the current track to /api/share (Vercel KV),
+   * POSTs the active channel's settings + the current track to /api/share (Redis REST store),
    * then either invokes the native share sheet or copies the URL to the clipboard.
    * History and queue are intentionally NOT sent — see app/api/share/route.ts.
    */
@@ -1439,6 +1442,8 @@ export default function PlayerClient({
     if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current)
     shareToastTimerRef.current = setTimeout(() => setShareStatus(null), 3500)
   }, [])
+  const showShareToastRef = useRef(showShareToast)
+  showShareToastRef.current = showShareToast
 
   const handleShare = useCallback(async () => {
     if (sharingInFlight) return
@@ -1537,22 +1542,27 @@ export default function PlayerClient({
   /**
    * Consume a shared link: ?share=<id> on /player.
    *
-   * Fetches the payload from Vercel KV; if the user has no channels yet (only the empty
+   * Fetches the payload from /api/share (Redis REST); if the user has no channels yet (only the empty
    * All row), seeds the factory bundle for the shared payload's source first — that way
    * a recipient who never signed in before doesn't land on a blank player. Then it
    * upserts the shared channel (creates it if missing, preserves existing history/queue
    * if the user already has the same channel id) and sets the shared track as the now-
    * playing card so playback starts immediately.
    *
-   * Runs at most once per page load (`shareAppliedRef`) and only after `historyReady`,
-   * which guarantees the channels list and localStorage have already been hydrated.
+   * After `historyReady`, when `shareQueryKey` or `pathname` changes (incl. client-side
+   * navigations), or when only sessionStorage has a pending id (OAuth strip). No one-shot
+   * ref latch — that broke React Strict Mode and blocked a second share in the same tab.
+   * Async completions are tagged with `shareReceiveEpochRef` so stale responses cannot toast.
    */
-  const shareAppliedRef = useRef(false)
+  const shareReceiveEpochRef = useRef(0)
   useEffect(() => {
     if (isGuideDemo) return
     if (!historyReady) return
-    if (shareAppliedRef.current) return
     if (typeof window === 'undefined') return
+    // Persistent player stays mounted off-/player; only consume shares on the player route.
+    if (!pathname.startsWith('/player')) return
+
+    const toast = showShareToastRef.current
 
     // 1. URL query takes precedence (user is already signed in).
     // 2. Fall back to sessionStorage, which PersistentPlayerHost writes on mount so the
@@ -1561,8 +1571,7 @@ export default function PlayerClient({
     // `parseShareId` strips any junk a share target may have pasted after the id
     // (e.g. iMessage concatenates the navigator.share `text` onto the URL, so
     // `?share=abcdef1234Listen on Foo` becomes the raw query value).
-    const url = new URL(window.location.href)
-    let shareId = parseShareId(url.searchParams.get('share'))
+    let shareId = parseShareId(shareQueryKey.length ? shareQueryKey : null)
     let fromSession = false
     if (!shareId) {
       try {
@@ -1583,8 +1592,9 @@ export default function PlayerClient({
       } catch {}
     }
     if (!shareId) return
-    shareAppliedRef.current = true
-    console.info('[share] recipient effect start', { shareId, fromSession })
+
+    const epoch = ++shareReceiveEpochRef.current
+    console.info('[share] recipient effect start', { shareId, fromSession, epoch })
 
     const clearPendingShare = () => {
       try {
@@ -1604,6 +1614,8 @@ export default function PlayerClient({
       } catch {}
     }
 
+    const isStale = () => cancelled || shareReceiveEpochRef.current !== epoch
+
     type SharePayload = {
       channel: Record<string, unknown>
       track: CardState
@@ -1622,9 +1634,10 @@ export default function PlayerClient({
           payload?: SharePayload
           error?: string
         }
+        if (isStale()) return
         if (!r.ok || !data.ok || !data.payload) {
           console.warn('[share] fetch failed', { status: r.status, error: data.error })
-          showShareToast(
+          toast(
             'err',
             data.error === 'not_found'
               ? 'This share link has expired or is invalid.'
@@ -1643,12 +1656,13 @@ export default function PlayerClient({
           trackId: payload.track?.track?.id,
         })
       } catch (e) {
+        if (isStale()) return
         console.warn('[share] fetch threw', e)
-        showShareToast('err', 'Could not load the shared track.')
+        toast('err', 'Could not load the shared track.')
         stripShareParam()
         return
       }
-      if (cancelled || !payload) return
+      if (isStale() || !payload) return
 
       const sharedSource: PlaybackSource = payload.source === 'youtube' ? 'youtube' : 'spotify'
       const sharedTrack = payload.track
@@ -1687,14 +1701,15 @@ export default function PlayerClient({
           console.warn('[share] startup-channels seed failed', e)
         }
       }
-      if (cancelled) return
+      if (isStale()) return
 
       // Upsert the shared channel. If it already exists, keep the user's history/queue —
       // otherwise fresh channel with empty history/queue so the shared track plays cleanly.
       const sharedCh = parseChannelsImport({ channels: [sharedChannelRaw] })?.channels?.[0]
       if (!sharedCh) {
+        if (isStale()) return
         console.warn('[share] shared channel had unexpected shape')
-        showShareToast('err', 'Shared channel was invalid.')
+        toast('err', 'Shared channel was invalid.')
         stripShareParam()
         return
       }
@@ -1769,7 +1784,8 @@ export default function PlayerClient({
       lastPlayedUriRef.current = null
 
       stripShareParam()
-      showShareToast('ok', existing ? 'Playing shared track.' : 'Shared channel added.')
+      if (isStale()) return
+      toast('ok', existing ? 'Playing shared track.' : 'Shared channel added.')
       console.info('[share] applied', {
         id: shareId,
         channel: sharedCh.id,
@@ -1783,10 +1799,7 @@ export default function PlayerClient({
     return () => {
       cancelled = true
     }
-    // Intentionally only depends on historyReady — we want this to run exactly once
-    // after channels hydrate. All reads go through refs.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [historyReady, isGuideDemo])
+  }, [historyReady, isGuideDemo, pathname, shareQueryKey])
 
   // Auto-clear each source's backoff banner when its cooldown expires (one timer per source).
   useEffect(() => {
@@ -1950,10 +1963,12 @@ export default function PlayerClient({
       discovery: s.discovery ?? 50,
     })
     try {
-      const spStored = localStorage.getItem('spotifyRateLimitUntil')
-      if (spStored) {
-        const until = Number(spStored)
-        if (until > Date.now()) setSpotifyBackoffUntil(until)
+      if (!youtubeOnly) {
+        const spStored = localStorage.getItem('spotifyRateLimitUntil')
+        if (spStored) {
+          const until = Number(spStored)
+          if (until > Date.now()) setSpotifyBackoffUntil(until)
+        }
       }
       const ytStored = localStorage.getItem('youtubeRateLimitUntil')
       if (ytStored) {
@@ -1964,6 +1979,13 @@ export default function PlayerClient({
     setSettingsHydrated(true)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** YouTube-only mode must never show Spotify cooldown UI (prop can flip true one tick after `?youtube=1`). */
+  useEffect(() => {
+    if (!youtubeOnly) return
+    setSpotifyBackoffUntil(null)
+    setSource('youtube')
+  }, [youtubeOnly])
 
   // Mark settings dirty after initial load
   useEffect(() => {
@@ -4482,12 +4504,14 @@ export default function PlayerClient({
   )
   const duration = playbackState?.duration ?? 0
 
-  // Banner reflects ONLY the current source's cooldown — a YouTube quota lockout must not
-  // show up while the user is listening on Spotify (and vice versa).
-  const activeBackoffUntilForBanner = source === 'youtube' ? youtubeBackoffUntil : spotifyBackoffUntil
+  // Banner reflects ONLY the active playback source's cooldown. Use `youtubeOnly` too:
+  // `youtubeLocked` flips true in an effect after `?youtube=1`, so the first paint can
+  // still have `source === 'spotify'` while Spotify backoff was hydrated from localStorage.
+  const rateLimitBannerIsYoutube = youtubeOnly || source === 'youtube'
+  const activeBackoffUntilForBanner = rateLimitBannerIsYoutube ? youtubeBackoffUntil : spotifyBackoffUntil
   const spotifyStatusMessage =
     activeBackoffUntilForBanner && activeBackoffUntilForBanner > Date.now()
-      ? `${source === 'youtube' ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
+      ? `${rateLimitBannerIsYoutube ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : null
 
   return (
@@ -4585,7 +4609,7 @@ export default function PlayerClient({
               type="button"
               disabled={spotifyPingInFlight}
               className="underline text-yellow-200 hover:text-yellow-50 disabled:opacity-60 disabled:cursor-wait"
-              onClick={source === 'youtube' ? handleYoutubePingRetry : handleSpotifyPingRetry}
+              onClick={rateLimitBannerIsYoutube ? handleYoutubePingRetry : handleSpotifyPingRetry}
             >
               {spotifyPingInFlight ? 'Checking…' : 'Try now'}
             </button>
@@ -4643,7 +4667,11 @@ export default function PlayerClient({
                 // Here we only receive truly unplayable errors: 2 (invalid ID), 100 (not found), 101/150 (embedding disabled).
                 // Show error in UI instead of auto-advancing, to avoid burning search quota on cascading failures.
                 console.warn('[player] YouTube unplayable error', code)
-                setError(`YouTube video unavailable (error ${code}). Open YouTube to watch it there, or press Next.`)
+                const hint =
+                  code === 101 || code === 150
+                    ? "This video can't be played in the embedded player (restricted by the owner). Open it on YouTube, or press Next."
+                    : `YouTube video unavailable (error ${code}). Open YouTube to watch it there, or press Next.`
+                setError(hint)
               }}
             />
           )}
