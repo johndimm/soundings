@@ -53,6 +53,8 @@ export interface Channel {
   currentCard?: unknown
   playbackPositionMs?: number
   playbackTrackUri?: string
+  /** True when the user created this channel in-app; false = factory/share/starter import. */
+  userCreated?: boolean
   [key: string]: unknown
 }
 
@@ -95,6 +97,7 @@ export function normalizeImportedChannel(raw: unknown): Channel | null {
     ...(o.currentCard !== undefined && { currentCard: o.currentCard }),
     ...(typeof o.playbackPositionMs === 'number' && { playbackPositionMs: o.playbackPositionMs }),
     ...(typeof o.playbackTrackUri === 'string' && { playbackTrackUri: o.playbackTrackUri }),
+    ...(typeof o.userCreated === 'boolean' && { userCreated: o.userCreated }),
   }
   return normalizeChannelDiscovery(base)
 }

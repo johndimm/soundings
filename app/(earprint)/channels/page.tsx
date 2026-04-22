@@ -232,6 +232,7 @@ export default function ChannelsPage() {
         artistText: '',
         popularity: 50,
         discovery: CHANNEL_DISCOVERY_DEFAULT,
+        userCreated: true,
       }
       const updated = [...loaded, newCh]
       setChannels(updated)
@@ -323,6 +324,7 @@ export default function ChannelsPage() {
       artistText: '',
       popularity: 50,
       discovery: CHANNEL_DISCOVERY_DEFAULT,
+      userCreated: true,
     }
     const updated = [...channels, newCh]
     persist(updated)
@@ -386,7 +388,9 @@ export default function ChannelsPage() {
       if (!incoming.length) return
       const cur: Channel[] = channels
       const existingIds = new Set(cur.map(c => c.id))
-      const toAdd = incoming.filter(c => !existingIds.has(c.id))
+      const toAdd = incoming
+        .filter(c => !existingIds.has(c.id))
+        .map(c => (c.id === ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const }))
       const merged = [...cur, ...toAdd]
       persist(merged)
       const newActive = firstId && merged.find(c => c.id === firstId) ? firstId : (toAdd[0]?.id ?? cur[0]?.id ?? '')

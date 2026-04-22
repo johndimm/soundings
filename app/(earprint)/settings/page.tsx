@@ -183,13 +183,19 @@ export default function SettingsPage() {
       })
       const d = r.ok ? await r.json() : null
       if (d?.ok && Array.isArray(d.channels) && d.channels.length > 0) {
-        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(d.channels))
+        const tagged = (d.channels as Channel[]).map(c =>
+          c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const },
+        )
+        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
         const aid = typeof d.activeChannelId === 'string' && d.activeChannelId ? d.activeChannelId : d.channels[0]?.id
         if (aid) localStorage.setItem(ACTIVE_CHANNEL_KEY, aid)
       } else {
         const { channels, activeChannelId } = getBundledFactoryChannelsForReset()
         if (!channels?.length) return
-        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(channels))
+        const tagged = (channels as Channel[]).map(c =>
+          c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const },
+        )
+        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
         localStorage.setItem(ACTIVE_CHANNEL_KEY, activeChannelId)
       }
       localStorage.removeItem(HISTORY_STORAGE_KEY)
@@ -550,12 +556,15 @@ export default function SettingsPage() {
                 className="px-4 py-2 text-sm rounded-lg bg-amber-700 hover:bg-amber-600 text-white"
                 onClick={() => {
                   const { channels: imported, activeChannelId: importedActiveId } = importDialog
+                  const tagged = imported.map(c =>
+                    c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: true as const },
+                  )
                   const newActiveId =
                     importedActiveId && imported.some(c => c.id === importedActiveId)
                       ? importedActiveId
                       : imported[0].id
                   try {
-                    localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(imported))
+                    localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
                     localStorage.setItem(ACTIVE_CHANNEL_KEY, newActiveId)
                   } catch {}
                   setImportDialog(null)

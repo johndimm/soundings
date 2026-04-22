@@ -101,6 +101,11 @@ interface Channel {
   /** User-selected artist names (from LLM quick-picks + free text). */
   artists?: string[]
   artistText?: string
+  /**
+   * True when the user explicitly created this channel (in-app "+" or equivalent).
+   * False = factory bundle, share row, or starter import. Omitted on legacy persisted data.
+   */
+  userCreated?: boolean
 }
 
 function genChannelId() {
@@ -180,6 +185,37 @@ function ensureAllChannel(channels: Channel[]): Channel[] {
   return [makeAllChannel(), ...channels]
 }
 
+function channelCountsAsUserCreated(c: Channel): boolean {
+  if (c.id === ALL_CHANNEL_ID) return false
+  if (c.userCreated === true) return true
+  if (c.userCreated === false) return false
+  const hasHistory = (c.cardHistory?.length ?? 0) > 0 || (c.sessionHistory?.length ?? 0) > 0
+  const hasProfile = (c.profile?.trim().length ?? 0) > 0
+  const hasDj =
+    (c.genres?.length ?? 0) > 0 ||
+    (c.genreText?.trim().length ?? 0) > 0 ||
+    (c.notes?.trim().length ?? 0) > 0 ||
+    (c.regions?.length ?? 0) > 0 ||
+    (c.artists?.length ?? 0) > 0 ||
+    (c.artistText?.trim().length ?? 0) > 0
+  return hasHistory || hasProfile || hasDj || !!c.currentCard || (c.queue?.length ?? 0) > 0
+}
+
+function hasUserCreatedChannel(channels: Channel[]): boolean {
+  return channels.some(channelCountsAsUserCreated)
+}
+
+/** Multiple factory-only tabs: hide the pill so "Load starter channels" does not replace a full default set. */
+function shouldHideStarterPillForFactoryOnlyList(channels: Channel[]): boolean {
+  const nonAll = channels.filter(c => c.id !== ALL_CHANNEL_ID)
+  if (nonAll.length < 2) return false
+  return nonAll.every(c => c.userCreated === false)
+}
+
+function tagNonAllAsNotUserCreated(channels: Channel[]): Channel[] {
+  return channels.map(c => (c.id === ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const }))
+}
+
 /** Fixed discovery: bounded channels use balanced map mode; All uses full exploration (no slider). */
 function withFixedDiscovery(c: Channel): Channel {
   return {
@@ -250,6 +286,7 @@ function normalizeImportedChannel(raw: unknown): Channel | null {
     playbackTrackUri: typeof o.playbackTrackUri === 'string' ? o.playbackTrackUri : undefined,
     artists: Array.isArray(o.artists) ? (o.artists as string[]) : undefined,
     artistText: typeof o.artistText === 'string' ? o.artistText : undefined,
+    ...(typeof o.userCreated === 'boolean' && { userCreated: o.userCreated }),
   }
 }
 
@@ -1267,6 +1304,7 @@ export default function PlayerClient({
       currentCard: null,
       queue: [],
       createdAt: Date.now(),
+      userCreated: true,
     }
     const willPlay = peekNextCard(fresh) != null
     const hadCurrent = currentCardRef.current != null
@@ -1308,6 +1346,7 @@ export default function PlayerClient({
             currentCard: null,
             queue: [],
             createdAt: Date.now(),
+            userCreated: true,
           },
         ]
       }
@@ -1398,7 +1437,7 @@ export default function PlayerClient({
         setStartupChannelsError('Startup channel file had an unexpected shape.')
         return
       }
-      const merged = ensureAllChannel(parsed.channels.map(withFixedDiscovery))
+      const merged = tagNonAllAsNotUserCreated(ensureAllChannel(parsed.channels.map(withFixedDiscovery)))
       saveChannels(merged)
       setChannels(merged)
       channelsRef.current = merged
@@ -1693,7 +1732,7 @@ export default function PlayerClient({
                 typeof data.activeChannelId === 'string' ? data.activeChannelId : undefined,
             })
             if (parsed) {
-              baseChannels = ensureAllChannel(parsed.channels.map(withFixedDiscovery))
+              baseChannels = tagNonAllAsNotUserCreated(ensureAllChannel(parsed.channels.map(withFixedDiscovery)))
               saveChannels(baseChannels)
             }
           }
@@ -1742,6 +1781,7 @@ export default function PlayerClient({
           popularity: sharedCh.popularity,
           discovery: CHANNEL_DISCOVERY_DEFAULT,
           source: sharedCh.source ?? sharedSource,
+          userCreated: false,
         }
         mergedChannels = all ? [all, fresh, ...others] : [fresh, ...others]
       }
@@ -2186,6 +2226,7 @@ export default function PlayerClient({
           currentCard: null,
           queue: [],
           createdAt: Date.now(),
+          userCreated: true,
         }
         chs = [ch]
         activeId = id
@@ -2230,7 +2271,7 @@ export default function PlayerClient({
               activeChannelId: typeof data.activeChannelId === 'string' ? data.activeChannelId : undefined,
             })
             if (fr) {
-              chs = fr.channels
+              chs = tagNonAllAsNotUserCreated(fr.channels)
               activeId = fr.activeChannelId ?? chs[0].id
               loaded = true
             }
@@ -2245,7 +2286,7 @@ export default function PlayerClient({
             if (devRaw) {
               const devResult = parseChannelsImport(JSON.parse(devRaw))
               if (devResult) {
-                chs = devResult.channels
+                chs = tagNonAllAsNotUserCreated(devResult.channels)
                 activeId = devResult.activeChannelId ?? chs[0].id
                 loaded = true
               }
@@ -2257,7 +2298,7 @@ export default function PlayerClient({
         if (!loaded) {
           const result = parseChannelsImport(BUILT_IN_FACTORY_CHANNELS_IMPORT)
           if (result) {
-            chs = result.channels
+            chs = tagNonAllAsNotUserCreated(result.channels)
             activeId = result.activeChannelId ?? chs[0].id
           } else {
             const id = genChannelId()
@@ -2271,6 +2312,7 @@ export default function PlayerClient({
               currentCard: null,
               queue: [],
               createdAt: Date.now(),
+              userCreated: false,
             }
             chs = [ch]
             activeId = id
@@ -4514,6 +4556,11 @@ export default function PlayerClient({
       ? `${rateLimitBannerIsYoutube ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
       : null
 
+  const showLoadStarterChannelsPill =
+    channels.length > 0 &&
+    !hasUserCreatedChannel(channels) &&
+    !shouldHideStarterPillForFactoryOnlyList(channels)
+
   return (
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
       {/* Global nav header */}
@@ -4567,11 +4614,10 @@ export default function PlayerClient({
             </div>
           ))}
           {/*
-            Starter-channels pill: shows inline with the tabs when the user has no channels of
-            their own (i.e. only All). Sits in front of the "+" so the reset / first-run path
-            is one click away, without commandeering the whole player.
+            Starter-channels pill: show while nothing counts as user-created (explicit flag or
+            legacy heuristics) and we are not already sitting on a multi-tab factory-only list.
           */}
-          {channels.length <= 1 && (
+          {showLoadStarterChannelsPill && (
             <button
               type="button"
               onClick={handleLoadStartupChannels}
@@ -4590,7 +4636,7 @@ export default function PlayerClient({
         </div>
         </div>
       )}
-      {startupChannelsError && channels.length <= 1 && (
+      {startupChannelsError && showLoadStarterChannelsPill && (
         <div className="px-6 py-2 text-xs text-red-400 text-center border-b border-zinc-900">
           {startupChannelsError}
         </div>
