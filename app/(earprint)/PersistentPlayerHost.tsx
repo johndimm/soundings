@@ -1,10 +1,26 @@
 'use client'
 
-import { Suspense, useEffect, useState, type ReactNode } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import PlayerClientWrapper from '@/app/player/PlayerClientWrapper'
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
 import { parseShareId } from '@/app/lib/shareId'
+
+function readPendingShareGate(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    const raw = sessionStorage.getItem('earprint-pending-share')
+    if (!raw) return false
+    const parsed = JSON.parse(raw) as { id?: string; at?: number }
+    return (
+      Boolean(parseShareId(parsed?.id)) &&
+      typeof parsed.at === 'number' &&
+      Date.now() - parsed.at < 15 * 60 * 1000
+    )
+  } catch {
+    return false
+  }
+}
 
 function PersistentPlayerHostInner({
   children,
@@ -29,6 +45,11 @@ function PersistentPlayerHostInner({
    */
   const [youtubeLocked, setYoutubeLocked] = useState(youtubeModeFromCookie)
   const [guideDemo, setGuideDemo] = useState<string | null>(null)
+  /** OAuth can strip `?share=`; sessionStorage still has the id until PlayerClient consumes it. */
+  const [pendingShareGate, setPendingShareGate] = useState(false)
+  useLayoutEffect(() => {
+    setPendingShareGate(readPendingShareGate())
+  }, [])
 
   /**
    * Belt-and-suspenders: fresh-login reset may also be invoked from PlayerClient (see
@@ -93,7 +114,13 @@ function PersistentPlayerHostInner({
     }
   }, [pathname, sp, router])
 
-  const canPlay = Boolean(accessToken) || Boolean(guideDemo) || youtubeLocked
+  const shareFromQuery = parseShareId(sp.get('share'))
+  const canPlay =
+    Boolean(accessToken) ||
+    Boolean(guideDemo) ||
+    youtubeLocked ||
+    Boolean(shareFromQuery) ||
+    pendingShareGate
   const isPlayerRoute = pathname.startsWith('/player')
 
   if (!canPlay) {

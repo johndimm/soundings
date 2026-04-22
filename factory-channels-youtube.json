@@ -1,0 +1,1532 @@
+{
+  "earprintExportVersion": 1,
+  "exportedAt": "2026-04-22T18:54:36.416Z",
+  "activeChannelId": "moaetjl7kyqt",
+  "channels": [
+    {
+      "id": "earprint-all",
+      "name": "All",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're clearly drawn to late-50s/early-60s cool jazz that's calm, harmonically rich, and introspective. You prefer piano trios and lyrical melodies over driving intensity, and you respond to sparse arrangements with emotional depth—Bill Evans seems to be a touchstone for your taste.",
+      "createdAt": 0,
+      "currentCard": null,
+      "queue": [],
+      "genres": [],
+      "genreText": "",
+      "timePeriods": [],
+      "notes": "",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 100,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo3jvkdzl7ci",
+      "name": "Cool Jazz",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Ghost of a Chance",
+          "artist": "Lennie Tristano",
+          "stars": 4,
+          "coords": {
+            "x": 25,
+            "y": 45,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273797d6a7438bde2cf9d890be0",
+          "uri": "spotify:track:5vTBSWHl0qXtM1980R2pVM",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Blue Rondo à la Turk",
+          "artist": "The Dave Brubeck Quartet",
+          "stars": 4,
+          "coords": {
+            "x": 22,
+            "y": 65,
+            "z": 70
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b6bd44cf06bf8f4d5ce1e080",
+          "uri": "spotify:track:7CrNF9zL7tIQ2269DVxzST",
+          "category": "Jazz > Cool Jazz/West Coast Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Israel",
+          "artist": "Bill Evans Trio",
+          "stars": 3,
+          "coords": {
+            "x": 20,
+            "y": 45,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273cab935f4386e58f05a9705bc",
+          "uri": "spotify:track:3XiG3nHzUX3TJQ3D3UwFJ5",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "The Opium Eaters",
+          "artist": "Dean Omori",
+          "stars": 1.5,
+          "coords": {
+            "x": 22,
+            "y": 40,
+            "z": 50
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733fad4aa33bd407f5de83dcd0",
+          "uri": "spotify:track:77dUlFRxKG5WYl6qwwmXGu",
+          "category": "Jazz > West Coast Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "My Funny Valentine - Rudy Van Gelder Remaster 2007",
+          "artist": "Miles Davis Quintet",
+          "stars": 3.5,
+          "coords": {
+            "x": 20,
+            "y": 25,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2732a2d01f78d82ad4d8c095ab1",
+          "uri": "spotify:track:5FYgwqjjq9kPCMj8yArfTr",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Take Five",
+          "artist": "The Dave Brubeck Quartet",
+          "stars": 4,
+          "coords": {
+            "x": 20,
+            "y": 55,
+            "z": 85
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b6bd44cf06bf8f4d5ce1e080",
+          "uri": "spotify:track:1YQWosTIljIvxAgHWTp7KP",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "I waited for you",
+          "artist": "Chet Baker",
+          "stars": 4.5,
+          "coords": {
+            "x": 15,
+            "y": 20,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e844e3295cea48820012db61",
+          "uri": "spotify:track:7EF6ls57hx7h2fThxjkXB5",
+          "category": "Jazz > West Coast Cool Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Dancing at the Blue Lagoon",
+          "artist": "Cayucas",
+          "stars": 0.5,
+          "coords": {
+            "x": 25,
+            "y": 35,
+            "z": 15
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733096f802fcf724f4ee8fea83",
+          "uri": "spotify:track:0a8ySgiocIL3YIDDdOrAxF",
+          "category": "Jazz > Third Stream / Avant-Garde Cool",
+          "source": "spotify"
+        },
+        {
+          "track": "All I Wanna Do",
+          "artist": "Sheryl Crow",
+          "stars": 3.5,
+          "coords": {
+            "x": 20,
+            "y": 60,
+            "z": 20
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b478a8ce3aac61a3675aac2a",
+          "uri": "spotify:track:3ZpQiJ78LKINrW9SQTgbXd",
+          "category": "Jazz > Cool Jazz / Tristano School",
+          "source": "spotify"
+        },
+        {
+          "track": "Conception",
+          "artist": "George Shearing Quintet",
+          "stars": 2.5,
+          "coords": {
+            "x": 18,
+            "y": 28,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d70e301105c29b2a762beac2",
+          "uri": "spotify:track:0T4RB9dopywlO4cU0LuBmz",
+          "category": "Jazz > Cool Jazz",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're navigating the intimate, harmonically sophisticated corners of 1950s-60s cool jazz, favoring piano trios and lyrical horn melodies with clear emotional resonance. Your exploration avoids both pop crossover and avant-garde abstraction, staying firmly in refined, chamber-like territory.",
+      "createdAt": 1776469170167,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1950s and 1960s",
+      "timePeriods": [
+        "1950s",
+        "1960s"
+      ],
+      "notes": "cool jazz",
+      "regions": [],
+      "popularity": 0,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo3m9pld7vzd",
+      "name": "Chamber Music",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "String Quartet No. 14 in D Minor, D. 810 \"Der Tod und das Mädchen\": II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": null,
+          "coords": {
+            "x": 5,
+            "y": 45,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273ffe506f95384e9dbbe961e26",
+          "uri": "spotify:track:7hLxTkJ1Yc1NiZijaX4loF",
+          "category": "Classical > Chamber Music > String Quartet",
+          "source": "spotify"
+        },
+        {
+          "track": "Clair de lune from Suite bergamasque",
+          "artist": "Claude Debussy",
+          "stars": null,
+          "coords": {
+            "x": 8,
+            "y": 20,
+            "z": 85
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27389b3fc504f6ffe51a0ca02ab",
+          "uri": "spotify:track:0pHFAoFikRaLe6tUMbB9FT",
+          "category": "Classical > Impressionist > Piano Solo",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 2 in E-Flat Major, D. 929: II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": null,
+          "coords": {
+            "x": 6,
+            "y": 40,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27392045137235fe6a64e471e31",
+          "uri": "spotify:track:2GiNqtvA87QYLkdJuZWByl",
+          "category": "Classical > Chamber Music > Piano Trio",
+          "source": "spotify"
+        },
+        {
+          "track": "Quatuor pour la fin du temps: V. Louange a l'eternite de Jesus",
+          "artist": "Olivier Messiaen",
+          "stars": 3.5,
+          "coords": {
+            "x": 25,
+            "y": 22,
+            "z": 45
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2737fc1508f3588fe3ccd6392ef",
+          "uri": "spotify:track:1svfczKYFHKcfmLMo54Q3v",
+          "category": "Classical > 20th Century Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese. Presto (Arr. for Piano by Anthony Goldstone)",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 70,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27370dc44edd71e5913e04a5ea2",
+          "uri": "spotify:track:2b2xrD2R5UkcHtiCBp7NSl",
+          "category": "Classical > Classical Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 1 in G Minor, Op. 27: III. Intermezzo. Allegro molto marcato – Più vivo e scherzando",
+          "artist": "Edvard Grieg",
+          "stars": 4.5,
+          "coords": {
+            "x": 10,
+            "y": 68,
+            "z": 35
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273f8d47d9a23eb0de05d2d7ca9",
+          "uri": "spotify:track:2CRzpmeOayycp7NFktyhYQ",
+          "category": "Classical > Romantic Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Six Metamorphoses after Ovid for Solo Oboe, Op. 49: I. Pan (Senza misura)",
+          "artist": "Benjamin Britten",
+          "stars": null,
+          "coords": {
+            "x": 15,
+            "y": 25,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dcb478d9ada77ebb3f43f129",
+          "uri": "spotify:track:2XsFd9a9Xdc4sw2xmOHW4F",
+          "category": "Classical > 20th Century Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 39 in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese (Presto) - Live",
+          "artist": "Joseph Haydn",
+          "stars": null,
+          "coords": {
+            "x": 12,
+            "y": 75,
+            "z": 50
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273266449a992b69ffde2002a02",
+          "uri": "spotify:track:6XoM0xsbAjwdjfIph7DYEd",
+          "category": "Classical > Classical Era Chamber Music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Sonata No. 30 in E Major, Op. 109: III. Gesangvoll, mit innigster Empfindung. Andante molto cantabile ed espressivo",
+          "artist": "Ludwig van Beethoven",
+          "stars": 2,
+          "coords": {
+            "x": 15,
+            "y": 35,
+            "z": 70
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2735493dbe5586227e003b9138e",
+          "uri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
+          "category": "Classical > Piano Sonata",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 1 in C Major, Op. 49: I. Moderato",
+          "artist": "Dmitri Shostakovich",
+          "stars": 0,
+          "coords": {
+            "x": 15,
+            "y": 48,
+            "z": 35
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
+          "uri": "spotify:track:2LNHA8xdPWTqWl1fjuJevk",
+          "category": "Classical > 20th century chamber music",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929: II. Andante con moto",
+          "artist": "Franz Schubert",
+          "stars": 4.5,
+          "coords": {
+            "x": 10,
+            "y": 32,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273a2376e7fe1516e8680f70491",
+          "uri": "spotify:track:15OYOsjhgsfYUAOx9ocEbm",
+          "category": "Classical > Romantic chamber music",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 8 in C Minor, Op. 110: II. Allegro molto",
+          "artist": "Dmitri Shostakovich",
+          "stars": 0.5,
+          "coords": {
+            "x": 12,
+            "y": 78,
+            "z": 45
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
+          "uri": "spotify:track:1zwNC4HIvgQQ6nga0ygjIg",
+          "category": "Classical > 20th century chamber music",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No.2 in A Minor, Op. 51 No. 2: III. Quasi minuetto, moderato",
+          "artist": "Johannes Brahms",
+          "stars": 3,
+          "coords": {
+            "x": 8,
+            "y": 45,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27351d03a11b744ed7eb80e5722",
+          "uri": "spotify:track:7azxNVzn68pB1wiV4yuBnt",
+          "category": "Classical > String Quartet",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Trio No. 1 in D Minor, Op. 49: I. Molto allegro ed agitato",
+          "artist": "Felix Mendelssohn",
+          "stars": 2.5,
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 60
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733848c889f1d1181738a3fc20",
+          "uri": "spotify:track:2LgjcWjFkDchhIBseKQ1OY",
+          "category": "Classical > Piano Trio",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 15 in A Minor, Op. 132: III. Molto adagio",
+          "artist": "Ludwig van Beethoven",
+          "stars": 0,
+          "coords": {
+            "x": 15,
+            "y": 40,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2739a2a82704f5c70e139e49f92",
+          "uri": "spotify:track:0VE54DT9IVFpA3koSDLYI4",
+          "category": "Classical > Chamber Music > String Quartet",
+          "source": "spotify"
+        },
+        {
+          "track": "Piano Quintet in A Major, D. 667 \"Trout Quintet\": IV. Theme – Andantino – Vars. 1-5 – Allegretto",
+          "artist": "Franz Schubert",
+          "stars": 0.5,
+          "coords": {
+            "x": 12,
+            "y": 55,
+            "z": 70
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27321f2c8f40bd9ced38bbbf5c1",
+          "uri": "spotify:track:0HlnpuRVyVhOWkd94cvQ2M",
+          "category": "Classical > Chamber Music > Piano Quintet",
+          "source": "spotify"
+        },
+        {
+          "track": "String Quartet No. 2 \"Intimate Letters\": III. Moderato - Adagio",
+          "artist": "Leoš Janáček",
+          "stars": 0,
+          "coords": {
+            "x": 18,
+            "y": 70,
+            "z": 35
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e90df068ce37535f4824c606",
+          "uri": "spotify:track:5yv1U67AVILquLS42wAo47",
+          "category": "Classical > Chamber Music > String Quartet",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Piano Quintet in A Major, D. 667 \"Trout Quintet\": IV. Theme – Andantino – Vars. 1-5 – Allegretto",
+          "artist": "Franz Schubert",
+          "stars": 0.5,
+          "coords": {
+            "x": 12,
+            "y": 55,
+            "z": 70
+          }
+        },
+        {
+          "track": "String Quartet No. 2 \"Intimate Letters\": III. Moderato - Adagio",
+          "artist": "Leoš Janáček",
+          "stars": 0,
+          "coords": {
+            "x": 18,
+            "y": 70,
+            "z": 35
+          }
+        }
+      ],
+      "profile": "You're exploring lyrical, emotionally transparent chamber music, especially from the Romantic era, with a clear preference for warmth and flow over agitation or stark modernism. Schubert's conversational trios resonate, while high-dissonance 20th-century works feel distant.",
+      "createdAt": 1776473189329,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Classical"
+      ],
+      "genreText": "",
+      "timePeriod": "Classical era and Romantic era and 20th century classical",
+      "timePeriods": [
+        "Classical era",
+        "Romantic era",
+        "20th century classical"
+      ],
+      "notes": "chamber music, quartets, trios, piano, Glenn Gould, Vladimir Ashkenazy, Mitsuko Uchida, Vladimir Horowitz",
+      "regions": [
+        "Western Europe"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo3mflyc45k4",
+      "name": "Deep House",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Indigo Blues - Original Radio Edit",
+          "artist": "Llorca",
+          "stars": 2.5,
+          "coords": {
+            "x": 60,
+            "y": 45,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27359adaa206b0626b255fcd15a",
+          "uri": "spotify:track:1L803aXwjhfOVC5HRoFGib",
+          "category": "Electronic > Deep House / Nu Jazz",
+          "source": "spotify"
+        },
+        {
+          "track": "Music Sounds Better With You",
+          "artist": "Stardust",
+          "stars": 0,
+          "coords": {
+            "x": 88,
+            "y": 78,
+            "z": 75
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b98afa12c212cbbda4f1799b",
+          "uri": "spotify:track:303ccTay2FiDTZ9fZ2AdBt",
+          "category": "Electronic > French House",
+          "source": "spotify"
+        },
+        {
+          "track": "(Never Been to) California",
+          "artist": "DJ Mark Farina",
+          "stars": 4,
+          "coords": {
+            "x": 65,
+            "y": 30,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dec9087901c859a58490f69c",
+          "uri": "spotify:track:5d1QIekq9cWzye6Crv1mcf",
+          "category": "Electronic > Downtempo / Trip-Hop",
+          "source": "spotify"
+        },
+        {
+          "track": "Rose rouge",
+          "artist": "St Germain",
+          "stars": 3.5,
+          "coords": {
+            "x": 65,
+            "y": 68,
+            "z": 75
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2735e570fc1d95bbf490f8d05cd",
+          "uri": "spotify:track:1divptdjcWXvF1aflfTQnw",
+          "category": "Electronic > Nu Jazz / Deep House",
+          "source": "spotify"
+        },
+        {
+          "track": "Falaise",
+          "artist": "Floating Points",
+          "stars": 0,
+          "coords": {
+            "x": 82,
+            "y": 45,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273216a393a7606aa7de52c4636",
+          "uri": "spotify:track:3rkJH9BaiCWpRY718WTkBP",
+          "category": "Electronic > Experimental Jazz / IDM",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're exploring the soulful, jazzy side of deep house and downtempo—drawn to warm Rhodes, live bass, and organic grooves. You've pulled back from more synthetic or abstract electronic textures, preferring tracks that feel human and melodic.",
+      "createdAt": 1776473464548,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Electronic",
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "1990s and 2000s and 2010s and after 2020",
+      "timePeriods": [
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "notes": "Deep House, Kaskade, Daft Punk, Andy Caldwell, Blue Six, Llorca, Mark Farina",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo3mpve3gv91",
+      "name": "Motown",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "I Heard It Through The Grapevine",
+          "artist": "Marvin Gaye",
+          "stars": 4,
+          "coords": {
+            "x": 30,
+            "y": 75,
+            "z": 90
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273aff6573c5110e0732fbab3d8",
+          "uri": "spotify:track:1tqT6DhmsrtQgyCKUwotiw",
+          "category": "Soul > Motown",
+          "source": "spotify"
+        },
+        {
+          "track": "Smokestack Lightnin'",
+          "artist": "Howlin' Wolf",
+          "stars": null,
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736181b1ed45a906d5b2c89af3",
+          "uri": "spotify:track:2HUZVffVPXvqnrml0gXggp",
+          "category": "Blues > Chicago Blues",
+          "source": "spotify"
+        },
+        {
+          "track": "What's Going On",
+          "artist": "Marvin Gaye",
+          "stars": 1,
+          "coords": {
+            "x": 35,
+            "y": 50,
+            "z": 92
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
+          "uri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
+          "category": "Soul > Progressive Soul",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "What's Going On",
+          "artist": "Marvin Gaye",
+          "stars": 1,
+          "coords": {
+            "x": 35,
+            "y": 50,
+            "z": 92
+          }
+        }
+      ],
+      "profile": "You're exploring the soulful, sample-based side of deep house with clear jazz and funk roots. You lean toward moderate energy and organic grooves but pulled back from Floating Points' more abstract, modern electronic sound. Your comfort zone sits between late-90s downtempo and early-2000s melodic house.",
+      "createdAt": 1776473943339,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Soul",
+        "Blues",
+        "R&B"
+      ],
+      "genreText": "",
+      "timePeriod": "1950s and 1960s and 1970s",
+      "timePeriods": [
+        "1950s",
+        "1960s",
+        "1970s"
+      ],
+      "notes": "Detroit Motown, Howlin' Wolf, Albert King, Muddy Waters",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo3mt22qd0m4",
+      "name": "Hip Hop",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "The Message (feat. Melle Mel & Duke Bootee)",
+          "artist": "Grandmaster Flash & The Furious Five",
+          "stars": 1,
+          "coords": {
+            "x": 70,
+            "y": 40,
+            "z": 85
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273798575ed938d0968a00ce887",
+          "uri": "spotify:track:5DuTNKFEjJIySAyJH1yNDU",
+          "category": "Hip-Hop > Old School",
+          "source": "spotify"
+        },
+        {
+          "track": "Nuthin' But A \"G\" Thang",
+          "artist": "Dr. Dre",
+          "stars": 0.5,
+          "coords": {
+            "x": 75,
+            "y": 65,
+            "z": 90
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2739710731c9d7baec635f1bab1",
+          "uri": "spotify:track:5Tbpp3OLLClPJF8t1DmrFD",
+          "category": "Hip-Hop > G-Funk",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "The Message (feat. Melle Mel & Duke Bootee)",
+          "artist": "Grandmaster Flash & The Furious Five",
+          "stars": 1,
+          "coords": {
+            "x": 70,
+            "y": 40,
+            "z": 85
+          }
+        },
+        {
+          "track": "Nuthin' But A \"G\" Thang",
+          "artist": "Dr. Dre",
+          "stars": 0.5,
+          "coords": {
+            "x": 75,
+            "y": 65,
+            "z": 90
+          }
+        }
+      ],
+      "profile": "You've disliked polished, message-oriented soul, so we're pivoting to explore raw, instrument-driven energy and deep, personal blues emotion. We'll test your response to powerful vocals, driving rhythms, and iconic guitar work within the 60s-70s US soul and blues canon.",
+      "createdAt": 1776474091970,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Hip-Hop"
+      ],
+      "genreText": "",
+      "timePeriod": "1980s and 1990s and 2000s and 2010s and after 2020",
+      "timePeriods": [
+        "1980s",
+        "1990s",
+        "2000s",
+        "2010s",
+        "after 2020"
+      ],
+      "notes": "Jay-Z, Tupac Shakur, Nas, Eminem, The Notorious B.I.G., Rakim, and Kendrick Lamar",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "mo99ioy8rgps",
+      "name": "Funk",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "I'd Rather Go Blind",
+          "artist": "Etta James",
+          "stars": 3.5,
+          "coords": {
+            "x": 15,
+            "y": 35,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2737649604d1b27be1c78c466e9",
+          "uri": "spotify:track:1kPBT8S2wJFNAyBMnGVZgL",
+          "category": "Soul > Blues Soul",
+          "source": "spotify"
+        },
+        {
+          "track": "What's Going On",
+          "artist": "Marvin Gaye",
+          "stars": 3,
+          "coords": {
+            "x": 25,
+            "y": 55,
+            "z": 90
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
+          "uri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
+          "category": "Soul > Psychedelic Soul",
+          "source": "spotify"
+        },
+        {
+          "track": "So What (feat. John Coltrane, Cannonball Adderley & Bill Evans)",
+          "artist": "Miles Davis",
+          "stars": 0.5,
+          "coords": {
+            "x": 10,
+            "y": 25,
+            "z": 75
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2730ebc17239b6b18ba88cfb8ca",
+          "uri": "spotify:track:4vLYewWIvqHfKtJDk8c8tq",
+          "category": "Jazz > Modal Jazz"
+        },
+        {
+          "track": "The Payback",
+          "artist": "James Brown",
+          "stars": 4,
+          "coords": {
+            "x": 30,
+            "y": 85,
+            "z": 70
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273ba7e1a0f706985f9747904fa",
+          "uri": "spotify:track:5OcyX5eg7VrJuI833qOCUc",
+          "category": "Funk > Deep Funk",
+          "source": "spotify"
+        },
+        {
+          "track": "Inner City Blues (Make Me Wanna Holler)",
+          "artist": "Marvin Gaye",
+          "stars": 3,
+          "coords": {
+            "x": 40,
+            "y": 60,
+            "z": 75
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
+          "uri": "spotify:track:5hReWjUHqPqkHi31G7izL4",
+          "category": "Soul > Progressive Soul",
+          "source": "spotify"
+        },
+        {
+          "track": "Compared to What",
+          "artist": "Les McCann",
+          "stars": 4,
+          "coords": {
+            "x": 20,
+            "y": 75,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27380ce791c6e6190b2a1377c1d",
+          "uri": "spotify:track:4fxJQJY1VEdhmSAIqMeFrR",
+          "category": "Jazz > Jazz-Funk",
+          "source": "spotify"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "We're mapping the full breadth of UK & Irish rock for you—from Bowie's grand art-rock anthems to Siouxsie's intense post-punk rhythms and The Psychedelic Furs' introspective new wave. No ratings yet, so we're exploring contrasting energy levels and sonic textures.",
+      "createdAt": 1776814570448,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Soul",
+        "Blues",
+        "R&B",
+        "Jazz"
+      ],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [
+        "James Brown",
+        "Howlin' Wolf",
+        "Muddy Waters",
+        "Otis Redding"
+      ],
+      "artistText": ""
+    },
+    {
+      "id": "mo99k0inw48w",
+      "name": "The Cure",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're just starting your journey through classic soul and blues. Your one rating suggests you pulled back from a lush, socially-conscious soul ballad, so we're testing different emotional temperatures and instrumental textures within the 60s and 70s American canon.",
+      "createdAt": 1776814632095,
+      "currentCard": null,
+      "queue": [],
+      "genres": [
+        "Rock"
+      ],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "The Psychedelic Furs, Siouxsie and the Banshees",
+      "regions": [
+        "UK & Ireland"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "playbackPositionMs": 0,
+      "artists": [
+        "David Bowie",
+        "The Cure"
+      ],
+      "artistText": ""
+    },
+    {
+      "id": "mo9b0wdy8zjc",
+      "name": "Scarlatti",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Goldberg Variations, BWV 988: Aria",
+          "artist": "Johann Sebastian Bach",
+          "stars": 3.5,
+          "coords": {
+            "x": 10,
+            "y": 25,
+            "z": 65
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736f1ac2c7342eee3f1609a3f5",
+          "uri": "spotify:track:5bu9A6uphPWg39RC3ZKeku",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Toccata & Fugue in D Minor, BWV 565: I. Toccata",
+          "artist": "Johann Sebastian Bach",
+          "stars": 4,
+          "coords": {
+            "x": 15,
+            "y": 85,
+            "z": 90
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e18c79ed0a39f4b10b0d2359",
+          "uri": "spotify:track:4HE2Ex0bjbj3YNXmV01OoM",
+          "category": "Classical > Baroque Organ",
+          "source": "spotify"
+        },
+        {
+          "track": "Scarlatti, D: Keyboard Sonata in D Minor, Kk. 9",
+          "artist": "Domenico Scarlatti",
+          "stars": 4.5,
+          "coords": {
+            "x": 12,
+            "y": 70,
+            "z": 40
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d40080b6bd515641620bb661",
+          "uri": "spotify:track:6uvzcvFXEaHZKUOREbNW0m",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Vivaldi: The Four Seasons, Violin Concerto in F Minor, Op. 8 No. 4, RV 297 \"Winter\": II. Largo",
+          "artist": "Antonio Vivaldi",
+          "stars": 4,
+          "coords": {
+            "x": 8,
+            "y": 20,
+            "z": 85
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273c7464f9c451674bc683cb47f",
+          "uri": "spotify:track:4LTGZ03qAt7ZQ1Pqk97vgZ",
+          "category": "Classical > Baroque Concerto",
+          "source": "spotify"
+        },
+        {
+          "track": "Canon in D",
+          "artist": "Johann Pachelbel",
+          "stars": 0,
+          "coords": {
+            "x": 5,
+            "y": 40,
+            "z": 98
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733b3be808df3503dab670c021",
+          "uri": "spotify:track:2yTSNaqfBqXYfHFaE9DEzj",
+          "category": "Classical > Baroque Chamber",
+          "source": "spotify"
+        },
+        {
+          "track": "Chaconne from Partita No. 2 in D Minor, BWV 1004",
+          "artist": "Johann Sebastian Bach",
+          "stars": 2.5,
+          "coords": {
+            "x": 5,
+            "y": 75,
+            "z": 50
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d2fb937ee4638edc694da63c",
+          "uri": "spotify:track:4cCCtV0YTTI6vptfeFxIs6",
+          "category": "Classical > Baroque Solo Violin",
+          "source": "spotify"
+        },
+        {
+          "track": "Scarlatti, D: Keyboard Sonata in B Minor, Kk. 87",
+          "artist": "Domenico Scarlatti",
+          "stars": 3.5,
+          "coords": {
+            "x": 15,
+            "y": 68,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736e6532fe271c2affe252dff0",
+          "uri": "spotify:track:52SDhvV7WVO3oaVdqVleaz",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Suite in A Minor, FbWV 630: II. Gigue",
+          "artist": "Johann Jakob Froberger",
+          "stars": 3,
+          "coords": {
+            "x": 10,
+            "y": 32,
+            "z": 15
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27351b70c02558a96823d4080a3",
+          "uri": "spotify:track:4zYR0bGiR40VHasDzhwYVr",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Harpsichord Suite No. 1 in D Minor: V. Sarabande",
+          "artist": "Élisabeth Jacquet de La Guerre",
+          "stars": 4,
+          "coords": {
+            "x": 12,
+            "y": 58,
+            "z": 20
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27350bd47621c3bd76f0f7ff158",
+          "uri": "spotify:track:0ckPdVqT3QeF8CeJ3J7E7t",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Scarlatti, D: Keyboard Sonata in E Major, Kk. 380",
+          "artist": "Domenico Scarlatti",
+          "stars": 2.5,
+          "coords": {
+            "x": 10,
+            "y": 75,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273452dc847657b92d1da0c0dbc",
+          "uri": "spotify:track:7DgTaaesZfs4nZCe3tPxDa",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Handel / Orch. Hale: Keyboard Suite No. 4 in D Minor, HWV 437: III. Sarabande",
+          "artist": "George Frideric Handel",
+          "stars": 0,
+          "coords": {
+            "x": 8,
+            "y": 25,
+            "z": 15
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273f6891aeab33e8ebcc4d62286",
+          "uri": "spotify:track:6QOxk7dSbNniwUgDh1zmBH",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Frescobaldi: Toccate e partite d'intavolatura, Libro 1: Partite cento sopra il passacagli",
+          "artist": "Girolamo Frescobaldi",
+          "stars": 0,
+          "coords": {
+            "x": 10,
+            "y": 60,
+            "z": 18
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273c54871697f834e53f6b2544c",
+          "uri": "spotify:track:19CRLhwviBRTvOOBalgPa8",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Scarlatti, D: Keyboard Sonata in F Minor, Kk. 466",
+          "artist": "Domenico Scarlatti",
+          "stars": 5,
+          "coords": {
+            "x": 12,
+            "y": 70,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d214e726c792dd51c35d167f",
+          "uri": "spotify:track:7zKAQwVylU9FdLSrSMcm0n",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Suite compostelana: II. Coral",
+          "artist": "Federico Mompou",
+          "stars": 0.5,
+          "coords": {
+            "x": 8,
+            "y": 45,
+            "z": 15
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b487e92f1a7d363f20401fd2",
+          "uri": "spotify:track:6HOBByqyXOKLlAoZiReZ4S",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Musicalische Vorstellung einiger biblischer Historien, \"Biblical Sonatas\", No. 1. Fight between David and Goliath: Joy of the Israelites at the Victory (Arr. C. Hazell)",
+          "artist": "Johann Kuhnau",
+          "stars": 4.5,
+          "coords": {
+            "x": 10,
+            "y": 65,
+            "z": 20
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273fd0ec4ed556c02292d04487e",
+          "uri": "spotify:track:1XgLIHe3WazVF0EgN1ultk",
+          "category": "Classical > Baroque Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Polonaises composto per il Cembalo: IV. Polonaise in C Minor",
+          "artist": "Johann Gottlieb Goldberg",
+          "stars": 4.5,
+          "coords": {
+            "x": 8,
+            "y": 30,
+            "z": 10
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d8852bdf76cdf417ea9e9609",
+          "uri": "spotify:track:1n1teA0OruatMooVJ8TOmk",
+          "category": "Classical > Baroque Keyboard Piece",
+          "source": "spotify"
+        },
+        {
+          "track": "Partita on Ach wie nichtig, ach wie fluchtig",
+          "artist": "Georg Böhm",
+          "stars": 2.5,
+          "coords": {
+            "x": 12,
+            "y": 55,
+            "z": 18
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27359169971e9de48e8fc4fba9d",
+          "uri": "spotify:track:0trxfUOmJYNyYGFgaTqfmb",
+          "category": "Classical > Baroque Chorale Partita",
+          "source": "spotify"
+        },
+        {
+          "track": "Keyboard Sonata in D Minor, Kk. 141",
+          "artist": "Domenico Scarlatti",
+          "stars": 0,
+          "coords": {
+            "x": 15,
+            "y": 82,
+            "z": 25
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273c10aac65cc391570e0d96097",
+          "uri": "spotify:track:4mpaInegoMxjXIME5XirLd",
+          "category": "Classical > Baroque Keyboard Sonata",
+          "source": "spotify"
+        },
+        {
+          "track": "Toccata settima",
+          "artist": "Michelangelo Rossi",
+          "stars": 0,
+          "coords": {
+            "x": 10,
+            "y": 65,
+            "z": 10
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b273af8aced063c54238c5027265",
+          "uri": "spotify:track:1Ufee84Vobm12Xe8pzbIe4",
+          "category": "Classical > Early Baroque Keyboard Toccata",
+          "source": "spotify"
+        },
+        {
+          "track": "Mis Disculpas",
+          "artist": "Residente",
+          "stars": 2,
+          "coords": {
+            "x": 8,
+            "y": 38,
+            "z": 12
+          },
+          "albumArt": "https://i.scdn.co/image/ab67616d0000b27377a581b00abc719270c0e72b",
+          "uri": "spotify:track:6g9pbZC0f40ZmHgq8xsAn6",
+          "category": "Classical > Renaissance/Baroque Iberian Keyboard",
+          "source": "spotify"
+        },
+        {
+          "track": "Scarlatti Sonata in G Minor K. 450, L.338, 'Burlesca' Piano Tutorial",
+          "artist": "Jane",
+          "stars": 0,
+          "coords": {
+            "x": 15,
+            "y": 85,
+            "z": 25
+          },
+          "albumArt": "https://i.ytimg.com/vi/BYKX2m59cQ4/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Baroque Keyboard Sonata",
+          "source": "youtube"
+        },
+        {
+          "track": "Les Idées heureuses",
+          "artist": "François Couperin",
+          "stars": 0.5,
+          "coords": {
+            "x": 10,
+            "y": 70,
+            "z": 20
+          },
+          "albumArt": "https://i.ytimg.com/vi/009J1idgOoM/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > French Baroque Harpsichord",
+          "source": "youtube"
+        },
+        {
+          "track": "Johann Caspar Kerll 1627 1693: Toccata 1",
+          "artist": "EchoOrgans",
+          "stars": 0,
+          "coords": {
+            "x": 12,
+            "y": 80,
+            "z": 15
+          },
+          "albumArt": "https://i.ytimg.com/vi/7_xWkHT-PB8/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > German Baroque Toccata",
+          "source": "youtube"
+        },
+        {
+          "track": "Louis Couperin/ from: Suite in C - Passacaille",
+          "artist": "Richard Egarr",
+          "stars": 1,
+          "coords": {
+            "x": 8,
+            "y": 75,
+            "z": 18
+          },
+          "albumArt": "https://i.ytimg.com/vi/MYH8Vfqk_VU/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > French Baroque Harpsichord",
+          "source": "youtube"
+        },
+        {
+          "track": "FbWV 102 - Toccata No. 2 in D Minor",
+          "artist": "Johann Jakob Froberger",
+          "stars": 0,
+          "coords": {
+            "x": 5,
+            "y": 78,
+            "z": 15
+          },
+          "albumArt": "https://i.ytimg.com/vi/qAr7KRQzj_E/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Baroque Keyboard",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Louis Couperin/ from: Suite in C - Passacaille",
+          "artist": "Richard Egarr",
+          "stars": 1,
+          "coords": {
+            "x": 8,
+            "y": 75,
+            "z": 18
+          }
+        },
+        {
+          "track": "FbWV 102 - Toccata No. 2 in D Minor",
+          "artist": "Johann Jakob Froberger",
+          "stars": 0,
+          "coords": {
+            "x": 5,
+            "y": 78,
+            "z": 15
+          }
+        }
+      ],
+      "profile": "You're exploring the intense, dramatic side of Baroque keyboard music—fiery minor-key sonatas, dense counterpoint, and driving rhythmic energy. You've shown interest in German and Iberian composers while pulling away from lighter French styles, seeking authentic historical performance on harpsichord and organ.",
+      "createdAt": 1776817099510,
+      "currentCard": {
+        "track": {
+          "id": "Ip5fQrfA7mI",
+          "videoId": "Ip5fQrfA7mI",
+          "source": "youtube",
+          "name": "Clio - Praeludium",
+          "artist": "Johann Caspar Ferdinand Fischer",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/Ip5fQrfA7mI/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A fiery, virtuosic keyboard work by a lesser-known German contemporary of Bach, full of dramatic flourishes and dense counterpoint that matches your taste for intense Baroque energy.",
+        "category": "Classical > Baroque Keyboard",
+        "coords": {
+          "x": 10,
+          "y": 82,
+          "z": 15
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "4-p59DC7q8Y",
+            "videoId": "4-p59DC7q8Y",
+            "source": "youtube",
+            "name": "S. De Brossard Pro pace \"ciaccona\" G.Dissera Bragadin Contralto, N.Lamon Organo, M.Dalsass Cello.",
+            "artist": "Concerti Santa Maria di Castello, Biancade",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/4-p59DC7q8Y/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A driving, rhythmically intense chaconne by a French composer rarely heard today, offering passionate minor-key drama on harpsichord away from mainstream Baroque repertoire.",
+          "category": "Classical > Baroque Keyboard",
+          "coords": {
+            "x": 12,
+            "y": 78,
+            "z": 10
+          }
+        },
+        {
+          "track": {
+            "id": "TJCuew6mIFE",
+            "videoId": "TJCuew6mIFE",
+            "source": "youtube",
+            "name": "Prelude & Fugue in E Minor \"The Wedge\" (Scrolling)",
+            "artist": "BWV 548",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/TJCuew6mIFE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A monumental organ work with dramatic intensity and complex counterpoint, fitting your taste for German Baroque intensity while exploring organ territory beyond harpsichord.",
+          "category": "Classical > Baroque Organ",
+          "coords": {
+            "x": 15,
+            "y": 85,
+            "z": 25
+          }
+        },
+        {
+          "track": {
+            "id": "MkmV7odMfu4",
+            "videoId": "MkmV7odMfu4",
+            "source": "youtube",
+            "name": "Carlos Seixas' \"Keyboard Sonata No. 24\" performed by Tengyue \"TY\" Zhang on a 2020 Matthew Chaffin",
+            "artist": "Guitar Salon International",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/MkmV7odMfu4/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Portuguese Baroque composer contemporary with Scarlatti, offering fiery Iberian keyboard writing with driving rhythms and dramatic minor-key intensity.",
+          "category": "Classical > Iberian Baroque Keyboard",
+          "coords": {
+            "x": 10,
+            "y": 75,
+            "z": 15
+          }
+        }
+      ],
+      "genres": [
+        "Classical"
+      ],
+      "genreText": "",
+      "timePeriod": "Baroque era",
+      "timePeriods": [
+        "Baroque era"
+      ],
+      "notes": "keyboard, Scarlatti, Pletnev",
+      "regions": [],
+      "popularity": 19,
+      "discovery": 50,
+      "artists": [],
+      "artistText": ""
+    },
+    {
+      "id": "moaetjl7kyqt",
+      "name": "Heavy Metal",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Orion (Music Video \"Original Creation\" - 1986) [Full HD/3D]",
+          "artist": "Metallica",
+          "stars": 0,
+          "coords": {
+            "x": 68,
+            "y": 65,
+            "z": 40
+          },
+          "albumArt": "https://i.ytimg.com/vi/Z6j63ImEKyo/hqdefault.jpg",
+          "uri": null,
+          "category": "Metal > Thrash Metal",
+          "source": "youtube"
+        },
+        {
+          "track": "Wheels Of Confusion",
+          "artist": "BLACK SABBATH (1972)",
+          "stars": 0,
+          "coords": {
+            "x": 62,
+            "y": 70,
+            "z": 45
+          },
+          "albumArt": "https://i.ytimg.com/vi/_zC-QYFK7Ro/hqdefault.jpg",
+          "uri": null,
+          "category": "Metal > Doom/Heavy Metal",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Orion (Music Video \"Original Creation\" - 1986) [Full HD/3D]",
+          "artist": "Metallica",
+          "stars": 0,
+          "coords": {
+            "x": 68,
+            "y": 65,
+            "z": 40
+          }
+        },
+        {
+          "track": "Wheels Of Confusion",
+          "artist": "BLACK SABBATH (1972)",
+          "stars": 0,
+          "coords": {
+            "x": 62,
+            "y": 70,
+            "z": 45
+          }
+        }
+      ],
+      "profile": "This first batch explores the vast landscape of metal from the US, Canada, and UK/Ireland. You'll hear everything from melodic instrumentals and epic narratives to crushing doom and technical extremity, all while favoring deeper cuts over obvious hits.",
+      "createdAt": 1776883940971,
+      "currentCard": {
+        "track": {
+          "id": "8hu3Utk4ndo",
+          "videoId": "8hu3Utk4ndo",
+          "source": "youtube",
+          "name": "Iron Maiden",
+          "artist": "Hallowed Be Thy Name",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/8hu3Utk4ndo/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A galloping, narrative-driven epic with twin guitar harmonies and dramatic vocal delivery, a fan favorite but not a radio single.",
+        "category": "Metal > NWOBHM",
+        "coords": {
+          "x": 65,
+          "y": 80,
+          "z": 50
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "nM__lPTWThU",
+            "videoId": "nM__lPTWThU",
+            "source": "youtube",
+            "name": "Painkiller",
+            "artist": "Judas Priest",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/nM__lPTWThU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A blisteringly fast and technical track with dual-guitar shredding and Rob Halford's soaring vocals, representing speed/power metal's intensity.",
+          "category": "Metal > Speed/Power Metal",
+          "coords": {
+            "x": 70,
+            "y": 92,
+            "z": 55
+          }
+        },
+        {
+          "track": {
+            "id": "ZdlEIlq9nZg",
+            "videoId": "ZdlEIlq9nZg",
+            "source": "youtube",
+            "name": "Funeralopolis",
+            "artist": "Electric Wizard",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/ZdlEIlq9nZg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A massively slow, down-tuned slab of UK doom metal with oppressive fuzz and nihilistic atmosphere, from an influential cult band.",
+          "category": "Metal > Doom/Stoner Metal",
+          "coords": {
+            "x": 72,
+            "y": 40,
+            "z": 25
+          }
+        },
+        {
+          "track": {
+            "id": "8256VJ4hkJU",
+            "videoId": "8256VJ4hkJU",
+            "source": "youtube",
+            "name": "\"The Philosopher\" (Remixed)",
+            "artist": "DEATH",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/8256VJ4hkJU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Technical death metal from a pioneering US band, featuring complex rhythms, philosophical lyrics, and Chuck Schuldiner's distinctive guitar work.",
+          "category": "Metal > Death Metal",
+          "coords": {
+            "x": 75,
+            "y": 85,
+            "z": 35
+          }
+        }
+      ],
+      "genres": [
+        "Metal"
+      ],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "",
+      "regions": [
+        "US & Canada",
+        "UK & Ireland"
+      ],
+      "popularity": 28,
+      "discovery": 50,
+      "artists": [
+        "Metallica",
+        "Black Sabbath",
+        "Iron Maiden"
+      ],
+      "artistText": "",
+      "source": "youtube"
+    }
+  ]
+}
