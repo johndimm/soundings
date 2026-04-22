@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
+import { parseShareId } from '@/app/lib/shareId'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 import AppHeader from '@/app/components/AppHeader'
@@ -1361,6 +1362,13 @@ export default function PlayerClient({
    */
   const [loadingStartupChannels, setLoadingStartupChannels] = useState(false)
   const [startupChannelsError, setStartupChannelsError] = useState<string | null>(null)
+  /** Share button state (inline feedback next to the Next button). */
+  const [sharingInFlight, setSharingInFlight] = useState(false)
+  const [shareStatus, setShareStatus] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const shareToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current)
+  }, [])
   const handleLoadStartupChannels = useCallback(async () => {
     if (loadingStartupChannels) return
     setStartupChannelsError(null)
@@ -1418,6 +1426,367 @@ export default function PlayerClient({
       setLoadingStartupChannels(false)
     }
   }, [loadingStartupChannels, youtubeOnly, loadChannelIntoState])
+
+  /**
+   * Build a URL the current user can send to others.
+   *
+   * POSTs the active channel's settings + the current track to /api/share (Vercel KV),
+   * then either invokes the native share sheet or copies the URL to the clipboard.
+   * History and queue are intentionally NOT sent — see app/api/share/route.ts.
+   */
+  const showShareToast = useCallback((kind: 'ok' | 'err', text: string) => {
+    setShareStatus({ kind, text })
+    if (shareToastTimerRef.current) clearTimeout(shareToastTimerRef.current)
+    shareToastTimerRef.current = setTimeout(() => setShareStatus(null), 3500)
+  }, [])
+
+  const handleShare = useCallback(async () => {
+    if (sharingInFlight) return
+    const cur = currentCardRef.current
+    if (!cur) {
+      showShareToast('err', 'Nothing playing to share.')
+      return
+    }
+    const activeId = activeChannelIdRef.current
+    const activeCh = channelsRef.current.find(c => c.id === activeId)
+    if (!activeCh) {
+      showShareToast('err', 'No active channel.')
+      return
+    }
+    const srcForShare: PlaybackSource =
+      (cur.track.source as PlaybackSource | undefined) ??
+      activeCh.source ??
+      sourceRef.current ??
+      DEFAULT_PLAYBACK_SOURCE
+
+    setSharingInFlight(true)
+    setShareStatus(null)
+    try {
+      const r = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({
+          channel: {
+            id: activeCh.id,
+            name: activeCh.name,
+            isAutoNamed: activeCh.isAutoNamed,
+            profile: activeCh.profile,
+            createdAt: activeCh.createdAt,
+            genres: activeCh.genres,
+            genreText: activeCh.genreText,
+            timePeriods: activeCh.timePeriods,
+            timePeriod: activeCh.timePeriod,
+            notes: activeCh.notes,
+            regions: activeCh.regions,
+            artists: activeCh.artists,
+            artistText: activeCh.artistText,
+            popularity: activeCh.popularity,
+            discovery: activeCh.discovery,
+            source: activeCh.source ?? srcForShare,
+          },
+          track: cur,
+          source: srcForShare,
+        }),
+      })
+      const data = (await r.json().catch(() => ({}))) as { ok?: boolean; id?: string; error?: string; hint?: string }
+      if (!r.ok || !data.ok || !data.id) {
+        const reason = data.error ?? `http_${r.status}`
+        console.warn('[share] create failed', reason, data.hint ?? '')
+        showShareToast('err', 'Share failed. Please try again.')
+        return
+      }
+      const url = `${window.location.origin}/player?share=${encodeURIComponent(data.id)}`
+      let didNativeShare = false
+      // navigator.share only works on HTTPS / localhost and requires a user gesture —
+      // we're inside an onClick so that's fine. Fall back to clipboard otherwise.
+      if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+        try {
+          await navigator.share({
+            title: `${cur.track.name} — ${cur.track.artist}`,
+            text: `Listen on ${activeCh.name}`,
+            url,
+          })
+          didNativeShare = true
+          showShareToast('ok', 'Shared.')
+        } catch (e) {
+          // AbortError when the user cancels; fall through to clipboard for other errors.
+          if ((e as { name?: string })?.name === 'AbortError') {
+            setShareStatus(null)
+            return
+          }
+        }
+      }
+      if (!didNativeShare) {
+        try {
+          await navigator.clipboard.writeText(url)
+          showShareToast('ok', 'Link copied.')
+        } catch (e) {
+          console.warn('[share] clipboard failed', e)
+          showShareToast('err', `Copy failed. URL: ${url}`)
+        }
+      }
+    } catch (e) {
+      console.warn('[share] threw', e)
+      showShareToast('err', 'Share failed. Please try again.')
+    } finally {
+      setSharingInFlight(false)
+    }
+  }, [sharingInFlight, showShareToast])
+
+  /**
+   * Consume a shared link: ?share=<id> on /player.
+   *
+   * Fetches the payload from Vercel KV; if the user has no channels yet (only the empty
+   * All row), seeds the factory bundle for the shared payload's source first — that way
+   * a recipient who never signed in before doesn't land on a blank player. Then it
+   * upserts the shared channel (creates it if missing, preserves existing history/queue
+   * if the user already has the same channel id) and sets the shared track as the now-
+   * playing card so playback starts immediately.
+   *
+   * Runs at most once per page load (`shareAppliedRef`) and only after `historyReady`,
+   * which guarantees the channels list and localStorage have already been hydrated.
+   */
+  const shareAppliedRef = useRef(false)
+  useEffect(() => {
+    if (isGuideDemo) return
+    if (!historyReady) return
+    if (shareAppliedRef.current) return
+    if (typeof window === 'undefined') return
+
+    // 1. URL query takes precedence (user is already signed in).
+    // 2. Fall back to sessionStorage, which PersistentPlayerHost writes on mount so the
+    //    share survives Spotify's OAuth round-trip (it returns to /player?spotify_login=1,
+    //    which strips our param).
+    // `parseShareId` strips any junk a share target may have pasted after the id
+    // (e.g. iMessage concatenates the navigator.share `text` onto the URL, so
+    // `?share=abcdef1234Listen on Foo` becomes the raw query value).
+    const url = new URL(window.location.href)
+    let shareId = parseShareId(url.searchParams.get('share'))
+    let fromSession = false
+    if (!shareId) {
+      try {
+        const raw = sessionStorage.getItem('earprint-pending-share')
+        if (raw) {
+          const parsed = JSON.parse(raw) as { id?: string; at?: number }
+          const sessionId = parseShareId(parsed?.id)
+          // 15-minute sanity window — don't apply stale pending shares next week.
+          if (
+            sessionId &&
+            typeof parsed.at === 'number' &&
+            Date.now() - parsed.at < 15 * 60 * 1000
+          ) {
+            shareId = sessionId
+            fromSession = true
+          }
+        }
+      } catch {}
+    }
+    if (!shareId) return
+    shareAppliedRef.current = true
+    console.info('[share] recipient effect start', { shareId, fromSession })
+
+    const clearPendingShare = () => {
+      try {
+        sessionStorage.removeItem('earprint-pending-share')
+      } catch {}
+    }
+
+    let cancelled = false
+
+    const stripShareParam = () => {
+      clearPendingShare()
+      if (fromSession) return
+      try {
+        const u = new URL(window.location.href)
+        u.searchParams.delete('share')
+        window.history.replaceState({}, '', u.pathname + (u.search ? u.search : '') + u.hash)
+      } catch {}
+    }
+
+    type SharePayload = {
+      channel: Record<string, unknown>
+      track: CardState
+      source: PlaybackSource
+    }
+
+    void (async () => {
+      let payload: SharePayload | null = null
+      try {
+        const r = await fetch(`/api/share?id=${encodeURIComponent(shareId)}`, {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        })
+        const data = (await r.json().catch(() => ({}))) as {
+          ok?: boolean
+          payload?: SharePayload
+          error?: string
+        }
+        if (!r.ok || !data.ok || !data.payload) {
+          console.warn('[share] fetch failed', { status: r.status, error: data.error })
+          showShareToast(
+            'err',
+            data.error === 'not_found'
+              ? 'This share link has expired or is invalid.'
+              : 'Could not load the shared track.'
+          )
+          stripShareParam()
+          return
+        }
+        payload = data.payload
+        console.info('[share] fetched payload', {
+          source: payload.source,
+          channelId: (payload.channel as { id?: string })?.id,
+          channelName: (payload.channel as { name?: string })?.name,
+          trackSource: payload.track?.track?.source,
+          trackName: payload.track?.track?.name,
+          trackId: payload.track?.track?.id,
+        })
+      } catch (e) {
+        console.warn('[share] fetch threw', e)
+        showShareToast('err', 'Could not load the shared track.')
+        stripShareParam()
+        return
+      }
+      if (cancelled || !payload) return
+
+      const sharedSource: PlaybackSource = payload.source === 'youtube' ? 'youtube' : 'spotify'
+      const sharedTrack = payload.track
+      const sharedChannelRaw = payload.channel
+
+      // New-user onboarding: if the recipient has only the empty All row, seed the factory
+      // bundle matching the shared payload's source first. That way they have real neighbours
+      // in the channel list, not just the shared one.
+      let baseChannels = channelsRef.current
+      const hasOnlyAll =
+        baseChannels.length === 0 ||
+        (baseChannels.length === 1 &&
+          baseChannels[0].id === ALL_CHANNEL_ID &&
+          (baseChannels[0].cardHistory?.length ?? 0) === 0 &&
+          !baseChannels[0].currentCard &&
+          (baseChannels[0].queue?.length ?? 0) === 0)
+      if (hasOnlyAll) {
+        try {
+          const r = await fetch(`/api/startup-channels?source=${sharedSource}`, {
+            credentials: 'same-origin',
+            cache: 'no-store',
+          })
+          const data = r.ok ? await r.json() : null
+          if (data?.ok && Array.isArray(data.channels) && data.channels.length > 0) {
+            const parsed = parseChannelsImport({
+              channels: data.channels,
+              activeChannelId:
+                typeof data.activeChannelId === 'string' ? data.activeChannelId : undefined,
+            })
+            if (parsed) {
+              baseChannels = ensureAllChannel(parsed.channels.map(withFixedDiscovery))
+              saveChannels(baseChannels)
+            }
+          }
+        } catch (e) {
+          console.warn('[share] startup-channels seed failed', e)
+        }
+      }
+      if (cancelled) return
+
+      // Upsert the shared channel. If it already exists, keep the user's history/queue —
+      // otherwise fresh channel with empty history/queue so the shared track plays cleanly.
+      const sharedCh = parseChannelsImport({ channels: [sharedChannelRaw] })?.channels?.[0]
+      if (!sharedCh) {
+        console.warn('[share] shared channel had unexpected shape')
+        showShareToast('err', 'Shared channel was invalid.')
+        stripShareParam()
+        return
+      }
+      // parseChannelsImport forces `discovery` to the bounded default; carry source through.
+      if (!sharedCh.source) sharedCh.source = sharedSource
+
+      const existing = baseChannels.find(c => c.id === sharedCh.id)
+      let mergedChannels: Channel[]
+      if (existing) {
+        mergedChannels = baseChannels.map(c => (c.id === sharedCh.id ? c : c))
+      } else {
+        // Insert after All so it shows up near the start of the tabs list.
+        const all = baseChannels.find(c => c.id === ALL_CHANNEL_ID)
+        const others = baseChannels.filter(c => c.id !== ALL_CHANNEL_ID)
+        const fresh: Channel = {
+          id: sharedCh.id,
+          name: sharedCh.name,
+          isAutoNamed: sharedCh.isAutoNamed ?? false,
+          cardHistory: [],
+          sessionHistory: [],
+          profile: sharedCh.profile ?? '',
+          createdAt: typeof sharedCh.createdAt === 'number' ? sharedCh.createdAt : Date.now(),
+          genres: sharedCh.genres,
+          genreText: sharedCh.genreText,
+          timePeriods: sharedCh.timePeriods,
+          notes: sharedCh.notes,
+          regions: sharedCh.regions,
+          artists: sharedCh.artists,
+          artistText: sharedCh.artistText,
+          popularity: sharedCh.popularity,
+          discovery: CHANNEL_DISCOVERY_DEFAULT,
+          source: sharedCh.source ?? sharedSource,
+        }
+        mergedChannels = all ? [all, fresh, ...others] : [fresh, ...others]
+      }
+      mergedChannels = ensureAllChannel(mergedChannels)
+      saveChannels(mergedChannels)
+      setChannels(mergedChannels)
+      channelsRef.current = mergedChannels
+
+      const targetCh = mergedChannels.find(c => c.id === sharedCh.id)
+      if (!targetCh) {
+        stripShareParam()
+        return
+      }
+
+      // Feed the shared track straight to loadChannelIntoState via the channel's currentCard
+      // slot. That way the single setCurrentCard happens inside loadChannelIntoState itself —
+      // no risk of an intermediate render flashing a stale track, and the play effect fires
+      // exactly once with the shared track as the source of truth.
+      const cleanForLoad: Channel = {
+        ...targetCh,
+        currentCard: sharedTrack,
+        queue: [],
+        playbackPositionMs: undefined,
+        playbackTrackUri: undefined,
+        // Make sure the channel's audio source matches the shared track's source —
+        // otherwise the play effect can't render the YouTube iframe for a YouTube
+        // track when the recipient's saved channel has `source: 'spotify'`.
+        source: (sharedTrack.track.source as PlaybackSource | undefined) ?? sharedSource,
+      }
+      console.info('[share] loading into state', {
+        channelId: cleanForLoad.id,
+        channelSource: cleanForLoad.source,
+        currentCardTrackSource: cleanForLoad.currentCard?.track.source,
+      })
+      loadChannelIntoState(cleanForLoad)
+      // Bump playGeneration so the YouTube iframe's `key` changes even when the recipient
+      // was already on this channel with a different video: forces a fresh mount instead of
+      // leaving the prior iframe paused with stale state.
+      setPlayGeneration(g => g + 1)
+      lastPlayedUriRef.current = null
+
+      stripShareParam()
+      showShareToast('ok', existing ? 'Playing shared track.' : 'Shared channel added.')
+      console.info('[share] applied', {
+        id: shareId,
+        channel: sharedCh.id,
+        track: sharedTrack.track.name,
+        trackSource: sharedTrack.track.source,
+        activeChannel: activeChannelIdRef.current,
+        seededFactory: hasOnlyAll,
+      })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // Intentionally only depends on historyReady — we want this to run exactly once
+    // after channels hydrate. All reads go through refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [historyReady, isGuideDemo])
 
   // Auto-clear each source's backoff banner when its cooldown expires (one timer per source).
   useEffect(() => {
@@ -2292,6 +2661,38 @@ export default function PlayerClient({
       release()
     }
   }, [isGuideDemo, isPausedForWakeLock])
+
+  /**
+   * Cross-page queue handoff. Other pages (notably /ratings) dispatch a window
+   * CustomEvent `earprint:enqueue` with an ordered array of CardStates when the
+   * user asks to play a History selection. PlayerClient is kept mounted by the
+   * persistent host, so it can consume the event live — replacing the current
+   * card + queue so the selection plays in order, uninterrupted.
+   *
+   * The DJ's own queue-topoff only fires when the queue drains, so the entire
+   * handed-off list plays through before the LLM gets back in the mix.
+   */
+  useEffect(() => {
+    if (isGuideDemo) return
+    const handler = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ cards: CardState[] }>).detail
+      const cards = Array.isArray(detail?.cards) ? detail.cards.filter(Boolean) : []
+      if (cards.length === 0) return
+      const [first, ...rest] = cards
+      currentCardRef.current = first
+      setCurrentCard(first)
+      queueRef.current = rest
+      setQueue(rest)
+      setCurrentStars(null)
+      currentStarsRef.current = null
+      console.info('[enqueue] external handoff replaced current + queue', {
+        count: cards.length,
+        first: `${first.track.name} — ${first.track.artist}`,
+      })
+    }
+    window.addEventListener('earprint:enqueue', handler as EventListener)
+    return () => window.removeEventListener('earprint:enqueue', handler as EventListener)
+  }, [isGuideDemo])
 
   useEffect(() => {
     return () => {
@@ -4474,12 +4875,49 @@ export default function PlayerClient({
             >
               Next
             </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              disabled={sharingInFlight}
+              title="Share current channel and track"
+              aria-label="Share current channel and track"
+              aria-busy={sharingInFlight}
+              className="flex shrink-0 items-center justify-center py-3 px-3 rounded-2xl border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500 hover:bg-zinc-900 active:bg-zinc-800 disabled:opacity-60 disabled:cursor-wait transition-colors"
+            >
+              {sharingInFlight ? (
+                <span
+                  className="inline-block size-6 border-2 border-zinc-500 border-t-zinc-200 rounded-full animate-spin"
+                  aria-hidden
+                />
+              ) : (
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  className="size-6"
+                  aria-hidden
+                >
+                  <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z" />
+                </svg>
+              )}
+            </button>
             {loadingQueue && (
               <div className="flex items-center gap-1 text-zinc-400">
                 <div className="w-4 h-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
               </div>
             )}
             </div>
+            {shareStatus && (
+              <div
+                role="status"
+                aria-live="polite"
+                className={`text-xs pl-0.5 ${
+                  shareStatus.kind === 'ok' ? 'text-emerald-300' : 'text-red-300'
+                }`}
+              >
+                {shareStatus.text}
+              </div>
+            )}
             <label className="flex items-center gap-2 text-xs text-zinc-500 cursor-pointer select-none pl-0.5">
               <input
                 type="checkbox"

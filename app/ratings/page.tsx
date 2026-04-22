@@ -1,11 +1,49 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
 import MusicMap from '@/app/player/MusicMap'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import type { HistoryEntry } from '@/app/player/SessionPanel'
+import type { CardState, PlaybackSource, Track } from '@/app/lib/playback/types'
+
+/**
+ * Build a playable CardState from a HistoryEntry. Spotify tracks store the full
+ * `spotify:track:<id>` URI in `entry.uri`; YouTube tracks store the bare video ID.
+ * Returns null for entries that can't be mapped to a playable id.
+ */
+function historyEntryToCardState(entry: HistoryEntry): CardState | null {
+  const src: PlaybackSource = entry.source ?? 'spotify'
+  if (src === 'youtube') {
+    const videoId = (entry.uri ?? '').trim()
+    if (!videoId) return null
+    const track: Track = {
+      id: videoId,
+      name: entry.track,
+      artist: entry.artist,
+      album: '',
+      albumArt: entry.albumArt ?? null,
+      durationMs: 0,
+      source: 'youtube',
+      videoId,
+    }
+    return { track, reason: 'From History', coords: entry.coords }
+  }
+  const spotifyId = normalizeSpotifyTrackId(entry.uri ?? undefined)
+  if (!spotifyId) return null
+  const track: Track = {
+    id: spotifyId,
+    name: entry.track,
+    artist: entry.artist,
+    album: '',
+    albumArt: entry.albumArt ?? null,
+    durationMs: 0,
+    source: 'spotify',
+    uri: `spotify:track:${spotifyId}`,
+  }
+  return { track, reason: 'From History', coords: entry.coords }
+}
 
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const PAGE_SIZE = 50
@@ -67,6 +105,7 @@ function StarRating({
 
 export default function RatingsPage() {
   const searchParams = useSearchParams()
+  const router = useRouter()
   const channelFilter = searchParams.get('channel')
 
   const [channels, setChannels] = useState<Channel[]>([])
@@ -74,7 +113,7 @@ export default function RatingsPage() {
   const [page, setPage] = useState(1)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [starFilter, setStarFilter] = useState<number | 'unrated' | null>(null)
-  const [sortBy, setSortBy] = useState<'date' | 'title' | 'stars'>('date')
+  const [sortBy, setSortBy] = useState<'date' | 'title' | 'stars' | 'channel'>('date')
   const [sortAsc, setSortAsc] = useState(false)
 
   useEffect(() => {
@@ -121,6 +160,12 @@ export default function RatingsPage() {
     let cmp = 0
     if (sortBy === 'title') cmp = (a.entry.track ?? '').localeCompare(b.entry.track ?? '')
     else if (sortBy === 'stars') cmp = (b.entry.stars ?? -1) - (a.entry.stars ?? -1)
+    else if (sortBy === 'channel') {
+      // Primary: channel name alphabetical. Secondary: newest first within a channel,
+      // so grouping stays sensible even when the user toggles ascending.
+      cmp = a.channelName.localeCompare(b.channelName)
+      if (cmp === 0) cmp = b.globalIndex - a.globalIndex
+    }
     // 'date': flatMap order is already newest-first (desc); treat that as the base
     return sortAsc ? -cmp : cmp
   })
@@ -146,6 +191,24 @@ export default function RatingsPage() {
       else next.add(key)
       return next
     })
+  }
+
+  /**
+   * Send the selected entries to the persistent PlayerClient as an ordered queue.
+   * Order follows the current sort order of the flattened list (so Date↓ gives
+   * newest-first, Title↑ gives alphabetical, etc.), not the order in which the
+   * user ticked the checkboxes — a simpler mental model than tracking click order.
+   */
+  const handlePlaySelectedKeys = () => {
+    if (selectedKeys.size === 0) return
+    const ordered: CardState[] = allEntries
+      .filter(fe => selectedKeys.has(encodeSelectionKey(fe.channelId, fe.globalIndex)))
+      .map(fe => historyEntryToCardState(fe.entry))
+      .filter((c): c is CardState => c !== null)
+    if (ordered.length === 0) return
+    window.dispatchEvent(new CustomEvent('earprint:enqueue', { detail: { cards: ordered } }))
+    setSelectedKeys(new Set())
+    router.push('/player')
   }
 
   const handleRemoveSelectedKeys = () => {
@@ -225,12 +288,21 @@ export default function RatingsPage() {
                   {allPageSelected ? 'Deselect page' : 'Select page'}
                 </button>
                 {selectedKeys.size > 0 && (
-                  <button
-                    onClick={handleRemoveSelectedKeys}
-                    className="text-xs text-red-500 hover:text-red-400 transition-colors"
-                  >
-                    Delete {selectedKeys.size}
-                  </button>
+                  <>
+                    <button
+                      onClick={handlePlaySelectedKeys}
+                      className="text-xs px-3 py-1 rounded-full bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
+                      title="Queue selected tracks and play in the player, in order"
+                    >
+                      Play {selectedKeys.size}
+                    </button>
+                    <button
+                      onClick={handleRemoveSelectedKeys}
+                      className="text-xs text-red-500 hover:text-red-400 transition-colors"
+                    >
+                      Delete {selectedKeys.size}
+                    </button>
+                  </>
                 )}
               </>
             )}
@@ -260,17 +332,26 @@ export default function RatingsPage() {
           </div>
           <div className="flex items-center gap-1 ml-auto">
             <span className="text-xs text-zinc-400">Sort:</span>
-            {(['date', 'title', 'stars'] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setSortBy(s)}
-                className={`text-xs px-2 py-0.5 rounded transition-colors ${
-                  sortBy === s ? 'text-black font-medium' : 'text-zinc-400 hover:text-black'
-                }`}
-              >
-                {s === 'date' ? 'Date' : s === 'title' ? 'Title' : 'Stars'}
-              </button>
-            ))}
+            {(['date', 'title', 'stars', 'channel'] as const)
+              // Channel sort is only meaningful when multiple channels are visible.
+              .filter(s => s !== 'channel' || !isChannelView)
+              .map(s => (
+                <button
+                  key={s}
+                  onClick={() => setSortBy(s)}
+                  className={`text-xs px-2 py-0.5 rounded transition-colors ${
+                    sortBy === s ? 'text-black font-medium' : 'text-zinc-400 hover:text-black'
+                  }`}
+                >
+                  {s === 'date'
+                    ? 'Date'
+                    : s === 'title'
+                      ? 'Title'
+                      : s === 'stars'
+                        ? 'Stars'
+                        : 'Channel'}
+                </button>
+              ))}
             <button
               onClick={() => setSortAsc(v => !v)}
               className="text-xs px-1.5 py-0.5 rounded text-zinc-400 hover:text-black transition-colors"

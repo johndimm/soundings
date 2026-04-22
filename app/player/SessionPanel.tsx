@@ -146,7 +146,7 @@ export default function SessionPanel({
                     <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
                     <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
                     {card.reason && (
-                      <p className="text-zinc-500 text-xs italic leading-snug mt-0.5 line-clamp-2">{card.reason}</p>
+                      <p className="text-zinc-300 text-xs leading-snug mt-0.5 line-clamp-3">{card.reason}</p>
                     )}
                   </div>
                 </button>
@@ -166,8 +166,8 @@ export default function SessionPanel({
               <span className="text-[10px] text-zinc-600 uppercase tracking-wide">Up next</span>
               {pendingSuggestions.map((s, i) => (
                 <div key={i} className="text-xs px-1">
-                  <div className="text-zinc-300 font-medium">{s.search}</div>
-                  <div className="text-zinc-500 leading-relaxed">{s.reason}</div>
+                  <div className="text-white text-sm font-semibold leading-tight">{s.search}</div>
+                  <div className="text-zinc-400 leading-relaxed mt-0.5">{s.reason}</div>
                 </div>
               ))}
             </div>

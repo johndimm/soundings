@@ -325,6 +325,32 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     }
   }, [normalizedId, videoId])
 
+  /**
+   * Tab-return recovery. When the user backgrounds the tab YouTube often pauses the video,
+   * and occasionally the iframe's internal controls end up in a state where clicking the
+   * play button is a no-op (the HTML5 player has been unloaded but the chrome is still
+   * visible). Showing our tap-to-play overlay routes the next click through our own
+   * `playVideo()` invocation, which reliably resumes playback — and if the iframe's
+   * controls *are* still working, the overlay's click handler behaves identically.
+   */
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.hidden) return
+      const p = ytPlayerRef.current
+      if (!p) return
+      let state = -1
+      try { state = typeof p.getPlayerState === 'function' ? p.getPlayerState() : -1 } catch {}
+      // 1 = playing, 3 = buffering — playback is alive, nothing to do.
+      // 2 = paused, 0 = ended, 5 = cued, -1 = unstarted → show overlay so the next tap
+      //   goes through our handler and actually resumes.
+      if (state === 1 || state === 3) return
+      console.info('[yt] visibility return — player not playing, showing overlay', { state })
+      setBlocked(true)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
   useImperativeHandle(ref, () => ({
     fadeOut: async () => {},
     getCurrentTime: () => {

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import PlayerClientWrapper from '@/app/player/PlayerClientWrapper'
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
+import { parseShareId } from '@/app/lib/shareId'
 
 function PersistentPlayerHostInner({
   children,
@@ -40,6 +41,29 @@ function PersistentPlayerHostInner({
    * reset fires when a user lands on a non-`/player` page immediately after login.
    */
   applyFreshLoginIfNeeded()
+
+  /**
+   * Preserve `?share=<id>` across OAuth round-trips.
+   *
+   * A recipient opening /player?share=XYZ may be unauthenticated — they'll be redirected
+   * to Spotify login, which returns them to /player?spotify_login=1 with the share param
+   * stripped. Stashing the id in sessionStorage here (on every mount, regardless of auth
+   * state) lets PlayerClient pick it up after the redirect. Cleared once applied.
+   */
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    // `parseShareId` tolerates share targets that paste the navigator.share `text`
+    // onto the URL (e.g. iMessage → "?share=abcdef1234Listen on Foo").
+    const shareId = parseShareId(sp.get('share'))
+    if (shareId) {
+      try {
+        sessionStorage.setItem(
+          'earprint-pending-share',
+          JSON.stringify({ id: shareId, at: Date.now() })
+        )
+      } catch {}
+    }
+  }, [sp])
 
   useEffect(() => {
     if (!pathname.startsWith('/player')) return

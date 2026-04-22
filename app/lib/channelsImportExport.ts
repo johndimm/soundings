@@ -46,6 +46,13 @@ export interface Channel {
   artistText?: string
   popularity?: number
   discovery?: number
+  /** Up-next queue at the time of export (preserved through import so the user
+   *  doesn't lose their queued-up suggestions after an export → reset → import cycle). */
+  queue?: unknown[]
+  /** The track that was playing at export time. Preserved for the same reason as `queue`. */
+  currentCard?: unknown
+  playbackPositionMs?: number
+  playbackTrackUri?: string
   [key: string]: unknown
 }
 
@@ -81,6 +88,13 @@ export function normalizeImportedChannel(raw: unknown): Channel | null {
     ...(o.popularity !== undefined && { popularity: o.popularity as number }),
     ...(o.discovery !== undefined && { discovery: o.discovery as number }),
     ...(o.source !== undefined && { source: o.source as string }),
+    // Preserve queued-up playback state so export → reset → import doesn't silently
+    // eat the user's up-next queue and current track. The PlayerClient normalizer
+    // already keeps these; the shared helper used to drop them.
+    ...(Array.isArray(o.queue) && { queue: o.queue as unknown[] }),
+    ...(o.currentCard !== undefined && { currentCard: o.currentCard }),
+    ...(typeof o.playbackPositionMs === 'number' && { playbackPositionMs: o.playbackPositionMs }),
+    ...(typeof o.playbackTrackUri === 'string' && { playbackTrackUri: o.playbackTrackUri }),
   }
   return normalizeChannelDiscovery(base)
 }
