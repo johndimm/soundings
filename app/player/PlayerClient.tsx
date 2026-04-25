@@ -877,6 +877,8 @@ export default function PlayerClient({
   const [activeChannelId, setActiveChannelId] = useState<string>('')
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const [editingChannelName, setEditingChannelName] = useState('')
+  const [channelSearchText, setChannelSearchText] = useState('')
+  const activeTabRef = useRef<HTMLDivElement | null>(null)
   const [settingsDirty, setSettingsDirty] = useState(false)
   const settingsInitRef = useRef(false)
   const skipNextDirtyRef = useRef(false)
@@ -1393,6 +1395,62 @@ export default function PlayerClient({
       return updated
     })
   }, [])
+
+  const updateCurrentChannelNotes = useCallback((newNotes: string) => {
+    setNotes(newNotes)
+    notesRef.current = newNotes
+    setChannels(prev => {
+      const id = activeChannelIdRef.current
+      const updated = prev.map(ch => ch.id === id ? { ...ch, notes: newNotes } : ch)
+      channelsRef.current = updated
+      saveChannels(updated)
+      return updated
+    })
+  }, [])
+
+  const createChannelWithNotes = useCallback(async (notes: string) => {
+    if (channelSwitchingRef.current) return
+    const trimmed = notes.trim()
+    const words = trimmed.split(/\s+/).filter(Boolean)
+    const name = words.length === 0 ? 'New Channel' : words.slice(0, 4).join(' ').replace(/[,;:]+$/, '')
+    const fresh: Channel = {
+      id: genChannelId(),
+      name,
+      isAutoNamed: false,
+      cardHistory: [],
+      sessionHistory: [],
+      profile: '',
+      currentCard: null,
+      queue: [],
+      createdAt: Date.now(),
+      userCreated: true,
+      notes,
+    }
+    const willPlay = peekNextCard(fresh) != null
+    const hadCurrent = currentCardRef.current != null
+    channelSwitchingRef.current = true
+    try {
+      if (!isGuideDemo && hadCurrent) {
+        await fadeOutCurrentPlayback()
+      }
+      const saved = snapshotCurrentChannel()
+      const updated = [...saved, fresh]
+      setChannels(updated)
+      channelsRef.current = updated
+      saveChannels(updated)
+      loadChannelIntoState(fresh)
+      if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
+        pendingFadeInRef.current = true
+      }
+    } finally {
+      channelSwitchingRef.current = false
+    }
+  }, [snapshotCurrentChannel, loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback])
+
+  useEffect(() => {
+    setChannelSearchText(notes)
+    activeTabRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  }, [activeChannelId])
 
   /**
    * Load startup channels from the server-side factory files the user curated:
@@ -4572,6 +4630,7 @@ export default function PlayerClient({
           {channels.map(ch => (
             <div
               key={ch.id}
+              ref={ch.id === activeChannelId ? activeTabRef : null}
               className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-colors flex-shrink-0 ${
                 ch.id === activeChannelId
                   ? 'bg-zinc-800 border-zinc-600 text-white'
@@ -4634,6 +4693,35 @@ export default function PlayerClient({
             title="New channel"
           >+</Link>
         </div>
+        </div>
+      )}
+      {channels.length > 0 && (
+        <div className="border-b border-zinc-900 px-4 py-2 max-w-[800px] mx-auto w-full flex gap-2 items-start">
+          <textarea
+            value={channelSearchText}
+            onChange={e => {
+              setChannelSearchText(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
+            }}
+            placeholder="Describe this channel — genres, artists, era, mood…"
+            rows={1}
+            className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 resize-none overflow-hidden focus:outline-none focus:border-zinc-500"
+          />
+          <button
+            type="button"
+            onClick={() => updateCurrentChannelNotes(channelSearchText)}
+            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
+          >
+            Update channel
+          </button>
+          <button
+            type="button"
+            onClick={() => void createChannelWithNotes(channelSearchText)}
+            className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
+          >
+            New channel
+          </button>
         </div>
       )}
       {startupChannelsError && showLoadStarterChannelsPill && (
