@@ -1485,8 +1485,15 @@ export default function PlayerClient({
         ...(albumTitle && { album: albumTitle }),
       })
       const res = await fetch(`/api/career-discography?${params}`, { credentials: 'same-origin' })
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const data = await res.json()
+      const data = (await res.json().catch(() => ({}))) as {
+        works?: CareerWork[]
+        error?: string
+        message?: string
+      }
+      if (!res.ok) {
+        const msg = [data.error, data.message].filter(Boolean).join(' — ') || `HTTP ${res.status}`
+        throw new Error(msg)
+      }
       const works: CareerWork[] = data.works ?? []
       if (works.length === 0) return
 

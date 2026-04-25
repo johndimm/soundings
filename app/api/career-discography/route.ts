@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 
+/** Avoid LLM/edge timeouts on long discographies (Vercel defaults are often 10s). */
+export const maxDuration = 60
+
 export interface CareerWork {
   title: string
   year: number
@@ -30,6 +33,20 @@ Return a JSON array of objects with:
 Return ONLY the JSON array. No markdown fences, no explanation.`
 }
 
+const CAREER_LLM_MODEL = 'claude-haiku-4-5'
+
+type AnthropicMessagesResponse = {
+  content?: Array<{ type?: string; text?: string }>
+  error?: { type?: string; message?: string }
+}
+
+function getAssistantText(data: AnthropicMessagesResponse): string {
+  const block = data.content?.find(
+    c => c.type === 'text' && typeof c.text === 'string'
+  ) as { type: 'text'; text: string } | undefined
+  return block?.text ?? ''
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const artist = searchParams.get('artist')?.trim()
@@ -56,32 +73,66 @@ export async function GET(req: NextRequest) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
+        model: CAREER_LLM_MODEL,
         max_tokens: 4096,
         system: 'You are a music historian with comprehensive knowledge of discographies and classical repertoire.',
         messages: [{ role: 'user', content: buildPrompt(artist, source, trackTitle, albumTitle) }],
       }),
     })
-    if (!res.ok) throw new Error(`Anthropic ${res.status}`)
-    const data = await res.json()
-    raw = data.content[0].text as string
+    const payload: AnthropicMessagesResponse = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      const msg = payload.error?.message?.trim() || `Anthropic HTTP ${res.status}`
+      console.error('[career-discography] Anthropic error', res.status, msg, payload)
+      return Response.json(
+        { error: msg, works: [] as CareerWork[] },
+        { status: 500 }
+      )
+    }
+    raw = getAssistantText(payload)
+    if (!raw) {
+      console.error('[career-discography] no assistant text in response', JSON.stringify(payload).slice(0, 2000))
+      return Response.json(
+        { error: 'Empty LLM response', works: [] as CareerWork[] },
+        { status: 500 }
+      )
+    }
   } catch (e) {
+    const msg = e instanceof Error ? e.message : 'LLM request failed'
     console.error('[career-discography] LLM error', e)
-    return Response.json({ error: 'LLM request failed' }, { status: 500 })
+    return Response.json(
+      { error: 'LLM request failed', message: msg, works: [] as CareerWork[] },
+      { status: 500 }
+    )
   }
 
   let works: CareerWork[] = []
+  const jsonSlice =
+    raw.match(/```(?:json)?\s*(\[[\s\S]*\])\s*```/i)?.[1] ?? raw.match(/\[[\s\S]*\]/)?.[0] ?? null
   try {
-    const match = raw.match(/\[[\s\S]*\]/)
-    if (match) works = JSON.parse(match[0])
-  } catch {
-    return Response.json({ error: 'Failed to parse LLM response' }, { status: 500 })
+    if (jsonSlice) works = JSON.parse(jsonSlice) as CareerWork[]
+  } catch (e) {
+    console.error('[career-discography] JSON parse', e, 'raw start:', raw.slice(0, 500))
+    return Response.json(
+      { error: 'Failed to parse LLM response', works: [] as CareerWork[] },
+      { status: 500 }
+    )
+  }
+  if (!Array.isArray(works)) {
+    return Response.json(
+      { error: 'LLM did not return a JSON array', works: [] as CareerWork[] },
+      { status: 500 }
+    )
   }
 
   works = works
+    .map(w => {
+      const year = typeof w.year === 'string' ? parseInt(w.year, 10) : w.year
+      return { ...w, year }
+    })
     .filter((w): w is CareerWork =>
       typeof w.title === 'string' &&
       typeof w.year === 'number' &&
+      Number.isFinite(w.year) &&
       typeof w.search === 'string'
     )
     .sort((a, b) => a.year - b.year)
