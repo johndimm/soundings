@@ -73,6 +73,20 @@ async function fetchWebPlaybackDeviceIdFromSpotifyApi(token: string): Promise<st
   }
 }
 
+interface CareerWork {
+  title: string
+  year: number
+  search: string
+  reason?: string
+  isCurrent?: boolean
+}
+
+interface CareerMode {
+  artistName: string
+  works: CareerWork[]
+  currentIndex: number
+}
+
 interface Channel {
   id: string
   name: string
@@ -879,6 +893,11 @@ export default function PlayerClient({
   const [editingChannelName, setEditingChannelName] = useState('')
   const [channelSearchText, setChannelSearchText] = useState('')
   const activeTabRef = useRef<HTMLDivElement | null>(null)
+  const [careerMode, setCareerMode] = useState<CareerMode | null>(null)
+  const careerModeRef = useRef<CareerMode | null>(null)
+  const [careerLoading, setCareerLoading] = useState(false)
+  const [careerLoadingArtist, setCareerLoadingArtist] = useState<string | null>(null)
+  const resolveOneSuggestionRef = useRef<((s: SongSuggestion) => Promise<CardState | null>) | null>(null)
   const [settingsDirty, setSettingsDirty] = useState(false)
   const settingsInitRef = useRef(false)
   const skipNextDirtyRef = useRef(false)
@@ -1214,7 +1233,7 @@ export default function PlayerClient({
     const g = ch.genres ?? []; setGenres(g); genresRef.current = g
     const gt = ch.genreText ?? ''; setGenreText(gt); genreTextRef.current = gt
     const tp = ch.timePeriods?.length ? ch.timePeriods.join(' and ') : (ch.timePeriod ?? ''); setTimePeriod(tp); timePeriodRef.current = tp
-    const n = ch.notes ?? ''; setNotes(n); notesRef.current = n
+    const n = ch.notes ?? ''; setNotes(n); notesRef.current = n; setChannelSearchText(n)
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
     const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
     const at = ch.artistText ?? ''; setArtistText(at); artistTextRef.current = at
@@ -1448,9 +1467,162 @@ export default function PlayerClient({
   }, [snapshotCurrentChannel, loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback])
 
   useEffect(() => {
-    setChannelSearchText(notes)
     activeTabRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
   }, [activeChannelId])
+
+  const enterCareerMode = useCallback(async (artistName: string) => {
+    // Show the artist name immediately while the LLM fetches
+    setCareerLoadingArtist(artistName)
+    setCareerLoading(true)
+    try {
+      const cur = currentCardRef.current
+      const trackTitle = cur?.track.name ?? ''
+      const albumTitle = cur?.track.album ?? ''
+      const params = new URLSearchParams({
+        artist: artistName,
+        source: sourceRef.current ?? 'spotify',
+        ...(trackTitle && { track: trackTitle }),
+        ...(albumTitle && { album: albumTitle }),
+      })
+      const res = await fetch(`/api/career-discography?${params}`, { credentials: 'same-origin' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const works: CareerWork[] = data.works ?? []
+      if (works.length === 0) return
+
+      console.info('[career] works', works.map((w, i) => `${i}: ${w.year} ${w.title}${w.isCurrent ? ' ← CURRENT' : ''}`))
+      console.info('[career] track:', trackTitle, '| album:', albumTitle)
+
+      // Pass 0: LLM-marked match (most reliable — works even for YouTube where album='' )
+      let currentIndex = works.findIndex(w => w.isCurrent === true)
+
+      if (currentIndex === -1) {
+        // Fallback client-side matching for cases where LLM didn't mark isCurrent
+        const normalize = (s: string) =>
+          s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+        const stripEdition = (s: string) =>
+          s.replace(/\s*[\(\[].*?[\)\]]/g, '').trim()
+
+        if (cur) {
+          const album = normalize(stripEdition(albumTitle))
+          const year = cur.track.releaseYear
+
+          let idx = album ? works.findIndex(w => normalize(w.title) === album) : -1
+
+          if (idx === -1 && album.length >= 6) {
+            idx = works.findIndex(w => {
+              const title = normalize(w.title)
+              return title.length >= 6 && (album.includes(title) || title.includes(album))
+            })
+          }
+
+          if (idx === -1 && year) {
+            const yearIdxs = works.reduce<number[]>((acc, w, i) => {
+              if (w.year === year) acc.push(i)
+              return acc
+            }, [])
+            if (yearIdxs.length === 1) idx = yearIdxs[0]
+          }
+
+          if (idx !== -1) currentIndex = idx
+        }
+      }
+
+      if (currentIndex === -1) currentIndex = 0
+
+      const cm: CareerMode = { artistName, works, currentIndex }
+      setCareerMode(cm)
+      careerModeRef.current = cm
+
+      // Suspend regular DJ flow
+      if (suggestionBufferRef.current.length > 0) {
+        setSuggestionBuffer([])
+        suggestionBufferRef.current = []
+      }
+      if (queueRef.current.length > 0) {
+        setQueue([])
+        queueRef.current = []
+      }
+    } catch (e) {
+      console.error('[career] enterCareerMode error', e)
+    } finally {
+      setCareerLoading(false)
+      setCareerLoadingArtist(null)
+    }
+  }, [])
+
+  const exitCareerMode = useCallback(() => {
+    setCareerMode(null)
+    careerModeRef.current = null
+  }, [])
+
+  const careerGo = useCallback(async (delta: number) => {
+    const cm = careerModeRef.current
+    if (!cm || delta === 0) return
+    const newIndex = cm.currentIndex + delta
+    if (newIndex < 0 || newIndex >= cm.works.length) return
+
+    // Record current track in history
+    const cur = currentCardRef.current
+    if (cur) {
+      const userStars = currentStarsRef.current
+      const stars = computeRecordedListenStars(userStars, durationRef.current, sliderRef.current)
+      const event: ListenEvent = { track: cur.track.name, artist: cur.track.artist, stars, coords: cur.coords }
+      const historyEntry: HistoryEntry = {
+        ...event,
+        albumArt: cur.track.albumArt,
+        uri: cur.track.uri ?? null,
+        category: cur.category,
+        coords: cur.coords,
+        source: cur.track.source as PlaybackSource | undefined,
+      }
+      const base = cardHistoryRef.current
+      const existingIdx = base.findIndex(e => e.track === cur.track.name && e.artist === cur.track.artist)
+      const newHistory = existingIdx !== -1
+        ? base.map((e, i) => i === existingIdx ? historyEntry : e)
+        : dedupeHistory([...base, historyEntry])
+      setCardHistory(newHistory)
+      cardHistoryRef.current = newHistory
+      const newSession = existingIdx !== -1
+        ? sessionHistoryRef.current.map(e => e.track === cur.track.name && e.artist === cur.track.artist ? event : e)
+        : [...sessionHistoryRef.current, event]
+      setSessionHistory(newSession)
+      sessionHistoryRef.current = newSession
+    }
+
+    const newCm = { ...cm, currentIndex: newIndex }
+    setCareerMode(newCm)
+    careerModeRef.current = newCm
+
+    if (!isGuideDemo) {
+      pendingFadeInRef.current = true
+      await fadeOutCurrentPlayback()
+    }
+
+    const work = cm.works[newIndex]
+    const suggestion: SongSuggestion = {
+      search: work.search,
+      reason: `${cm.artistName} — ${work.title} (${work.year})`,
+    }
+
+    setCareerLoading(true)
+    setCurrentCard(null)
+    currentCardRef.current = null
+
+    try {
+      const card = await resolveOneSuggestionRef.current?.(suggestion) ?? null
+      if (card) {
+        setCurrentCard(card)
+        currentCardRef.current = card
+        setPlayGeneration(g => g + 1)
+        lastPlayedUriRef.current = null
+        currentStarsRef.current = null
+        setCurrentStars(null)
+      }
+    } finally {
+      setCareerLoading(false)
+    }
+  }, [dedupeHistory, isGuideDemo, fadeOutCurrentPlayback])
 
   /**
    * Load startup channels from the server-side factory files the user curated:
@@ -3270,6 +3442,7 @@ export default function PlayerClient({
       performer: t.performer,
     }
   }, [youtubeResolveTestActive])
+  resolveOneSuggestionRef.current = resolveOneSuggestion
 
   /** Resolve up to `max` suggestions in order (constraint / replace flows). Skips failed lookups. */
   const resolveSuggestionsToCards = useCallback(
@@ -3485,6 +3658,10 @@ export default function PlayerClient({
       /** Retry / clear-history: allow LLM with no listen history and no DJ settings. */
       bypassEmptyChannelGate = false
     ) => {
+    if (careerModeRef.current) {
+      console.info('fetchToBuffer: skipping — career mode active')
+      return
+    }
     // Mutex: never stack LLM calls (constraint/retry use force:true but must still respect in-flight).
     if (fetchingRef.current || resolvingRef.current) {
       console.info('fetchToBuffer: skipping, fetch or resolve already in flight')
@@ -4657,6 +4834,7 @@ export default function PlayerClient({
                       setEditingChannelId(ch.id)
                       setEditingChannelName(ch.name)
                     } else {
+                      exitCareerMode()
                       switchChannel(ch.id)
                     }
                   }}
@@ -4697,17 +4875,23 @@ export default function PlayerClient({
       )}
       {channels.length > 0 && (
         <div className="border-b border-zinc-900 px-4 py-2 max-w-[800px] mx-auto w-full flex gap-2 items-start">
-          <textarea
-            value={channelSearchText}
-            onChange={e => {
-              setChannelSearchText(e.target.value)
-              e.target.style.height = 'auto'
-              e.target.style.height = e.target.scrollHeight + 'px'
-            }}
-            placeholder="Describe this channel — genres, artists, era, mood…"
-            rows={1}
-            className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-white placeholder-zinc-500 resize-none overflow-hidden focus:outline-none focus:border-zinc-500"
-          />
+          <div className="relative flex-1 min-w-0">
+            <textarea
+              value={channelSearchText}
+              onChange={e => setChannelSearchText(e.target.value)}
+              placeholder="Describe this channel — genres, artists, era, mood…"
+              rows={1}
+              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 pr-7 text-xs text-white placeholder-zinc-500 resize-y focus:outline-none focus:border-zinc-500"
+            />
+            {channelSearchText && (
+              <button
+                type="button"
+                onClick={() => setChannelSearchText('')}
+                className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-300 transition-colors leading-none"
+                title="Clear"
+              >×</button>
+            )}
+          </div>
           <button
             type="button"
             onClick={() => updateCurrentChannelNotes(channelSearchText)}
@@ -4721,6 +4905,26 @@ export default function PlayerClient({
             className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
           >
             New channel
+          </button>
+        </div>
+      )}
+      {(careerMode || careerLoadingArtist) && (
+        <div className="border-b border-indigo-800/60 bg-indigo-950/70 px-4 py-2 flex items-center gap-3 max-w-[800px] mx-auto w-full">
+          <span className="text-xl font-bold text-indigo-200 shrink-0">
+            {careerMode?.artistName ?? careerLoadingArtist}
+          </span>
+          {careerMode && (
+            <span className="text-xs text-indigo-500 shrink-0">
+              {careerMode.currentIndex + 1} / {careerMode.works.length}
+            </span>
+          )}
+          {careerLoading && <span className="text-xs text-indigo-400 animate-pulse">Loading…</span>}
+          <button
+            type="button"
+            onClick={exitCareerMode}
+            className="ml-auto text-xs text-indigo-500 hover:text-indigo-300 transition-colors shrink-0"
+          >
+            Exit career mode
           </button>
         </div>
       )}
@@ -4944,15 +5148,31 @@ export default function PlayerClient({
                 >
                   {currentCard.track.name}
                 </a>
-                <p className="text-zinc-300 text-sm truncate">
+                <p className={`truncate transition-all ${careerMode ? 'text-indigo-300 text-xl font-semibold mt-0.5' : 'text-zinc-300 text-sm'}`}>
                   {(currentCard.track.artists && currentCard.track.artists.length > 1)
-                    ? currentCard.track.artists.join(', ')
-                    : currentCard.track.artist}
+                    ? currentCard.track.artists.map((a, i) => (
+                        <span key={a}>
+                          {i > 0 && ', '}
+                          <button
+                            type="button"
+                            onClick={() => void enterCareerMode(a)}
+                            className={careerMode ? 'hover:text-indigo-100 transition-colors' : 'hover:text-indigo-300 transition-colors'}
+                            title={`Follow ${a}'s career`}
+                          >{a}</button>
+                        </span>
+                      ))
+                    : <button
+                        type="button"
+                        onClick={() => void enterCareerMode(currentCard.track.artist)}
+                        className={careerMode ? 'hover:text-indigo-100 transition-colors' : 'hover:text-indigo-300 transition-colors'}
+                        title={`Follow ${currentCard.track.artist}'s career`}
+                      >{currentCard.track.artist}</button>
+                  }
                   {(() => {
                     const ry = currentCard.track.releaseYear
                     // Trust Spotify's release year for anything post-1990; only show composition year for classical / pre-1970 jazz standards.
                     const year = (ry && ry > 1990) ? ry : (currentCard.composed ?? ry)
-                    return year ? <span className="text-zinc-500 ml-2">{year}</span> : null
+                    return year ? <span className={`ml-2 ${careerMode ? 'text-indigo-500 text-sm font-normal' : 'text-zinc-500'}`}>{year}</span> : null
                   })()}
                 </p>
                 {currentCard.performer && (
@@ -5031,11 +5251,22 @@ export default function PlayerClient({
                 return dur > 0 ? Math.min(1, sliderPosition / dur) : 0
               })()}
             />
+            {careerMode && (
+              <button
+                type="button"
+                onClick={() => void careerGo(-1)}
+                disabled={careerLoading || careerMode.currentIndex === 0}
+                className="flex-1 py-3 text-xl font-bold bg-indigo-900 text-white rounded-2xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Prev
+              </button>
+            )}
             <button
-              onClick={() => advanceWithFade()}
-              className="flex-1 py-3 text-xl font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 transition-colors"
+              onClick={() => careerMode ? void careerGo(1) : advanceWithFade()}
+              disabled={careerLoading || (careerMode ? careerMode.currentIndex >= careerMode.works.length - 1 : false)}
+              className="flex-1 py-3 text-xl font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              Next
+              {careerLoading ? '…' : 'Next'}
             </button>
             <button
               type="button"
@@ -5112,6 +5343,11 @@ export default function PlayerClient({
             }}
             pendingSuggestions={suggestionBuffer}
             promotingDjPending={promotingDjPending}
+            careerWorks={careerMode?.works}
+            careerCurrentIndex={careerMode?.currentIndex}
+            careerLoading={careerLoading}
+            careerLoadingArtist={careerLoadingArtist}
+            onCareerGo={delta => void careerGo(delta)}
             onRemoveQueueItem={(index) => {
               const q = queueRef.current
               if (index < 0 || index >= q.length) return

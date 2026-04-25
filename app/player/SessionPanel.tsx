@@ -1,8 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { ListenEvent } from '@/app/lib/llm'
 import { type CardState, type PlaybackSource } from '@/app/lib/playback/types'
+
+export interface CareerWorkEntry {
+  title: string
+  year: number
+  reason?: string
+}
 
 export interface HistoryEntry extends ListenEvent {
   albumArt: string | null
@@ -80,6 +86,13 @@ interface Props {
   pendingSuggestions: { search: string; reason: string; spotifyId?: string }[]
   /** True while resolving DJ picks into the queue (automatic). */
   promotingDjPending?: boolean
+  /** When set, the queue section is replaced by the career discography. */
+  careerWorks?: CareerWorkEntry[]
+  careerCurrentIndex?: number
+  careerLoading?: boolean
+  /** Artist name while the discography is still being fetched (before careerWorks is set). */
+  careerLoadingArtist?: string | null
+  onCareerGo?: (delta: number) => void
 }
 
 export default function SessionPanel({
@@ -91,89 +104,153 @@ export default function SessionPanel({
   onRemoveQueueItem,
   pendingSuggestions,
   promotingDjPending = false,
+  careerWorks,
+  careerCurrentIndex = 0,
+  careerLoading = false,
+  careerLoadingArtist,
+  onCareerGo,
 }: Props) {
   const totalCount = queue.length + pendingSuggestions.length
+  const currentCareerRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    currentCareerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [careerCurrentIndex])
 
   return (
     <div className="flex flex-col gap-4 text-white w-full">
 
       {/* Taste profile */}
-      {profile && <ProfileView profile={profile} onEdit={onProfileChange} />}
+      {profile && !careerWorks && !careerLoadingArtist && <ProfileView profile={profile} onEdit={onProfileChange} />}
 
-      <div data-guide="up-next" className="flex flex-col gap-1">
-        <div className="flex items-center justify-between w-full">
-          <span className="text-xs text-zinc-500 uppercase tracking-wide">
-            Queue{totalCount > 0 ? ` (${totalCount})` : ''}
-          </span>
-          {(loadingNext || promotingDjPending) && (
-            <div className="flex items-center gap-1.5 text-zinc-300">
-              <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
-              <span className="text-xs">{promotingDjPending ? 'Adding…' : 'Asking the DJ…'}</span>
-            </div>
-          )}
+      {careerLoadingArtist && !careerWorks ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+          <div>
+            <p className="text-xs text-indigo-400 uppercase tracking-wide">Building discography for</p>
+            <p className="text-lg font-semibold text-indigo-200 mt-1">{careerLoadingArtist}</p>
+          </div>
         </div>
-
-        <div className="flex flex-col gap-3 mt-1">
-          <div className="flex flex-col gap-1">
-            {loadingNext && queue.length === 0 && (
-              <div className="flex items-center gap-2 text-zinc-500 text-xs py-2 italic">
-                Searching for songs…
-              </div>
-            )}
-            {queue.length === 0 && !loadingNext && pendingSuggestions.length === 0 && (
-              <p className="text-zinc-700 text-xs">Nothing queued yet.</p>
-            )}
-            {queue.map((card, i) => (
-              <div key={`${card.track.uri ?? card.track.id}-${i}`} className="flex items-center gap-1">
-                <button
-                  onClick={() => onPlayQueueItem(i)}
-                  className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
+      ) : careerWorks ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-zinc-500 uppercase tracking-wide">Career</span>
+          <div className="flex flex-col gap-0.5 mt-1">
+            {careerWorks.map((work, i) => {
+              const isCurrent = i === careerCurrentIndex
+              const isPast = i < careerCurrentIndex
+              return (
+                <div
+                  key={i}
+                  ref={isCurrent ? currentCareerRef : null}
                 >
-                  <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
-                  {card.track.albumArt ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={card.track.albumArt}
-                      alt={card.track.album}
-                      className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                      <span className="text-lg">♪</span>
+                  <button
+                    type="button"
+                    disabled={careerLoading}
+                    onClick={() => onCareerGo?.(i - careerCurrentIndex)}
+                    className={`w-full text-left rounded-xl px-3 py-2 transition-colors flex flex-col gap-0.5 ${
+                      isCurrent
+                        ? 'bg-indigo-900/60 border border-indigo-700/60'
+                        : isPast
+                        ? 'hover:bg-zinc-900/60 opacity-50'
+                        : 'hover:bg-zinc-900/60'
+                    } disabled:cursor-not-allowed`}
+                  >
+                    <div className="flex items-baseline gap-2">
+                      <span className={`tabular-nums text-xs shrink-0 ${isCurrent ? 'text-indigo-400' : 'text-zinc-600'}`}>
+                        {work.year}
+                      </span>
+                      <span className={`text-sm font-medium truncate ${isCurrent ? 'text-white' : isPast ? 'text-zinc-400' : 'text-zinc-300'}`}>
+                        {work.title}
+                      </span>
+                      {isCurrent && <span className="text-indigo-400 text-xs ml-auto shrink-0">▶</span>}
                     </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
-                    <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
-                    {card.reason && (
-                      <p className="text-zinc-300 text-xs leading-snug mt-0.5 line-clamp-3">{card.reason}</p>
+                    {work.reason && (
+                      <p className={`text-xs leading-snug line-clamp-2 ${isCurrent ? 'text-indigo-300/80' : 'text-zinc-600'}`}>
+                        {work.reason}
+                      </p>
                     )}
-                  </div>
-                </button>
-                <button
-                  onClick={() => onRemoveQueueItem(i)}
-                  className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
-                  title="Remove from queue"
-                >
-                  ×
-                </button>
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : (
+        <div data-guide="up-next" className="flex flex-col gap-1">
+          <div className="flex items-center justify-between w-full">
+            <span className="text-xs text-zinc-500 uppercase tracking-wide">
+              Queue{totalCount > 0 ? ` (${totalCount})` : ''}
+            </span>
+            {(loadingNext || promotingDjPending) && (
+              <div className="flex items-center gap-1.5 text-zinc-300">
+                <div className="w-3.5 h-3.5 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
+                <span className="text-xs">{promotingDjPending ? 'Adding…' : 'Asking the DJ…'}</span>
               </div>
-            ))}
+            )}
           </div>
 
-          {pendingSuggestions.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <span className="text-[10px] text-zinc-600 uppercase tracking-wide">Up next</span>
-              {pendingSuggestions.map((s, i) => (
-                <div key={i} className="text-xs px-1">
-                  <div className="text-white text-sm font-semibold leading-tight">{s.search}</div>
-                  <div className="text-zinc-400 leading-relaxed mt-0.5">{s.reason}</div>
+          <div className="flex flex-col gap-3 mt-1">
+            <div className="flex flex-col gap-1">
+              {loadingNext && queue.length === 0 && (
+                <div className="flex items-center gap-2 text-zinc-500 text-xs py-2 italic">
+                  Searching for songs…
+                </div>
+              )}
+              {queue.length === 0 && !loadingNext && pendingSuggestions.length === 0 && (
+                <p className="text-zinc-700 text-xs">Nothing queued yet.</p>
+              )}
+              {queue.map((card, i) => (
+                <div key={`${card.track.uri ?? card.track.id}-${i}`} className="flex items-center gap-1">
+                  <button
+                    onClick={() => onPlayQueueItem(i)}
+                    className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
+                  >
+                    <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
+                    {card.track.albumArt ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={card.track.albumArt}
+                        alt={card.track.album}
+                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                        <span className="text-lg">♪</span>
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
+                      <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
+                      {card.reason && (
+                        <p className="text-zinc-300 text-xs leading-snug mt-0.5 line-clamp-3">{card.reason}</p>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => onRemoveQueueItem(i)}
+                    className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"
+                    title="Remove from queue"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
             </div>
-          )}
+
+            {pendingSuggestions.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <span className="text-[10px] text-zinc-600 uppercase tracking-wide">Up next</span>
+                {pendingSuggestions.map((s, i) => (
+                  <div key={i} className="text-xs px-1">
+                    <div className="text-white text-sm font-semibold leading-tight">{s.search}</div>
+                    <div className="text-zinc-400 leading-relaxed mt-0.5">{s.reason}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
