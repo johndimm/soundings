@@ -24,6 +24,41 @@ export default function JournalPage() {
 const JOURNAL_CONTENT = `
 <h1>Soundings Dev Diary</h1>
 
+<h2>2026-05-06</h2>
+
+<h3>YouTube ToS compliance</h3>
+<ul>
+  <li class="fix">Fixed YouTube branding icon: replaced the single-path red rectangle with two paths — red background + white play triangle — to meet YouTube's brand guidelines requiring the official red/white logo.</li>
+  <li class="fix">Added <code>/privacy</code> page (Privacy Policy) with sections covering: no user accounts, localStorage-only personal data, LLM summary transmission, YouTube API Services, data export, cookies, and a Beta notice about future optional accounts.</li>
+  <li class="fix">Added <code>/terms</code> page (Terms of Use) with anchor IDs <code>#acceptance</code> and <code>#youtube-tos</code>. Explicit callout: "By using Soundings, you agree to be bound by the YouTube Terms of Service."</li>
+  <li class="fix">Added <code>/docs/youtube-response</code> page: point-by-point response to the YouTube API Services violations report V.1 (violations III.D.1c, III.A.1, III.A.2a/b/c/d/e/g/i, III.F.2a,b). Each card links with an anchor to the relevant section of the privacy or terms page.</li>
+  <li class="fix">Added Privacy and Terms links to the landing page footer.</li>
+</ul>
+
+<h3>Music playing on /privacy and /terms</h3>
+<ul>
+  <li class="problem">Visiting <code>/privacy</code> or <code>/terms</code> would start background music because <code>PersistentPlayerHost</code> was mounting the off-screen Spotify player on those routes.</li>
+  <li class="fix">Added an <code>isStaticPage</code> check in <code>PersistentPlayerHost</code>: when the current pathname is <code>/privacy</code> or <code>/terms</code>, the component returns <code>{children}</code> directly without mounting the player, exactly like the home-page exclusion already in place.</li>
+  <li class="fix">Created <code>app/components/AudioSilencer.tsx</code>: a client component that polls every 350ms to pause any <code>&lt;audio&gt;</code> or <code>&lt;video&gt;</code> elements and post a pause message to YouTube iframes. Used on static pages as a belt-and-suspenders guard.</li>
+</ul>
+
+<h3>Channels tab row: word-wrap instead of horizontal scroll</h3>
+<ul>
+  <li class="problem">When many channels existed, the channel tab strip in <code>PlayerClient</code> overflowed horizontally, requiring the user to scroll sideways to see all tabs.</li>
+  <li class="fix">Changed the channel container from <code>overflow-x-auto</code> to <code>overflow-y-auto overflow-x-hidden max-h-[min(42vh,12rem)]</code> and added <code>flex-wrap</code> to the inner row so tabs wrap naturally across multiple lines.</li>
+</ul>
+
+<h3>DEFAULT_LLM_PROVIDER from environment</h3>
+<ul>
+  <li class="fix">Added <code>DEFAULT_LLM_PROVIDER</code> constant in <code>app/lib/llm.ts</code>, reading from <code>process.env.DEFAULT_LLM_PROVIDER</code> with a fallback to <code>'deepseek'</code>. Changed the default parameter in <code>getNextSongQuery</code> to use it. Added <code>DEFAULT_LLM_PROVIDER=deepseek</code> to <code>.env.local</code>.</li>
+</ul>
+
+<h3>Discovery docs: how Soundings differs from Spotify</h3>
+<ul>
+  <li class="fix">Added <code>/docs/discovery</code> page covering three differentiators from Spotify's prompt-to-playlist: (1) interaction model — "just click Next", tracks pushed one at a time rather than browsed from a list; (2) tuning — the prompt is only the seed, ratings are fed back into every subsequent LLM request; (3) control — ratings in localStorage, viewable/editable, exportable as JSON.</li>
+  <li class="fix">Added the discovery card to the <code>/docs</code> index, positioned first.</li>
+</ul>
+
 <h2>2026-04-18</h2>
 
 <h3>Music map on channels page</h3>

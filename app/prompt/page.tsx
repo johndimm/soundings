@@ -22,7 +22,9 @@ There is a channel settings page where you configure the DJ constraints describe
 
 Every channel list starts with a special channel named "All." "All" has no configuration — no genres, regions, artists, notes, popularity, or time period — and its discovery slider is pinned to 100. What makes it special is that it learns from your entire listening history across every channel. Whatever you rate on "Jazz" or "Baroque" immediately informs "All" on the next DJ turn; ratings from every channel are merged (deduped by track+artist) before the LLM is queried. To keep payloads small, each non-All channel contributes a stratified sample — its most recent listens plus its highest- and lowest-rated tracks — rather than its full history. All's own history is sent in full. Each channel still keeps its own persisted history; the merge is read-only at query time.
 
-The app works in a demo mode with no login required, using preloaded history data, so anyone can try it before signing up.`
+The app works in a demo mode with no login required, using preloaded history data, so anyone can try it before signing up.
+
+There is a documentation section at /docs covering: how discovery works (and how Soundings differs from Spotify's prompt-to-playlist), how Soundings uses Spotify, the YouTube ToS violation response, the Privacy Policy, and the Terms of Use. The Privacy Policy and Terms of Use pages suppress music playback — the off-screen player is not mounted on those routes. The landing page footer links to both.`
 
 const PROMPT = `Build a web application called Soundings: an AI-powered music discovery app that acts as a personal DJ, learning the user's taste over time through listening and rating.
 
@@ -97,7 +99,7 @@ The player client component (PlayerClient) manages all state:
 
 **Header:** AppHeader component (shared nav) + channel tabs row.
 
-**Channel tabs row:** Scrollable row of channel name pills. Click active channel name to rename it inline. Click another to switch. "+" links to \`/channels?new=1\`. JSON export/import is on Settings (Channels backup); system reset is on Settings.
+**Channel tabs row:** Wrapping row of channel name pills (flex-wrap; scrollable vertically if many channels, max height ~12rem). Click active channel name to rename it inline. Click another to switch. "+" links to \`/channels?new=1\`. JSON export/import is on Settings (Channels backup); system reset is on Settings.
 
 **Main body (two-column on desktop):**
 
@@ -171,6 +173,24 @@ Right column — SessionPanel:
 - History list (reverse chronological): album art thumbnail, track name, artist, rating label (liked/ok/nope), percentListened%, re-rating slider, checkbox for multi-select.
 - Select all / Delete selected buttons.
 - Entries link out to Spotify or YouTube.
+
+### /privacy — Privacy Policy (server)
+Full privacy policy. Sections: Overview, No User Accounts, Listening History and Ratings (localStorage-only; a summary is sent through the backend to the LLM but not stored), Data Export, YouTube API Services, Information We Collect (two tiers: device-only vs. sent-to-backend), How We Use Your Information, Cookies and Local Storage, Data Sharing, Data Retention, Beta Notice (optional accounts if beta succeeds), Children's Privacy, Changes, Contact. Anchor IDs for direct linking. AudioSilencer suppresses any background music on this page; PersistentPlayerHost skips mounting the player entirely on /privacy.
+
+### /terms — Terms of Use (server)
+Terms covering acceptance, service description, Spotify and YouTube ToS incorporation by reference, prohibited uses, disclaimers. Anchor IDs: #acceptance, #youtube-tos. Same music-suppression treatment as /privacy.
+
+### /docs — Documentation index (server)
+Cards linking to: How Discovery Works, How Soundings uses Spotify, YouTube ToS Violation Response, Privacy Policy, Terms of Use.
+
+### /docs/discovery — How Discovery Works (server)
+Explains how Soundings differs from Spotify's prompt-to-playlist in three ways:
+1. Interaction model: one track at a time, pushed to the user; "just click Next."
+2. Tuning: the text prompt is only the seed — ratings are included in every subsequent LLM request, and highly-rated tracks are used to probe for adjacent artists.
+3. Control: ratings and history live in localStorage; viewable, editable, exportable as JSON; only a summary is ever sent to the LLM backend, and it is not stored there.
+
+### /docs/youtube-response — YouTube ToS Violation Response (server)
+Point-by-point reply to the YouTube API Services violations report V.1 (violations III.D.1c, III.A.1, III.A.2, III.F.2). Each card shows the original complaint, the resolution, and a direct anchor link to the relevant section of /privacy or /terms.
 
 ### /prompt — This page (static, server)
 Displays the complete specification prompt that was used to build the app (the document you are reading).
@@ -336,7 +356,8 @@ SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI,
 YOUTUBE_API_KEY,
 ANTHROPIC_API_KEY, OPENAI_API_KEY, DEEPSEEK_API_KEY, GOOGLE_API_KEY,
 ALLOWED_EMAILS (comma-separated allowlist for Spotify access),
-NEXT_PUBLIC_BASE_URL (for OAuth redirect construction).`
+NEXT_PUBLIC_BASE_URL (for OAuth redirect construction),
+DEFAULT_LLM_PROVIDER (llm.ts reads this at startup; defaults to 'deepseek' if unset; set in .env.local).`
 
 export default function PromptPage() {
   return (
