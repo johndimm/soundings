@@ -29,7 +29,7 @@ export default function DocsIndex() {
             href="/docs/youtube-response"
             className="border border-zinc-800 hover:border-zinc-600 rounded-xl p-4 transition-colors group"
           >
-            <p className="font-medium text-zinc-100 group-hover:text-white">YouTube ToS Violation Response</p>
+            <p className="font-medium text-zinc-100 group-hover:text-white">YouTube API Services Compliance Review</p>
             <p className="text-xs text-zinc-500 mt-1">
               Point-by-point reply to the YouTube API Services violations report V.1.
             </p>
