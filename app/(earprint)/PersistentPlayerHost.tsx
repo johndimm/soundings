@@ -122,8 +122,10 @@ function PersistentPlayerHostInner({
     Boolean(shareFromQuery) ||
     pendingShareGate
   const isPlayerRoute = pathname.startsWith('/player')
+  const pathNorm = pathname.replace(/\/+$/, '')
+  const isStaticPage = pathNorm === '/privacy' || pathNorm === '/terms'
 
-  if (!canPlay) {
+  if (!canPlay || isStaticPage) {
     return <>{children}</>
   }
 

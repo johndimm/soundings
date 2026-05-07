@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
@@ -956,6 +956,8 @@ export default function PlayerClient({
   const youtubePlayerRef = useRef<YoutubePlayerHandle | null>(null)
   /** Album panel for `auto 100%` width vs intrinsic — skip `albumPan` when the art already fits horizontally. */
   const albumPanelRef = useRef<HTMLDivElement | null>(null)
+  /** Bumps on `fullscreenchange` so in-panel career controls stay in sync with element fullscreen. */
+  const [careerPanelFsRepaint, setCareerPanelFsRepaint] = useState(0)
   const albumArtIntrinsicRef = useRef<{ w: number; h: number } | null>(null)
   const [albumArtNeedsPan, setAlbumArtNeedsPan] = useState(true)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -1630,6 +1632,25 @@ export default function PlayerClient({
       setCareerLoading(false)
     }
   }, [dedupeHistory, isGuideDemo, fadeOutCurrentPlayback])
+
+  useEffect(() => {
+    const onFs = () => setCareerPanelFsRepaint(n => n + 1)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => document.removeEventListener('fullscreenchange', onFs)
+  }, [])
+
+  const toggleAlbumPanelFullscreen = useCallback((e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation()
+    const el = albumPanelRef.current
+    if (!el) return
+    if (document.fullscreenElement === el) {
+      void document.exitFullscreen()
+    } else {
+      const r = el.requestFullscreen?.bind(el)
+      if (r) void r()
+      else (el as unknown as { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen?.call(el)
+    }
+  }, [])
 
   /**
    * Load startup channels from the server-side factory files the user curated:
@@ -4809,8 +4830,8 @@ export default function PlayerClient({
       <AppHeader />
       {/* Channel tabs */}
       {channels.length > 0 && (
-        <div className="border-b border-zinc-900 overflow-x-auto">
-        <div data-guide="channels" className="flex items-center gap-1 px-4 py-2 max-w-[800px] mx-auto">
+        <div className="border-b border-zinc-900 max-h-[min(42vh,12rem)] overflow-y-auto overflow-x-hidden">
+        <div data-guide="channels" className="flex flex-wrap items-center gap-1 px-4 py-2 max-w-[800px] mx-auto">
           {channels.map(ch => (
             <div
               key={ch.id}
@@ -5243,6 +5264,115 @@ export default function PlayerClient({
               </div>
             </>
           )}
+
+          {careerMode && (() => {
+            if (typeof document === 'undefined') return null
+            // Re-read on careerPanelFsRepaint so in-video chrome follows panel / document fullscreen
+            const fsEl = document.fullscreenElement
+            const panel = albumPanelRef.current
+            const inPanelFs = panel != null && fsEl === panel
+            const inPageFs = fsEl === document.documentElement
+            const inAnyFs = inPanelFs || inPageFs
+            const isYouTube = currentCard && (currentCard.track.source as string) === 'youtube'
+
+            if (!inAnyFs) {
+              if (currentCard) {
+                return (
+                  <div
+                    className="absolute top-0 right-0 z-[35] p-2 sm:p-3 pointer-events-auto"
+                    data-career-panel-fs-tick={careerPanelFsRepaint}
+                  >
+                    <button
+                      type="button"
+                      onClick={toggleAlbumPanelFullscreen}
+                      className="rounded-lg border border-zinc-600/80 bg-zinc-900/90 px-2.5 py-1.5 text-xs sm:text-sm font-medium text-zinc-200 shadow-sm hover:bg-zinc-800 transition-colors"
+                      title={
+                        isYouTube
+                          ? 'Use this full screen (not YouTube’s) to keep career Back, ←, and Next on top of the video'
+                          : 'Full screen the album area so career Back, ←, and Next stay on screen'
+                      }
+                    >
+                      Full screen
+                    </button>
+                  </div>
+                )
+              }
+              return null
+            }
+
+            return (
+            <div
+              className="absolute inset-0 z-[35] flex flex-col justify-between pointer-events-none"
+              data-career-panel-fs-tick={careerPanelFsRepaint}
+            >
+              <div className="flex items-start justify-between gap-2 p-2 sm:p-3 bg-gradient-to-b from-black/90 via-black/50 to-transparent pointer-events-auto">
+                <button
+                  type="button"
+                  onClick={e => {
+                    e.stopPropagation()
+                    exitCareerMode()
+                  }}
+                  className="shrink-0 rounded-lg border border-zinc-600/80 bg-zinc-900/90 px-3 py-1.5 text-sm font-medium text-white shadow-sm hover:bg-zinc-800 transition-colors"
+                >
+                  ← Back
+                </button>
+                {inPanelFs && currentCard && (
+                  <button
+                    type="button"
+                    onClick={toggleAlbumPanelFullscreen}
+                    className="shrink-0 rounded-lg border border-zinc-600/80 bg-zinc-900/90 px-2.5 py-1.5 text-sm font-medium text-zinc-200 shadow-sm hover:bg-zinc-800 transition-colors"
+                    title="Exit full screen (panel)"
+                    aria-label="Exit full screen for the album and video area"
+                  >
+                    Exit full
+                  </button>
+                )}
+                {inPageFs && !inPanelFs && currentCard && (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      void document.exitFullscreen()
+                    }}
+                    className="shrink-0 rounded-lg border border-zinc-600/80 bg-zinc-900/90 px-2.5 py-1.5 text-sm font-medium text-zinc-200 shadow-sm hover:bg-zinc-800 transition-colors"
+                    title="Leave browser full screen (Esc also works)"
+                  >
+                    Exit full
+                  </button>
+                )}
+              </div>
+              {currentCard && (
+                <div className="flex justify-center gap-2 p-2 pb-28 sm:pb-36 pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      void careerGo(-1)
+                    }}
+                    disabled={careerLoading || careerMode.currentIndex === 0}
+                    className="flex min-w-[2.75rem] items-center justify-center rounded-full border border-indigo-500/50 bg-indigo-900/95 px-3 py-2.5 text-xl font-bold text-white shadow-lg hover:bg-indigo-800 active:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Previous work in career"
+                    title="Previous in career"
+                  >
+                    ←
+                  </button>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      void careerGo(1)
+                    }}
+                    disabled={careerLoading || careerMode.currentIndex >= careerMode.works.length - 1}
+                    className="min-w-[4.5rem] rounded-full bg-white/95 px-4 py-2.5 text-sm font-bold text-black shadow-lg hover:bg-zinc-200 active:bg-zinc-300 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Next work in career"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+            )
+          })()}
         </div>
 
         {/* Stars + Next below the panel */}

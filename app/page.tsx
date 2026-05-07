@@ -76,8 +76,9 @@ export default async function Home({
               className="flex flex-col items-center gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 hover:border-zinc-600 hover:bg-zinc-900 p-6 transition-colors group"
             >
               {/* YouTube logo */}
-              <svg viewBox="0 0 24 24" className="w-12 h-12" fill="#FF0000">
-                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+              <svg viewBox="0 0 24 24" className="w-12 h-12">
+                <path fill="#FF0000" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z" />
+                <path fill="#FFFFFF" d="M9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
               </svg>
               <div className="flex flex-col items-center gap-1">
                 <span className="font-semibold text-white text-base">YouTube</span>
@@ -92,10 +93,12 @@ export default async function Home({
         {!hasToken && <RequestAccessForm />}
 
         {/* Footer links */}
-        <div className="flex gap-4">
+        <div className="flex gap-4 flex-wrap justify-center">
           <a href="/status" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Spotify status</a>
           <a href="/docs" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Docs</a>
           <a href="/journal.html" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Journal</a>
+          <a href="/privacy" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Privacy</a>
+          <a href="/terms" className="text-zinc-600 hover:text-zinc-400 text-xs transition-colors">Terms</a>
         </div>
 
       </div>

@@ -24,6 +24,9 @@ export interface SongSuggestion {
 
 export type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
 
+export const DEFAULT_LLM_PROVIDER: LLMProvider =
+  (process.env.DEFAULT_LLM_PROVIDER as LLMProvider) || 'deepseek'
+
 /** API model name used for each provider (keep in sync with ask* fetch bodies). */
 export const LLM_MODEL_API_ID: Record<LLMProvider, string> = {
   anthropic: 'claude-opus-4-6',
@@ -325,7 +328,7 @@ const MAX_LLM_ATTEMPTS = 2
 
 export async function getNextSongQuery(
   sessionHistory: ListenEvent[],
-  provider: LLMProvider = 'deepseek',
+  provider: LLMProvider = DEFAULT_LLM_PROVIDER,
   artistConstraint?: string,
   notes?: string,
   priorProfile?: string,
