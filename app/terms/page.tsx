@@ -100,8 +100,8 @@ export default function TermsOfUse() {
           <h2 className="text-lg font-semibold mb-3 text-zinc-100 border-b border-zinc-800 pb-2">Contact</h2>
           <p className="text-zinc-300 leading-relaxed">
             Questions about these terms:{' '}
-            <a href="mailto:john.r.dimm@gmail.com" className="text-zinc-100 hover:text-white underline">
-              john.r.dimm@gmail.com
+            <a href="mailto:john.leansoftware@gmail.com" className="text-zinc-100 hover:text-white underline">
+              john.leansoftware@gmail.com
             </a>
           </p>
         </section>

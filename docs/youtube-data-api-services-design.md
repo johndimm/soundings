@@ -163,7 +163,7 @@ If you prefer not to use the env flag, you can point **`resolveOneSuggestion`** 
 Update this section with your legal / technical contact for the product submitted to Google.
 
 - **Name:**  John Dimm
-- **Email:**  john.r.dimm@gmail.com
+- **Email:**  john.leansoftware@gmail.com
 - **App / deployment URL (if public):**  https://earprint-six.vercel.app/player
 
 ---

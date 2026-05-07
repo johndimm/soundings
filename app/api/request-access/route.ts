@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const TO = 'john.r.dimm@gmail.com'
+const TO = 'john.leansoftware@gmail.com'
 
 export async function POST(req: NextRequest) {
   const { email } = await req.json().catch(() => ({}))

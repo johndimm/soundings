@@ -248,8 +248,8 @@ export default function PrivacyPolicy() {
           <ul className="list-disc list-inside text-zinc-300 space-y-1 mt-2 ml-2">
             <li>
               Email:{' '}
-              <a href="mailto:john.r.dimm@gmail.com" className="text-zinc-100 hover:text-white underline">
-                john.r.dimm@gmail.com
+              <a href="mailto:john.leansoftware@gmail.com" className="text-zinc-100 hover:text-white underline">
+                john.leansoftware@gmail.com
               </a>
             </li>
             <li>
