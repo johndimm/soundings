@@ -59,6 +59,75 @@ const JOURNAL_CONTENT = `
   <li class="fix">Added the discovery card to the <code>/docs</code> index, positioned first.</li>
 </ul>
 
+<h2>2026-04-19</h2>
+
+<h3>"Load startup channels" button</h3>
+<ul>
+  <li class="problem">After System Reset the persisted channel list is exactly one empty <code>All</code> row. The blank-slate auto-loader intentionally skips the server fetch in that case (<code>allOnlyEmptyWipe</code> short-circuit), so the user lands on a barren player with nothing to play and no obvious next step.</li>
+  <li class="fix">Player now renders a <code>Load startup channels</code> button in the empty state (no current card, no queue, channels ≤ 1 and either empty or the empty All). Clicking it hits <code>GET /api/startup-channels?source=spotify|youtube</code>, which reads the user-curated bundles (<code>data/factory-channels-youtube.json</code> or <code>data/factory-channels.json</code>). Response is parsed through <code>parseChannelsImport</code>, wrapped with <code>ensureAllChannel</code>, persisted via <code>saveChannels</code>, and the preferred active channel is hydrated. A missing file or invalid shape renders a small error under the button instead of silently failing.</li>
+  <li class="fix">Button is source-aware: label copy and file fetched follow the active source so the Spotify bundle never leaks into a YouTube session and vice-versa.</li>
+</ul>
+
+<h3>Spotify login flicker loop (YouTube-test fixture leak)</h3>
+<ul>
+  <li class="problem">Logout → pick Spotify → screen flickers; server log floods with <code>POST /api/youtube-resolve-test 200</code>. Root cause: <code>youtubeResolveTestActive</code> lingering from a dev server env sent <code>youtubeResolveTest: true</code> on every <code>/api/next-song</code> call regardless of source, returning YouTube fixtures to Spotify sessions and triggering a resolve retry loop.</li>
+  <li class="fix">Renamed effective flag to <code>testModeForSource = youtubeResolveTestActive &amp;&amp; sourceRef.current === 'youtube'</code>. Applied across all three call sites. Server-side guard added: <code>rawSource === 'youtube'</code> required before fixture short-circuit fires.</li>
+</ul>
+
+<h3>YouTube: force start at 0s</h3>
+<ul>
+  <li class="problem">Some tracks jumped straight to ~30s on first play due to YouTube's "resume where you left off" feature applying saved offsets to embedded iframes.</li>
+  <li class="fix">Three-layer fix: <code>&amp;start=0</code> in embed URL; unconditional <code>seekTo(0, true)</code> in <code>onReady</code> before <code>playVideo()</code>; one-shot safety seek in <code>onStateChange</code> on first PLAYING transition if <code>getCurrentTime() &gt; 1.5</code>.</li>
+</ul>
+
+<h3>Queue delete = 0.5★ skip</h3>
+<ul>
+  <li class="problem">Clicking × on an Up Next row silently dropped the track — the DJ had no signal and would suggest the same sonic territory again.</li>
+  <li class="fix">Removing a track from the queue now records a 0.5-star rating in both <code>cardHistory</code> and <code>sessionHistory</code>. Guard: if the track is already in history, the existing rating is not overwritten.</li>
+</ul>
+
+<h3>All channel learns from every channel</h3>
+<ul>
+  <li class="fix">When the active channel is <code>earprint-all</code>, the DJ merges <code>sessionHistory</code> and <code>cardHistory</code> across every channel before calling the LLM. All's own refs take precedence; other channels overlay dedup-by-<code>track|artist</code>. Per-channel sampling caps each non-All contribution to a stratified sample (last 15 recent + top 10 highest-rated + 5 lowest-rated). The merge is read-only at query time and does not mutate any channel's stored state.</li>
+</ul>
+
+<h3>Per-source factory channels</h3>
+<ul>
+  <li class="fix">Factory snapshots are now source-specific. The <code>save-factory</code> API accepts <code>?source=spotify|youtube</code> and writes <code>data/factory-channels.&lt;source&gt;.json</code>. Added a dev-only "Save factory file" button in Settings that captures the current session as the factory default for whichever source is active.</li>
+</ul>
+
+<h3>Source switch clears per-channel playback, preserves user data</h3>
+<ul>
+  <li class="fix">Flipping source wipes <code>currentCard</code>, <code>queue</code>, <code>playbackPositionMs</code>, and <code>playbackTrackUri</code> on every channel but keeps history, ratings, genres, notes, sliders, and the taste profile.</li>
+</ul>
+
+<h3>Source selector removed from Settings</h3>
+<ul>
+  <li class="problem">The in-app "Playback Source" toggle allowed inconsistent state: source set to YouTube, localStorage full of Spotify entries, Spotify SDK still connected.</li>
+  <li class="fix">Removed the selector. Source is implied by login path — Spotify OAuth appends <code>?spotify_login=1</code>; <code>/api/auth/youtube</code> appends <code>?youtube_login=1</code>. One source of truth.</li>
+</ul>
+
+<h3>Fresh-login localStorage scrub</h3>
+<ul>
+  <li class="problem">Race condition: <code>PersistentPlayerHost</code>'s <code>&lt;Suspense&gt;</code> wrapper causes the fallback (including <code>PlayerClient</code>) to hydrate before the Suspense resolves, letting <code>PlayerClient</code> read stale cross-source channel data from localStorage.</li>
+  <li class="fix">Extracted reset into <code>app/lib/freshLogin.ts</code> with a module-level idempotence flag. Called from both <code>PersistentPlayerHostInner</code>'s render body and the top of <code>PlayerClient</code>'s hydration effect — whichever fires first wins.</li>
+</ul>
+
+<h3>YouTube playback: three separate failure modes fixed</h3>
+<ul>
+  <li class="problem"><strong>Autoplay reliability.</strong> Chrome blocks cross-origin iframe autoplay-with-sound. <code>autoplay=1</code> alone was not enough.</li>
+  <li class="fix"><code>PlayerClient</code> now imperatively calls <code>youtubePlayerRef.current?.play()</code> on <code>currentCard</code> change, using a YT JS API → postMessage → <code>pendingPlayRef</code> fallback chain.</li>
+  <li class="problem"><strong>postMessage origin mismatch.</strong> Target origin <code>https://www.youtube.com</code> fails when the iframe's <code>contentWindow.location</code> is still <code>about:blank</code>.</li>
+  <li class="fix">Changed to <code>'*'</code> — matches the upstream YT IFrame API's own behavior.</li>
+  <li class="problem"><strong>React Strict Mode double-wrap.</strong> Effects run twice in dev: two <code>new YT.Player()</code> calls bound to the same iframe; second wrapper never receives <code>onReady</code>; <code>getCurrentTime()</code> returns 0 forever.</li>
+  <li class="fix">Added <code>wrapperCreatedRef</code> to gate wrapper creation to once per instance. Stopped calling <code>YT.Player.destroy()</code> in cleanup — it removes the iframe from the DOM under React.</li>
+</ul>
+
+<h3>Misleading "Connecting to Spotify…" in YouTube mode</h3>
+<ul>
+  <li class="fix">Gated the loading message on source. <code>deviceId</code> is forever-null in YouTube-only mode so the message was perpetually shown until the first track resolved.</li>
+</ul>
+
 <h2>2026-04-18</h2>
 
 <h3>Music map on channels page</h3>
