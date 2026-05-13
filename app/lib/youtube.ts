@@ -205,19 +205,25 @@ function envBool(name: string, defaultVal: boolean): boolean {
   return defaultVal
 }
 
+
 /**
- * After search.list, call videos.list to prefer embeddable:true (costs +1 quota unit).
- * On by default — YouTube's videoEmbeddable search filter is unreliable (error 101/150).
- * Set YOUTUBE_EMBED_CHECK=0 to disable.
+ * oEmbed is more reliable than videos.list status.embeddable: YouTube returns 401 when
+ * embedding is truly disabled, 200 when it works. No API key needed; runs server-side only.
  */
-function shouldRunVideosListEmbedCheck(): boolean {
-  return envBool('YOUTUBE_EMBED_CHECK', true)
+async function isEmbeddableViaOembed(videoId: string): Promise<boolean> {
+  try {
+    const url = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`
+    const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
+    return res.ok
+  } catch {
+    return true // network error: assume embeddable to avoid over-filtering
+  }
 }
 
 /**
  * search.list's videoEmbeddable filter is not enough — many results still fail in the IFrame API
- * with error 101/150 (embedding disabled). Prefer videos the Data API marks embeddable.
- * One videos.list call per search (+1 quota unit vs 100 for search).
+ * with error 101/150 (embedding disabled). Use videos.list to pre-sort, then confirm via oEmbed
+ * (which is definitive: 200 = embeddable, 401 = not). Cycles through candidates until one passes.
  */
 async function pickBestEmbeddableVideoId(
   videoIds: string[],
@@ -230,30 +236,36 @@ async function pickBestEmbeddableVideoId(
     id: uniq.join(','),
     key: apiKey,
   })
-  let res: Response
+  let statusById = new Map<string, boolean | undefined>()
   try {
-    res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+    const res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+    if (res.ok) {
+      const data = (await res.json()) as {
+        items?: Array<{ id: string; status?: { embeddable?: boolean } }>
+      }
+      for (const it of data.items ?? []) {
+        statusById.set(it.id, it.status?.embeddable)
+      }
+    } else {
+      const text = await res.text().catch(() => '')
+      console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
+    }
   } catch (err) {
-    console.warn('[youtube] videos.list network error — skipping non-embeddable candidates', err)
-    return videoIds[0] ?? null
+    console.warn('[youtube] videos.list network error', err)
   }
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
-    return null
-  }
-  const data = (await res.json()) as {
-    items?: Array<{ id: string; status?: { embeddable?: boolean } }>
-  }
-  const statusById = new Map<string, boolean | undefined>()
-  for (const it of data.items ?? []) {
-    statusById.set(it.id, it.status?.embeddable)
-  }
-  // Preserve search ranking: first hit that is not explicitly non-embeddable
-  for (const vid of videoIds) {
-    const emb = statusById.get(vid)
-    if (emb === false) continue
-    return vid
+
+  // Order: explicitly embeddable first, then unknown, skip explicitly false.
+  const candidates = [
+    ...videoIds.filter(v => statusById.get(v) === true),
+    ...videoIds.filter(v => statusById.get(v) === undefined),
+  ]
+  if (candidates.length === 0) candidates.push(...videoIds) // all were false — try anyway
+
+  // Confirm via oEmbed (definitive check). Try each candidate until one passes.
+  for (const vid of candidates) {
+    const ok = await isEmbeddableViaOembed(vid)
+    console.info(`[youtube] oEmbed check ${vid}: ${ok ? 'embeddable' : 'blocked'}`)
+    if (ok) return vid
   }
   return null
 }
@@ -368,11 +380,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const filteredItems = allItems.length > 0 ? allItems : items
 
   const orderedIds = filteredItems.map(i => i.id?.videoId).filter((id): id is string => Boolean(id))
-  const runEmbedCheck = shouldRunVideosListEmbedCheck()
-  const chosenId = runEmbedCheck
-    ? await pickBestEmbeddableVideoId(orderedIds, apiKey)
-    : orderedIds[0] ?? null
-  console.info(`[youtube] videos.list embed check: ${runEmbedCheck ? 'on' : 'off (first search hit only)'}`)
+  const chosenId = await pickBestEmbeddableVideoId(orderedIds, apiKey)
   if (!chosenId) {
     return { status: 'not_found' }
   }

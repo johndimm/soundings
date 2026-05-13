@@ -162,6 +162,8 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
    * `getCurrentTime()` returns 0 forever and the progress slider is stuck at 0.
    */
   const wrapperCreatedRef = useRef(false)
+  /** Prevents double-firing onPlayerError when both the SDK callback and raw postMessage listener fire. */
+  const errorFiredRef = useRef(false)
   /**
    * Latch for "user asked to play before the API wrapper was ready." Overlay click sets it;
    * onReady consumes it. Without this, the first tap on the tap-to-play overlay is a no-op
@@ -190,6 +192,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     console.info('[yt] mount', { videoId, normalizedId, wrapperCreated: wrapperCreatedRef.current })
     setBlocked(false)
     pendingPlayRef.current = false
+    errorFiredRef.current = false
 
     /**
      * Poll getCurrentTime as a ground-truth fallback. The YT IFrame API handshake
@@ -294,12 +297,10 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             },
             onError: e => {
               console.warn('[yt] onError', e.data)
-              // Error 5 = HTML5 player / autoplay blocked — not unplayable, just needs a user gesture.
-              // Show the tap-to-play overlay instead of skipping the track.
-              // Errors 2, 100, 101, 150 = invalid ID / video unavailable / embedding disabled — truly unplayable.
               if (e.data === 5) {
                 setBlocked(true)
-              } else {
+              } else if (!errorFiredRef.current) {
+                errorFiredRef.current = true
                 onErrorRef.current?.(e.data)
               }
             },
@@ -324,6 +325,34 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       // what caused the original bug).
     }
   }, [normalizedId, videoId])
+
+  /**
+   * Raw postMessage fallback: YouTube's IFrame API SDK fires `onError` via its own message
+   * listener, but in some browsers / configurations the SDK callback never fires even though
+   * the iframe sends the error event. We listen directly as a backup. `errorFiredRef` prevents
+   * double-advance when both the SDK and this listener see the same error.
+   */
+  useEffect(() => {
+    if (!normalizedId) return
+    const handleMessage = (evt: MessageEvent) => {
+      if (!iframeRef.current || evt.source !== iframeRef.current.contentWindow) return
+      try {
+        const msg = JSON.parse(typeof evt.data === 'string' ? evt.data : JSON.stringify(evt.data))
+        if (msg?.event === 'onError') {
+          const code = Number(msg.info)
+          console.info('[yt] postMessage onError', code)
+          if (code === 5) {
+            setBlocked(true)
+          } else if (!errorFiredRef.current) {
+            errorFiredRef.current = true
+            onErrorRef.current?.(code)
+          }
+        }
+      } catch {}
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [normalizedId])
 
   /**
    * Tab-return recovery. When the user backgrounds the tab YouTube often pauses the video,

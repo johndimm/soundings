@@ -15,11 +15,28 @@ export default function YouTubeResponse() {
         <p className="text-zinc-400 text-sm mb-2">Project Number: 390748913178 · API Client: Lean Software Development</p>
         <p className="text-zinc-400 text-sm mb-10">Report: V.1 · Response date: May 6, 2026</p>
 
-        <p className="text-zinc-300 leading-relaxed mb-10">
+        <p className="text-zinc-300 leading-relaxed mb-4">
           Thank you for the detailed review. We have addressed each violation below. All policy
           documents are now live and publicly accessible. Links below open directly to the relevant
           section of each document.
         </p>
+
+        <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 mb-10">
+          <p className="text-zinc-200 leading-relaxed">
+            <strong className="text-white">Note — application rename and URL change:</strong> Since
+            this report was filed, the application has been renamed from <strong className="text-white">Earprint</strong> to{' '}
+            <strong className="text-white">Soundings</strong> and its primary URL has moved to{' '}
+            <a href="https://film-and-music.vercel.app" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
+              film-and-music.vercel.app
+            </a>. The original URL (
+            <a href="https://earprint-six.vercel.app" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
+              earprint-six.vercel.app
+            </a>) remains live. Both deployments use the same YouTube Data API key and the same
+            Google Cloud project (<strong className="text-white">390748913178</strong>), which has been
+            renamed to <strong className="text-white">Soundings</strong> in the API Console. All
+            compliance improvements described below are in effect at both URLs.
+          </p>
+        </div>
 
         {/* Section D */}
         <section className="mb-10">

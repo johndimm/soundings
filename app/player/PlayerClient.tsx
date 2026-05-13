@@ -4872,6 +4872,7 @@ export default function PlayerClient({
               )}
               {channels.length > 1 && (
                 <button
+                  type="button"
                   onClick={e => { e.stopPropagation(); deleteChannel(ch.id) }}
                   className="text-zinc-600 hover:text-red-400 ml-1 leading-none transition-colors"
                 >×</button>
@@ -5030,14 +5031,8 @@ export default function PlayerClient({
               }}
               onPlayerError={code => {
                 // Error 5 (HTML5/autoplay) is handled in YoutubePlayer itself (shows tap-to-play overlay).
-                // Here we only receive truly unplayable errors: 2 (invalid ID), 100 (not found), 101/150 (embedding disabled).
-                // Show error in UI instead of auto-advancing, to avoid burning search quota on cascading failures.
-                console.warn('[player] YouTube unplayable error', code)
-                const hint =
-                  code === 101 || code === 150
-                    ? "This video can't be played in the embedded player (restricted by the owner). Open it on YouTube, or press Next."
-                    : `YouTube video unavailable (error ${code}). Open YouTube to watch it there, or press Next.`
-                setError(hint)
+                // Other errors (2, 100, 101, 150) mean unembeddable — log only; filtering happens at search time.
+                console.warn('[player] YouTube unplayable error (not skipping):', code)
               }}
             />
           )}
@@ -5399,6 +5394,7 @@ export default function PlayerClient({
               </button>
             )}
             <button
+              type="button"
               onClick={() => careerMode ? void careerGo(1) : advanceWithFade()}
               disabled={careerLoading || (careerMode ? careerMode.currentIndex >= careerMode.works.length - 1 : false)}
               className="flex-1 py-3 text-xl font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
