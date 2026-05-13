@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Apps</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            zinc: {
+              800: '#27272a',
+              900: '#18181b',
+              950: '#09090b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body { background-color: #09090b; }
+  </style>
+</head>
+<body class="min-h-screen bg-zinc-950 px-4 py-6 text-zinc-100 sm:px-6 lg:py-8">
+
+  <div class="mx-auto flex w-full max-w-6xl flex-col">
+    <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-stretch lg:gap-8">
+
+      <!-- Soundings -->
+      <section class="flex min-h-0 flex-col rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-sm sm:p-8">
+        <div class="flex flex-1 flex-col text-center">
+          <span class="text-5xl leading-none">🎵</span>
+          <h2 class="mt-5 text-2xl font-bold tracking-tight text-white sm:text-3xl">Soundings</h2>
+          <p class="mt-3 text-base leading-relaxed text-zinc-300">
+            Discovery with Spotify &amp; YouTube: channels, queue, interactive graph.
+          </p>
+          <div class="mt-8 flex min-h-[12rem] flex-1 flex-col gap-8 sm:min-h-0">
+            <div class="flex flex-wrap justify-center gap-2">
+              <span class="rounded-md bg-emerald-500/20 px-3 py-1.5 text-sm font-medium text-emerald-200">Spotify</span>
+              <span class="rounded-md bg-emerald-500/20 px-3 py-1.5 text-sm font-medium text-emerald-200">YouTube</span>
+              <span class="rounded-md bg-emerald-500/20 px-3 py-1.5 text-sm font-medium text-emerald-200">Channels</span>
+              <span class="rounded-md bg-emerald-500/20 px-3 py-1.5 text-sm font-medium text-emerald-200">Graph</span>
+            </div>
+            <div class="flex-1 sm:min-h-8"></div>
+            <a
+              href="SOUNDINGS_URL"
+              class="inline-flex w-full max-w-[18rem] items-center justify-center self-center rounded-xl bg-emerald-600 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-emerald-500"
+            >
+              Open Soundings
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Trailer Vision -->
+      <section class="flex min-h-0 flex-col rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-sm sm:p-8">
+        <div class="flex flex-1 flex-col text-center">
+          <span class="text-5xl leading-none">🎬</span>
+          <h2 class="mt-5 text-2xl font-bold tracking-tight text-white sm:text-3xl">Trailer Vision</h2>
+          <p class="mt-3 text-base leading-relaxed text-zinc-300">
+            Browse trailers, rate what you watched, save a watchlist — the app learns from how you use it.
+          </p>
+          <a
+            href="TRAILER_VISION_URL"
+            class="group mt-5 block w-full shrink-0 cursor-pointer overflow-hidden rounded-2xl shadow-sm outline-2 outline-transparent outline-offset-2 transition hover:opacity-95 hover:outline-sky-500/40"
+            aria-label="Open Trailer Vision"
+          >
+            <img
+              src="nano-banano-photo.png"
+              alt=""
+              class="block w-full rounded-2xl transition group-hover:scale-[1.01]"
+            />
+          </a>
+          <div class="mt-8 flex min-h-[12rem] flex-1 flex-col gap-8 sm:min-h-0">
+            <div class="flex flex-wrap justify-center gap-2">
+              <span class="rounded-md bg-sky-500/20 px-3 py-1.5 text-sm font-medium text-sky-200">AI recs</span>
+              <span class="rounded-md bg-sky-500/20 px-3 py-1.5 text-sm font-medium text-sky-200">Trailers</span>
+              <span class="rounded-md bg-sky-500/20 px-3 py-1.5 text-sm font-medium text-sky-200">Watchlist</span>
+              <span class="rounded-md bg-sky-500/20 px-3 py-1.5 text-sm font-medium text-sky-200">Ratings</span>
+            </div>
+            <div class="flex-1 sm:min-h-8"></div>
+            <a
+              href="TRAILER_VISION_URL"
+              class="inline-flex w-full max-w-[18rem] items-center justify-center self-center rounded-xl bg-sky-600 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-sky-500"
+            >
+              Open Trailer Vision
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <!-- Constellations -->
+      <section class="flex min-h-0 flex-col rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 shadow-sm sm:p-8">
+        <div class="flex flex-1 flex-col text-center">
+          <span class="text-5xl leading-none">🕸️</span>
+          <h2 class="mt-5 text-2xl font-bold tracking-tight text-white sm:text-3xl">Constellations</h2>
+          <p class="mt-3 text-base leading-relaxed text-zinc-300">
+            Interactive graph: people, works, and how they connect.
+          </p>
+          <a
+            href="CONSTELLATIONS_URL"
+            class="group mt-5 block w-full shrink-0 cursor-pointer overflow-hidden rounded-2xl shadow-sm outline-2 outline-transparent outline-offset-2 transition hover:opacity-95 hover:outline-violet-500/40"
+            aria-label="Open Constellations"
+          >
+            <img
+              src="godfather.png"
+              alt=""
+              class="block w-full rounded-2xl transition group-hover:scale-[1.01]"
+            />
+          </a>
+          <div class="mt-8 flex min-h-[12rem] flex-1 flex-col gap-8 sm:min-h-0">
+            <div class="flex-1 sm:min-h-8"></div>
+            <a
+              href="CONSTELLATIONS_URL"
+              class="inline-flex w-full max-w-[18rem] items-center justify-center self-center rounded-xl bg-violet-600 px-6 py-3.5 text-base font-semibold text-white shadow-sm transition-colors hover:bg-violet-500"
+            >
+              Open Constellations
+            </a>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <footer class="mt-10 flex flex-wrap justify-center gap-x-8 gap-y-2 border-t border-zinc-800/80 pt-8 text-sm text-zinc-500">
+      <a href="https://github.com/johndimm" target="_blank" rel="noopener noreferrer" class="transition-colors hover:text-zinc-200">GitHub</a>
+      <a href="https://www.linkedin.com/in/johndimm/" target="_blank" rel="noopener noreferrer" class="transition-colors hover:text-zinc-200">LinkedIn</a>
+    </footer>
+  </div>
+
+</body>
+</html>
