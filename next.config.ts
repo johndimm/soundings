@@ -4,7 +4,6 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   transpilePackages: ['@johndimm/constellations'],
   env: {
-    // Exposes Gemini key to the client-side Constellations graph (aiUtils.ts reads NEXT_PUBLIC_VITE_GEMINI_API_KEY)
     NEXT_PUBLIC_VITE_GEMINI_API_KEY: process.env.GEMINI_API_KEY ?? '',
     YOUTUBE_RESOLVE_TEST: process.env.YOUTUBE_RESOLVE_TEST ?? '',
     NEXT_PUBLIC_YOUTUBE_RESOLVE_TEST: process.env.NEXT_PUBLIC_YOUTUBE_RESOLVE_TEST ?? '',

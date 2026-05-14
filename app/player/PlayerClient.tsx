@@ -7,6 +7,8 @@ import { SpotifyTrack } from '@/app/lib/spotify'
 import { parseShareId } from '@/app/lib/shareId'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
+import { writeNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
+import PlayerConstellationsEmbed from './PlayerConstellationsEmbed'
 import AppHeader from '@/app/components/AppHeader'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
@@ -3209,6 +3211,20 @@ export default function PlayerClient({
     expectedTrackEndAtRef.current = 0
   }, [currentCard?.track.uri ?? currentCard?.track.id])
 
+  // Publish now-playing for Constellations graph auto-search
+  useEffect(() => {
+    if (!currentCard) { writeNowPlayingSnapshot(null); return }
+    const stripBrackets = (s: string) => s.replace(/\s*[\[(][^\])\[]*[\])]$/g, '').trim()
+    const stripEditionSuffix = (s: string) =>
+      s.replace(/\s*[-–—]\s*(remaster(?:ed)?(?:\s*\d{4})?|deluxe(?: edition)?|expanded(?: edition)?|special edition)\b.*$/i, '').trim()
+    const cleanTitle = (s: string) => stripEditionSuffix(stripBrackets(s))
+    writeNowPlayingSnapshot({
+      artist: currentCard.track.artist,
+      track: cleanTitle(currentCard.track.name),
+      album: currentCard.track.album?.trim() ? cleanTitle(currentCard.track.album.trim()) : undefined,
+    })
+  }, [currentCard?.track.uri ?? currentCard?.track.id])
+
   // Seed duration from Spotify track metadata before the Web Playback SDK reports duration (often 0).
   useEffect(() => {
     if (!currentCard) return
@@ -5542,6 +5558,18 @@ export default function PlayerClient({
 
         </div>{/* end single column */}
       </div>
+
+      {/* Constellations graph — below queue/up next */}
+      <PlayerConstellationsEmbed
+        onNewChannelFromNode={(node) => {
+          try {
+            sessionStorage.setItem(
+              'earprint-pending-constellations-new-channel',
+              JSON.stringify({ node, at: Date.now() })
+            )
+          } catch { /* ignore */ }
+        }}
+      />
 
       {/* Footer */}
       <div className="border-t border-zinc-900 py-3 flex justify-center">
