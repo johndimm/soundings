@@ -23,7 +23,8 @@ export default function AppHeader() {
     <header className={`border-b ${isPlayer ? 'bg-black border-zinc-900' : 'bg-white border-zinc-200'}`}>
     <div className="flex items-center gap-2 px-4 py-2 max-w-[800px] mx-auto flex-wrap">
       <Link
-        href="/player"
+        href="/"
+        title="Film & Music — return to hub"
         className={`text-base font-bold transition-colors mr-1 ${isPlayer ? 'text-white hover:text-zinc-300' : 'text-black hover:text-zinc-600'}`}
       >
         Soundings
