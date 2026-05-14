@@ -2,6 +2,7 @@ import type { NextConfig } from 'next'
 
 /** Ensures .env.local values are visible to server + client bundles after `next dev` / `next build`. */
 const nextConfig: NextConfig = {
+  transpilePackages: ['@johndimm/constellations'],
   env: {
     YOUTUBE_RESOLVE_TEST: process.env.YOUTUBE_RESOLVE_TEST ?? '',
     NEXT_PUBLIC_YOUTUBE_RESOLVE_TEST: process.env.NEXT_PUBLIC_YOUTUBE_RESOLVE_TEST ?? '',

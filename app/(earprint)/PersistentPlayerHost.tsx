@@ -124,8 +124,11 @@ function PersistentPlayerHostInner({
   const isPlayerRoute = pathname.startsWith('/player')
   const pathNorm = pathname.replace(/\/+$/, '')
   const isStaticPage = pathNorm === '/privacy' || pathNorm === '/terms'
+  // Never mount the player on the auth/landing page — the YouTube cookie can
+  // make canPlay=true even when the user has no active session.
+  const isAuthPage = pathNorm === ''
 
-  if (!canPlay || isStaticPage) {
+  if (!canPlay || isStaticPage || isAuthPage) {
     return <>{children}</>
   }
 
