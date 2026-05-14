@@ -7,6 +7,7 @@ const PAGE_LINKS = [
   { href: '/player', label: 'Player' },
   { href: '/channels', label: 'Channels' },
   { href: '/ratings', label: 'History' },
+  { href: '/constellations', label: 'Graph' },
   { href: '/settings', label: 'Settings' },
 ]
 

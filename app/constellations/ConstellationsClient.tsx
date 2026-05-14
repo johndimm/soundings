@@ -7,9 +7,22 @@ import {
   useFullPageConstellationsHost,
 } from "@johndimm/constellations/host";
 import {
-  persistWindowConstellationsHandoffToSession,
   takeEmbedHandoffForInitialState,
+  SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY,
 } from "@johndimm/constellations/sessionHandoff";
+
+function persistWindowConstellationsHandoffToSession(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const fn = (window as any).__soundingsConstellationsGetHandoff;
+    if (typeof fn !== "function") return;
+    const payload = fn();
+    if (!payload || typeof payload !== "object") return;
+    const p = payload as { v?: number; graph?: { nodes?: unknown[] } };
+    if (p.v !== 1 || !p.graph?.nodes?.length) return;
+    sessionStorage.setItem(SOUNDINGS_CONSTELLATIONS_HANDOFF_KEY, JSON.stringify(payload));
+  } catch { /* empty */ }
+}
 import type { GraphNode } from "@johndimm/constellations/types";
 import AppHeader from "@/app/components/AppHeader";
 import { useRouter, useSearchParams } from "next/navigation";
