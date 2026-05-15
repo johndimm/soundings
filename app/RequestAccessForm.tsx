@@ -27,7 +27,7 @@ export default function RequestAccessForm() {
 
   return (
     <form onSubmit={submit} className="flex flex-col items-center gap-2 w-full">
-      <p className="text-zinc-500 text-xs">Request Spotify access</p>
+      <p className="text-zinc-500 text-xs">Request beta access to Soundings</p>
       <div className="flex gap-2 w-full">
         <input
           type="email"

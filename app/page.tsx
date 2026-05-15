@@ -3,8 +3,8 @@ import { getBaseUrl } from '@/app/lib/baseUrl'
 import RequestAccessForm from './RequestAccessForm'
 
 const FILM_DESC =
-  'Browse trailers, rate what you watched, save a watchlist — the app learns from how you use it.'
-const CONSTELLATIONS_DESC = 'Interactive graph: people, works, and how they connect.'
+  'Picks a movie or TV trailer, shows it to you, and watches your reaction to guess your taste profile.'
+const CONSTELLATIONS_DESC = 'Explore connections between people and events in Wikipedia.'
 
 export default async function Home({
   searchParams,
@@ -39,7 +39,7 @@ export default async function Home({
               <span className="text-5xl leading-none">🎵</span>
               <h2 className={titleCls}>Soundings</h2>
               <p className={descCls}>
-                Discovery with Spotify &amp; YouTube: channels, queue, interactive graph.
+                Picks a song, plays it for you, and watches your reaction to learn the boundary between your likes and dislikes.
               </p>
             </div>
 
@@ -75,7 +75,7 @@ export default async function Home({
                     )}
                   </span>
                   <span className="mt-1 block text-sm text-zinc-300">
-                    {hasSpotify ? 'Open Soundings' : 'Requires Premium · beta access'}
+                    {hasSpotify ? 'Open Soundings' : 'Spotify Premium · Soundings beta access'}
                   </span>
                 </div>
               </a>
@@ -88,7 +88,7 @@ export default async function Home({
                 </svg>
                 <div>
                   <span className="block text-base font-semibold text-white">YouTube</span>
-                  <span className="mt-1 block text-sm text-zinc-300">No login · ~100 searches/day</span>
+                  <span className="mt-1 block text-sm text-zinc-300">No login</span>
                 </div>
               </a>
             </div>
@@ -118,7 +118,7 @@ export default async function Home({
               </a>
               <div className="mt-8 flex min-h-[12rem] flex-1 flex-col gap-8 sm:min-h-0">
                 <div className="flex flex-wrap justify-center gap-2">
-                  {['AI recs', 'Trailers', 'Watchlist', 'Ratings'].map((tag) => (
+                  {['Player', 'Channels', 'History', 'Watchlists'].map((tag) => (
                     <span
                       key={tag}
                       className="rounded-md bg-sky-500/20 px-3 py-1.5 text-sm font-medium text-sky-200"

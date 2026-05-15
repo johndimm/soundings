@@ -1237,7 +1237,7 @@ export default function PlayerClient({
     const g = ch.genres ?? []; setGenres(g); genresRef.current = g
     const gt = ch.genreText ?? ''; setGenreText(gt); genreTextRef.current = gt
     const tp = ch.timePeriods?.length ? ch.timePeriods.join(' and ') : (ch.timePeriod ?? ''); setTimePeriod(tp); timePeriodRef.current = tp
-    const n = ch.notes ?? ''; setNotes(n); notesRef.current = n; setChannelSearchText(n)
+    const n = ch.notes ?? ''; setNotes(n); notesRef.current = n;
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
     const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
     const at = ch.artistText ?? ''; setArtistText(at); artistTextRef.current = at
@@ -4939,15 +4939,9 @@ export default function PlayerClient({
           </div>
           <button
             type="button"
-            onClick={() => updateCurrentChannelNotes(channelSearchText)}
-            className="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
-          >
-            Update channel
-          </button>
-          <button
-            type="button"
-            onClick={() => void createChannelWithNotes(channelSearchText)}
-            className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0"
+            onClick={() => { void createChannelWithNotes(channelSearchText); setChannelSearchText(''); }}
+            disabled={!channelSearchText.trim()}
+            className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
           >
             New channel
           </button>
