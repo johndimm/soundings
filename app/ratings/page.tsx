@@ -378,7 +378,7 @@ export default function RatingsPage() {
             const selKey = encodeSelectionKey(channelId, globalIndex)
             const isSelected = selectedKeys.has(selKey)
             const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
-            const canOpen = Boolean(playableTrackId) || entry.source === 'youtube'
+            const canOpen = Boolean(entry.track)
             return (
               <div
                 key={`${channelId}-${globalIndex}-${i}`}
@@ -393,11 +393,7 @@ export default function RatingsPage() {
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
                 <a
-                  href={
-                    entry.source === 'youtube'
-                      ? `https://www.youtube.com/watch?v=${entry.uri}`
-                      : `https://open.spotify.com/track/${playableTrackId ?? ''}`
-                  }
+                  href={entry.track ? `/player?q=${encodeURIComponent(entry.track)}` : '#'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors ${

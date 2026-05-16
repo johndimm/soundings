@@ -52,7 +52,13 @@ function PlayerConstellationsInner({
         hideControlPanel
         showExtensionWhenPanelHidden={false}
         hideSidebar
-        externalSearch={externalSearch ? { ...externalSearch, typeHint: 'Music' } : null}
+        externalSearch={
+          externalSearch
+            ? { ...externalSearch, typeHint: 'Music' }
+            : qParam
+            ? { term: qParam, id: `q:${qParam}`, typeHint: 'Music' }
+            : null
+        }
         onExternalSearchConsumed={() => {}}
         autoExpandMatchTitles={autoExpandTitles}
         nowPlayingKey={nowPlayingKey}
