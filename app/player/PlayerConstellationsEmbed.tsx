@@ -21,7 +21,12 @@ function PlayerConstellationsInner({
   const sp = useSearchParams()
   const qParam = (sp.get('q') ?? '').trim()
   const expandParam = (sp.get('expand') ?? '').trim()
-  const [embedReturnHandoff] = useState(() => takeEmbedHandoffForInitialState())
+  const [embedReturnHandoff] = useState(() => {
+    const h = takeEmbedHandoffForInitialState()
+    // Only restore session if it has actual graph nodes — otherwise let the
+    // now-playing bridge drive the search (skipPlayerBootstrapRef stays false).
+    return h?.graph?.nodes?.length ? h : null
+  })
 
   const { ready, externalSearch, autoExpandTitles, nowPlayingKey } = useFullPageConstellationsHost({
     qParam,

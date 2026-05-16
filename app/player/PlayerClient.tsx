@@ -2792,7 +2792,7 @@ export default function PlayerClient({
       cancelled = true
       sdkReadyRef.current = false
       if (window.onSpotifyWebPlaybackSDKReady === onSdkReady) {
-        window.onSpotifyWebPlaybackSDKReady = previousOnReady
+        window.onSpotifyWebPlaybackSDKReady = previousOnReady ?? (() => {})
       }
       try {
         playerRef.current?.disconnect()
@@ -5550,20 +5550,20 @@ export default function PlayerClient({
           />
         </div>
 
+        {/* Constellations graph — below queue/up next */}
+        <PlayerConstellationsEmbed
+          onNewChannelFromNode={(node) => {
+            try {
+              sessionStorage.setItem(
+                'earprint-pending-constellations-new-channel',
+                JSON.stringify({ node, at: Date.now() })
+              )
+            } catch { /* ignore */ }
+          }}
+        />
+
         </div>{/* end single column */}
       </div>
-
-      {/* Constellations graph — below queue/up next */}
-      <PlayerConstellationsEmbed
-        onNewChannelFromNode={(node) => {
-          try {
-            sessionStorage.setItem(
-              'earprint-pending-constellations-new-channel',
-              JSON.stringify({ node, at: Date.now() })
-            )
-          } catch { /* ignore */ }
-        }}
-      />
 
       {/* Footer */}
       <div className="border-t border-zinc-900 py-3 flex justify-center">

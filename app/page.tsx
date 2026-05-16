@@ -1,5 +1,4 @@
 import { cookies } from 'next/headers'
-import { getBaseUrl } from '@/app/lib/baseUrl'
 import RequestAccessForm from './RequestAccessForm'
 
 const FILM_DESC =
@@ -14,11 +13,10 @@ export default async function Home({
   const cookieStore = await cookies()
   const hasSpotify = cookieStore.has('spotify_access_token')
   const { error } = await searchParams
-  const base = getBaseUrl()
 
-  const loginUrl = base ? `${base}/api/auth/login` : '/api/auth/login'
-  const ytUrl = base ? `${base}/api/auth/youtube` : '/api/auth/youtube'
-  const playerUrl = base ? `${base}/player` : '/player'
+  const loginUrl = '/api/auth/login'
+  const ytUrl = '/api/auth/youtube'
+  const playerUrl = '/player'
 
   const tvUrl = process.env.TRAILER_VISION_URL || 'http://localhost:3000'
   const consUrl = process.env.CONSTELLATIONS_URL || 'http://localhost:3001'
