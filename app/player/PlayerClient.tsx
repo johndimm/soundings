@@ -4936,6 +4936,13 @@ export default function PlayerClient({
             <textarea
               value={channelSearchText}
               onChange={e => setChannelSearchText(e.target.value)}
+              onKeyDown={e => {
+                if (e.key !== 'Enter' || e.shiftKey) return
+                e.preventDefault()
+                if (!channelSearchText.trim()) return
+                void createChannelWithNotes(channelSearchText)
+                setChannelSearchText('')
+              }}
               placeholder="Describe this channel — genres, artists, era, mood…"
               rows={1}
               className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 pr-7 text-xs text-white placeholder-zinc-500 resize-y focus:outline-none focus:border-zinc-500"
