@@ -9,7 +9,10 @@ const nextConfig: NextConfig = {
     VITE_AI_PROVIDER: (
       process.env.VITE_AI_PROVIDER ||
       process.env.NEXT_PUBLIC_VITE_AI_PROVIDER ||
-      'gemini'
+      // When no cache proxy is configured the browser calls the LLM directly; use gemini
+      // since GEMINI_API_KEY is present. When the proxy IS configured, leave this empty so
+      // the proxy decides (deepseek, which has a key on Render.com).
+      (process.env.NEXT_PUBLIC_VITE_CACHE_URL || process.env.VITE_CACHE_URL || process.env.VITE_CACHE_API_URL ? '' : 'gemini')
     ),
     NEXT_PUBLIC_VITE_CACHE_URL: (
       process.env.NEXT_PUBLIC_VITE_CACHE_URL ||
