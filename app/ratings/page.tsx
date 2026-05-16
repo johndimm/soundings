@@ -199,6 +199,12 @@ export default function RatingsPage() {
    * newest-first, Title↑ gives alphabetical, etc.), not the order in which the
    * user ticked the checkboxes — a simpler mental model than tracking click order.
    */
+  const enqueueAndGoToPlayer = (cards: CardState[]) => {
+    if (cards.length === 0) return
+    window.dispatchEvent(new CustomEvent('earprint:enqueue', { detail: { cards } }))
+    router.push('/player')
+  }
+
   const handlePlaySelectedKeys = () => {
     if (selectedKeys.size === 0) return
     const ordered: CardState[] = allEntries
@@ -206,9 +212,14 @@ export default function RatingsPage() {
       .map(fe => historyEntryToCardState(fe.entry))
       .filter((c): c is CardState => c !== null)
     if (ordered.length === 0) return
-    window.dispatchEvent(new CustomEvent('earprint:enqueue', { detail: { cards: ordered } }))
+    enqueueAndGoToPlayer(ordered)
     setSelectedKeys(new Set())
-    router.push('/player')
+  }
+
+  const handlePlayHistoryEntry = (entry: HistoryEntry) => {
+    const card = historyEntryToCardState(entry)
+    if (!card) return
+    enqueueAndGoToPlayer([card])
   }
 
   const handleRemoveSelectedKeys = () => {
@@ -377,8 +388,7 @@ export default function RatingsPage() {
             const { entry, channelId, channelName, globalIndex } = fe
             const selKey = encodeSelectionKey(channelId, globalIndex)
             const isSelected = selectedKeys.has(selKey)
-            const playableTrackId = normalizeSpotifyTrackId(entry.uri ?? undefined)
-            const canOpen = Boolean(entry.track)
+            const canPlay = historyEntryToCardState(entry) !== null
             return (
               <div
                 key={`${channelId}-${globalIndex}-${i}`}
@@ -392,10 +402,12 @@ export default function RatingsPage() {
                   onChange={() => toggleSelect(channelId, globalIndex)}
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
-                <a
-                  href={entry.track ? `/player?q=${encodeURIComponent(entry.track)}` : '#'}
-                  className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors ${
-                    !canOpen ? 'pointer-events-none' : ''
+                <button
+                  type="button"
+                  disabled={!canPlay}
+                  onClick={() => handlePlayHistoryEntry(entry)}
+                  className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    canPlay ? 'cursor-pointer' : ''
                   }`}
                 >
                   {entry.albumArt ? (
@@ -412,7 +424,7 @@ export default function RatingsPage() {
                     <p className="text-black text-xs font-medium truncate">{entry.track}</p>
                     <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
                   </div>
-                </a>
+                </button>
                 {!isChannelView && (
                   <span className="text-xs text-zinc-400 flex-shrink-0 hidden sm:block max-w-[80px] truncate" title={channelName}>
                     {channelName}

@@ -1022,6 +1022,8 @@ export default function PlayerClient({
     ((opts?: { userInitiated?: boolean }) => Promise<void>) | null
   >(null)
   const djQueueLoggedHistoryWaitRef = useRef(false)
+  /** Set by `earprint:enqueue` so returning to /player does not restore stale currentCard from storage. */
+  const skipChannelReloadOnPlayerEnterRef = useRef(false)
   const resolvingRef = useRef(false)
   const profileGenRef = useRef(0)
   const channelsRef = useRef<Channel[]>([])
@@ -2622,6 +2624,10 @@ export default function PlayerClient({
     channelsRef.current = chs
     setActiveChannelId(activeId)
     activeChannelIdRef.current = activeId
+    if (skipChannelReloadOnPlayerEnterRef.current) {
+      skipChannelReloadOnPlayerEnterRef.current = false
+      return
+    }
     loadChannelIntoState(active)
   }, [pathname, historyReady, isGuideDemo, loadChannelIntoState])
 
@@ -3003,6 +3009,12 @@ export default function PlayerClient({
       const cards = Array.isArray(detail?.cards) ? detail.cards.filter(Boolean) : []
       if (cards.length === 0) return
       const [first, ...rest] = cards
+      // Returning from /ratings (etc.) runs loadChannelIntoState and would restore the old currentCard.
+      skipChannelReloadOnPlayerEnterRef.current =
+        typeof window !== 'undefined' && !window.location.pathname.startsWith('/player')
+      pendingPlaybackPositionMsRef.current = undefined
+      // Force the play-on-currentCard effect even when re-selecting the same track.
+      lastPlayedUriRef.current = ''
       currentCardRef.current = first
       setCurrentCard(first)
       queueRef.current = rest
