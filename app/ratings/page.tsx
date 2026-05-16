@@ -394,8 +394,6 @@ export default function RatingsPage() {
                 />
                 <a
                   href={entry.track ? `/player?q=${encodeURIComponent(entry.track)}` : '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors ${
                     !canOpen ? 'pointer-events-none' : ''
                   }`}
