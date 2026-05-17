@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
@@ -757,6 +757,138 @@ function trySpotifyRedirect(
   window.location.href = '/api/auth/login'
 }
 
+const PlayerChannelsToolbar = memo(function PlayerChannelsToolbar({
+  channels,
+  activeChannelId,
+  activeTabRef,
+  editingChannelId,
+  editingChannelName,
+  onEditingChannelNameChange,
+  onRenameChannel,
+  onFinishRename,
+  onCancelRename,
+  onSelectChannel,
+  onStartRename,
+  onDeleteChannel,
+  showLoadStarterChannelsPill,
+  loadingStartupChannels,
+  onLoadStartupChannels,
+  starterChannelsTitle,
+}: {
+  channels: Channel[]
+  activeChannelId: string
+  activeTabRef: RefObject<HTMLDivElement | null>
+  editingChannelId: string | null
+  editingChannelName: string
+  onEditingChannelNameChange: (name: string) => void
+  onRenameChannel: (id: string, name: string) => void
+  onFinishRename: () => void
+  onCancelRename: () => void
+  onSelectChannel: (id: string) => void
+  onStartRename: (id: string, name: string) => void
+  onDeleteChannel: (id: string) => void
+  showLoadStarterChannelsPill: boolean
+  loadingStartupChannels: boolean
+  onLoadStartupChannels: () => void
+  starterChannelsTitle: string
+}) {
+  return (
+    <div
+      data-guide="channels"
+      className="flex flex-nowrap items-center gap-2 overflow-x-auto overscroll-x-contain pb-1 [-webkit-overflow-scrolling:touch] [scrollbar-color:rgba(63,63,70,0.65)_transparent] [scrollbar-width:thin] lg:flex-col lg:items-stretch lg:overflow-y-auto lg:overflow-x-visible lg:pb-0 lg:[scrollbar-width:auto] lg:max-h-[min(72vh,560px)]"
+      role="toolbar"
+      aria-label="Channels"
+    >
+      {showLoadStarterChannelsPill && (
+        <button
+          type="button"
+          onClick={onLoadStartupChannels}
+          disabled={loadingStartupChannels}
+          title={starterChannelsTitle}
+          className="shrink-0 rounded-full border border-indigo-400/70 bg-indigo-950/60 px-4 py-2 text-sm font-semibold text-indigo-100 shadow-sm transition-colors hover:border-indigo-300 hover:bg-indigo-900/70 disabled:cursor-wait disabled:opacity-60 lg:w-full lg:rounded-xl lg:py-2.5 lg:text-left"
+        >
+          {loadingStartupChannels ? 'Loading…' : 'Load starter channels'}
+        </button>
+      )}
+      {channels.map(ch => {
+        const isActive = ch.id === activeChannelId
+        const deletable = channels.length > 1
+        return (
+          <div
+            key={ch.id}
+            ref={isActive ? activeTabRef : undefined}
+            className="group relative shrink-0 lg:w-full lg:min-w-0"
+          >
+            {editingChannelId === ch.id ? (
+              <input
+                className="w-full max-w-[240px] rounded-full border border-zinc-600 bg-zinc-900 px-3.5 py-1.5 text-sm text-white outline-none focus:ring-2 focus:ring-indigo-500/50 lg:max-w-none lg:rounded-xl lg:py-2"
+                value={editingChannelName}
+                onChange={e => onEditingChannelNameChange(e.target.value)}
+                onBlur={() => {
+                  onRenameChannel(ch.id, editingChannelName)
+                  onFinishRename()
+                }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    onRenameChannel(ch.id, editingChannelName)
+                    onFinishRename()
+                  }
+                  if (e.key === 'Escape') onCancelRename()
+                }}
+                autoFocus
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isActive) onStartRename(ch.id, ch.name)
+                  else onSelectChannel(ch.id)
+                }}
+                aria-pressed={isActive}
+                aria-current={isActive ? 'true' : undefined}
+                className={`max-w-[240px] rounded-full py-1.5 pl-3.5 text-left text-sm font-semibold transition-colors lg:flex lg:max-w-none lg:w-full lg:items-center lg:rounded-xl lg:py-2 lg:pl-3 ${
+                  deletable ? 'pr-9' : 'pr-3.5'
+                } ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-md ring-2 ring-indigo-400/90 ring-offset-2 ring-offset-black lg:ring-offset-zinc-950'
+                    : 'border border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:bg-zinc-800'
+                }`}
+              >
+                <span className="block truncate">{ch.name}</span>
+              </button>
+            )}
+            {deletable && (
+              <button
+                type="button"
+                onClick={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onDeleteChannel(ch.id)
+                }}
+                className={`absolute right-1 top-1/2 z-10 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-sm leading-none opacity-100 transition-opacity sm:pointer-events-none sm:opacity-0 sm:group-hover:pointer-events-auto sm:group-hover:opacity-100 lg:pointer-events-auto lg:opacity-100 ${
+                  isActive
+                    ? 'text-zinc-300 hover:bg-white/10 hover:text-red-300'
+                    : 'text-zinc-500 hover:bg-red-900/30 hover:text-red-400'
+                }`}
+                aria-label={`Delete channel ${ch.name}`}
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )
+      })}
+      <Link
+        href="/channels?new=1"
+        className="flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 text-lg font-light leading-none text-zinc-400 transition-colors hover:border-indigo-500 hover:bg-indigo-950 hover:text-indigo-400 lg:size-9 lg:shrink-0 lg:self-center"
+        title="Create a new channel"
+        aria-label="Create a new channel"
+      >
+        +
+      </Link>
+    </div>
+  )
+})
 
 export default function PlayerClient({
   accessToken: initialAccessToken,
@@ -1009,6 +1141,10 @@ export default function PlayerClient({
   const exploreModeRef = useRef<number>(50)
   const currentStarsRef = useRef<number | null>(null)
   const cardHistoryRef = useRef<HistoryEntry[]>([])
+  /** Tracks the user left via Next / queue pick — Prev walks back through this stack. */
+  const navBackStackRef = useRef<CardState[]>([])
+  const suppressNavPushRef = useRef(false)
+  const [navBackDepth, setNavBackDepth] = useState(0)
   const backoffTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const suggestionBufferRef = useRef<SongSuggestion[]>([])
   /** Track resolve success rate to calibrate how many songs to request from LLM. */
@@ -1219,6 +1355,8 @@ export default function PlayerClient({
       pendingPlaybackPositionMsRef.current = undefined
     }
 
+    navBackStackRef.current = []
+    setNavBackDepth(0)
     // Stop playback and clear transient state
     setCurrentCard(nextCurrent); currentCardRef.current = nextCurrent
     setQueue(restoredQueue); queueRef.current = restoredQueue
@@ -1544,6 +1682,8 @@ export default function PlayerClient({
       if (currentIndex === -1) currentIndex = 0
 
       const cm: CareerMode = { artistName, works, currentIndex }
+      navBackStackRef.current = []
+      setNavBackDepth(0)
       setCareerMode(cm)
       careerModeRef.current = cm
 
@@ -1567,6 +1707,15 @@ export default function PlayerClient({
   const exitCareerMode = useCallback(() => {
     setCareerMode(null)
     careerModeRef.current = null
+  }, [])
+
+  const pushNavBack = useCallback((leaving: CardState | null) => {
+    if (suppressNavPushRef.current || !leaving || careerModeRef.current) return
+    const stack = navBackStackRef.current
+    const key = trackPlayKey(leaving.track)
+    if (stack.length > 0 && trackPlayKey(stack[stack.length - 1]!.track) === key) return
+    navBackStackRef.current = [...stack, leaving]
+    setNavBackDepth(navBackStackRef.current.length)
   }, [])
 
   const careerGo = useCallback(async (delta: number) => {
@@ -1636,6 +1785,39 @@ export default function PlayerClient({
       setCareerLoading(false)
     }
   }, [dedupeHistory, isGuideDemo, fadeOutCurrentPlayback])
+
+  const goToPreviousCard = useCallback(async () => {
+    if (careerModeRef.current) {
+      await careerGo(-1)
+      return
+    }
+    const stack = navBackStackRef.current
+    if (stack.length === 0) return
+    const prev = stack[stack.length - 1]!
+    navBackStackRef.current = stack.slice(0, -1)
+    setNavBackDepth(navBackStackRef.current.length)
+    const cur = currentCardRef.current
+    if (cur) {
+      queueRef.current = [cur, ...queueRef.current]
+      setQueue([...queueRef.current])
+    }
+    suppressNavPushRef.current = true
+    if (!isGuideDemo) {
+      pendingFadeInRef.current = true
+      await fadeOutCurrentPlayback()
+    }
+    currentCardRef.current = prev
+    setCurrentCard(prev)
+    setPlayGeneration(g => g + 1)
+    lastPlayedUriRef.current = null
+    setCurrentStars(null)
+    currentStarsRef.current = null
+    suppressNavPushRef.current = false
+  }, [careerGo, fadeOutCurrentPlayback, isGuideDemo])
+
+  const prevDisabled = careerMode
+    ? careerLoading || careerMode.currentIndex === 0
+    : navBackDepth === 0
 
   useEffect(() => {
     const onFs = () => setCareerPanelFsRepaint(n => n + 1)
@@ -4513,6 +4695,8 @@ export default function PlayerClient({
     const cur = currentCardRef.current
     if (!cur) return
 
+    pushNavBack(cur)
+
     const userStars = currentStarsRef.current
     const stars = computeRecordedListenStars(userStars, durationRef.current, sliderRef.current)
     const event: ListenEvent = {
@@ -4559,7 +4743,7 @@ export default function PlayerClient({
       currentCardRef.current = null
       setCurrentCard(null)
     }
-  }, [dedupeHistory, fetchToBuffer])
+  }, [dedupeHistory, fetchToBuffer, pushNavBack])
   const advanceWithFade = useCallback(async (playedToEnd = false) => {
     const player = playerRef.current
     const isYt = (currentCardRef.current?.track.source as string | undefined) === 'youtube'
@@ -4856,118 +5040,88 @@ export default function PlayerClient({
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
       {/* Global nav header */}
       <AppHeader />
-      {/* Channel tabs */}
-      {channels.length > 0 && (
-        <div className="border-b border-zinc-900 max-h-[min(42vh,12rem)] overflow-y-auto overflow-x-hidden">
-        <div data-guide="channels" className="flex flex-wrap items-center gap-1 px-4 py-2 max-w-[800px] mx-auto">
-          {channels.map(ch => (
-            <div
-              key={ch.id}
-              ref={ch.id === activeChannelId ? activeTabRef : null}
-              className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs border transition-colors flex-shrink-0 ${
-                ch.id === activeChannelId
-                  ? 'bg-zinc-800 border-zinc-600 text-white'
-                  : 'border-zinc-700 text-zinc-300 hover:text-white hover:border-zinc-500'
-              }`}
-            >
-              {editingChannelId === ch.id ? (
-                <input
-                  className="bg-transparent outline-none w-28 text-white"
-                  value={editingChannelName}
-                  onChange={e => setEditingChannelName(e.target.value)}
-                  onBlur={() => { renameChannel(ch.id, editingChannelName); setEditingChannelId(null) }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') { renameChannel(ch.id, editingChannelName); setEditingChannelId(null) }
-                    if (e.key === 'Escape') setEditingChannelId(null)
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <span
-                  className={ch.id === activeChannelId ? 'cursor-text' : 'cursor-pointer'}
-                  onClick={() => {
-                    if (ch.id === activeChannelId) {
-                      setEditingChannelId(ch.id)
-                      setEditingChannelName(ch.name)
-                    } else {
-                      exitCareerMode()
-                      switchChannel(ch.id)
-                    }
-                  }}
-                >
-                  {ch.name}
-                </span>
-              )}
-              {channels.length > 1 && (
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); deleteChannel(ch.id) }}
-                  className="text-zinc-600 hover:text-red-400 ml-1 leading-none transition-colors"
-                >×</button>
-              )}
-            </div>
-          ))}
-          {/*
-            Starter-channels pill: show while nothing counts as user-created (explicit flag or
-            legacy heuristics) and we are not already sitting on a multi-tab factory-only list.
-          */}
-          {showLoadStarterChannelsPill && (
-            <button
-              type="button"
-              onClick={handleLoadStartupChannels}
-              disabled={loadingStartupChannels}
-              title={`Load starter channels for ${(youtubeOnly || source === 'youtube') ? 'YouTube' : 'Spotify'}`}
-              className="px-3 py-1 rounded-full text-xs border border-indigo-400/70 bg-indigo-950/60 text-indigo-100 hover:bg-indigo-900/70 hover:border-indigo-300 shadow-[0_0_0_1px_rgba(99,102,241,0.25)] disabled:opacity-60 disabled:cursor-wait flex-shrink-0 transition-colors"
-            >
-              {loadingStartupChannels ? 'Loading…' : 'Load starter channels'}
-            </button>
+      <div className="flex flex-1 flex-col min-h-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-6">
+        <div className="mx-auto flex w-full max-w-[min(100%,90rem)] flex-1 flex-col gap-4 min-h-0 lg:grid lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:items-start lg:gap-x-4 lg:gap-y-0 xl:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)] xl:gap-x-5">
+          {channels.length > 0 && (
+            <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-11 lg:z-10 lg:max-h-[calc(100dvh-3.5rem)] lg:self-start lg:pr-1">
+              <p className="hidden text-[11px] font-semibold uppercase tracking-wide text-zinc-500 lg:block">
+                Channels
+              </p>
+              <div className="shrink-0 rounded-2xl border border-zinc-800/90 bg-zinc-950/80 p-2.5 sm:p-3">
+                <label htmlFor="channel-notes-prompt" className="mb-1.5 block text-xs font-medium text-zinc-400">
+                  New channel
+                </label>
+                <div className="flex flex-col gap-2">
+                  <div className="relative w-full min-w-0">
+                    <textarea
+                      id="channel-notes-prompt"
+                      value={channelSearchText}
+                      onChange={e => setChannelSearchText(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter' || e.shiftKey) return
+                        e.preventDefault()
+                        if (!channelSearchText.trim()) return
+                        void createChannelWithNotes(channelSearchText)
+                        setChannelSearchText('')
+                      }}
+                      placeholder="Genres, artists, era, mood…"
+                      rows={1}
+                      className="min-h-9 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 pr-8 text-sm leading-snug text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                    />
+                    {channelSearchText.length > 0 && (
+                      <button
+                        type="button"
+                        onPointerDown={e => e.preventDefault()}
+                        onClick={() => setChannelSearchText('')}
+                        className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded text-base leading-none text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                        title="Clear"
+                        aria-label="Clear"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { void createChannelWithNotes(channelSearchText); setChannelSearchText('') }}
+                    disabled={!channelSearchText.trim()}
+                    title="Create a new channel with this text"
+                    className="h-10 w-full shrink-0 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    Create channel
+                  </button>
+                </div>
+              </div>
+              <PlayerChannelsToolbar
+                channels={channels}
+                activeChannelId={activeChannelId}
+                activeTabRef={activeTabRef}
+                editingChannelId={editingChannelId}
+                editingChannelName={editingChannelName}
+                onEditingChannelNameChange={setEditingChannelName}
+                onRenameChannel={renameChannel}
+                onFinishRename={() => setEditingChannelId(null)}
+                onCancelRename={() => setEditingChannelId(null)}
+                onSelectChannel={id => {
+                  exitCareerMode()
+                  switchChannel(id)
+                }}
+                onStartRename={(id, name) => {
+                  setEditingChannelId(id)
+                  setEditingChannelName(name)
+                }}
+                onDeleteChannel={deleteChannel}
+                showLoadStarterChannelsPill={showLoadStarterChannelsPill}
+                loadingStartupChannels={loadingStartupChannels}
+                onLoadStartupChannels={handleLoadStartupChannels}
+                starterChannelsTitle={`Load starter channels for ${(youtubeOnly || source === 'youtube') ? 'YouTube' : 'Spotify'}`}
+              />
+            </aside>
           )}
-          <Link
-            href="/channels?new=1"
-            className="px-2 py-1 text-lg leading-none text-zinc-400 hover:text-white flex-shrink-0 transition-colors"
-            title="New channel"
-          >+</Link>
-        </div>
-        </div>
-      )}
-      {channels.length > 0 && (
-        <div className="border-b border-zinc-900 px-4 py-2 max-w-[800px] mx-auto w-full flex gap-2 items-start">
-          <div className="relative flex-1 min-w-0">
-            <textarea
-              value={channelSearchText}
-              onChange={e => setChannelSearchText(e.target.value)}
-              onKeyDown={e => {
-                if (e.key !== 'Enter' || e.shiftKey) return
-                e.preventDefault()
-                if (!channelSearchText.trim()) return
-                void createChannelWithNotes(channelSearchText)
-                setChannelSearchText('')
-              }}
-              placeholder="Describe this channel — genres, artists, era, mood…"
-              rows={1}
-              className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 pr-7 text-xs text-white placeholder-zinc-500 resize-y focus:outline-none focus:border-zinc-500"
-            />
-            {channelSearchText && (
-              <button
-                type="button"
-                onClick={() => setChannelSearchText('')}
-                className="absolute top-2 right-2 text-zinc-500 hover:text-zinc-300 transition-colors leading-none"
-                title="Clear"
-              >×</button>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={() => { void createChannelWithNotes(channelSearchText); setChannelSearchText(''); }}
-            disabled={!channelSearchText.trim()}
-            className="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-white text-xs transition-colors whitespace-nowrap flex-shrink-0 disabled:opacity-40 disabled:pointer-events-none"
-          >
-            New channel
-          </button>
-        </div>
-      )}
+          <div className="flex min-w-0 flex-col flex-1 min-h-0">
+
       {(careerMode || careerLoadingArtist) && (
-        <div className="border-b border-indigo-800/60 bg-indigo-950/70 px-4 py-2 flex items-center gap-3 max-w-[800px] mx-auto w-full">
+        <div className="border-b border-indigo-800/60 bg-indigo-950/70 px-4 py-2 flex w-full max-w-[800px] items-center gap-3">
           <span className="text-xl font-bold text-indigo-200 shrink-0">
             {careerMode?.artistName ?? careerLoadingArtist}
           </span>
@@ -5036,10 +5190,10 @@ export default function PlayerClient({
       )}
 
       {/* Body */}
-      <div className="flex flex-col items-center gap-3 p-4 overflow-y-auto flex-1">
+      <div className="flex flex-1 flex-col items-stretch gap-3 overflow-y-auto p-4">
 
         {/* Single column — player panel + stars/next + session panel */}
-        <div className="flex flex-col gap-3 w-full max-w-[800px]">
+        <div className="flex w-full max-w-[800px] flex-col gap-3">
 
         {/* Player panel — full-bleed album art or YouTube player */}
         <div
@@ -5371,9 +5525,9 @@ export default function PlayerClient({
                     type="button"
                     onClick={e => {
                       e.stopPropagation()
-                      void careerGo(-1)
+                      void goToPreviousCard()
                     }}
-                    disabled={careerLoading || careerMode.currentIndex === 0}
+                    disabled={prevDisabled}
                     className="flex min-w-[2.75rem] items-center justify-center rounded-full border border-indigo-500/50 bg-indigo-900/95 px-3 py-2.5 text-xl font-bold text-white shadow-lg hover:bg-indigo-800 active:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                     aria-label="Previous work in career"
                     title="Previous in career"
@@ -5412,16 +5566,14 @@ export default function PlayerClient({
                 return dur > 0 ? Math.min(1, sliderPosition / dur) : 0
               })()}
             />
-            {careerMode && (
-              <button
-                type="button"
-                onClick={() => void careerGo(-1)}
-                disabled={careerLoading || careerMode.currentIndex === 0}
-                className="flex-1 py-3 text-xl font-bold bg-indigo-900 text-white rounded-2xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Prev
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => void goToPreviousCard()}
+              disabled={prevDisabled}
+              className="flex-1 py-3 text-xl font-bold bg-indigo-900 text-white rounded-2xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Prev
+            </button>
             <button
               type="button"
               onClick={() => careerMode ? void careerGo(1) : advanceWithFade()}
@@ -5559,6 +5711,7 @@ export default function PlayerClient({
               const picked = q[index]
               const remaining = q.filter((_, i) => i !== index)
 
+              pushNavBack(currentCardRef.current)
               currentCardRef.current = picked
               setCurrentCard(picked)
               setQueue(remaining)
@@ -5585,8 +5738,8 @@ export default function PlayerClient({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-zinc-900 py-3 flex justify-center">
-        <div className="flex items-center gap-3 w-full max-w-[800px] px-4">
+      <div className="flex w-full max-w-[800px] justify-center border-t border-zinc-900 py-3">
+        <div className="flex items-center gap-3 w-full px-4">
           {activeChannelId !== ALL_CHANNEL_ID && (
             <Link
               href="/channels"
@@ -5602,6 +5755,10 @@ export default function PlayerClient({
             Channel History
           </Link>
           <a href="/status" className="text-xs text-zinc-700 hover:text-zinc-400 transition-colors px-2">Status</a>
+        </div>
+      </div>
+
+          </div>
         </div>
       </div>
     </div>
