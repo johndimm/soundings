@@ -2,6 +2,10 @@ import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
 import { markSpotifyUnavailable } from '@/app/lib/spotify/status'
+import {
+  spotifySearchQueriesForSong,
+  trackMatchesFocusArtist,
+} from '@/app/lib/spotifyArtistSearch'
 
 /** Back off Spotify calls when API is down (5xx) or unreachable; override with SPOTIFY_DOWN_BACKOFF_MS. */
 const SPOTIFY_DOWN_BACKOFF_MS = Number(process.env.SPOTIFY_DOWN_BACKOFF_MS ?? 120_000)
@@ -64,20 +68,47 @@ export type SpotifyTracksResult =
 
 const searchCache = loadCache()
 
-export async function searchTrack(
+function mapSpotifyApiTrack(track: {
+  id: string
+  uri: string
+  name: string
+  artists?: { name: string }[]
+  album: { name: string; release_date?: string; images?: { url: string }[] }
+  duration_ms: number
+}): SpotifyTrack {
+  const releaseYear = track.album?.release_date ? Number(track.album.release_date.slice(0, 4)) : undefined
+  return {
+    id: track.id,
+    uri: track.uri,
+    name: track.name,
+    artist: track.artists?.[0]?.name ?? 'Unknown',
+    artists: (track.artists ?? []).map(a => a.name).filter(Boolean),
+    album: track.album.name,
+    albumArt: track.album.images?.[0]?.url ?? null,
+    durationMs: track.duration_ms,
+    releaseYear: Number.isFinite(releaseYear) ? releaseYear : undefined,
+    source: 'spotify',
+  }
+}
+
+async function searchTrackOnce(
   query: string,
-  accessToken: string
+  accessToken: string,
+  opts?: { focusArtist?: string; limit?: number }
 ): Promise<SpotifySearchResult> {
-  const cacheKey = query.toLowerCase().trim()
+  const cacheKey = `${query.toLowerCase().trim()}|${opts?.focusArtist ?? ''}|${opts?.limit ?? 1}`
   const cached = searchCache.get(cacheKey)
   if (cached) {
     console.info(`Spotify search cache hit: "${query}"`)
     return { status: 'ok', track: cached }
   }
 
-  const params = new URLSearchParams({ q: query, type: 'track', limit: '1' })
-  console.info(`searching spotify for ${query}`)
-  const res = await throttledFetch(`https://api.spotify.com/v1/search?${params}`, { Authorization: `Bearer ${accessToken}` })
+  const limit = String(opts?.limit ?? (opts?.focusArtist ? 10 : 1))
+  const params = new URLSearchParams({ q: query, type: 'track', limit })
+  console.info(`searching spotify for ${query}`, opts?.focusArtist ? `(focus: ${opts.focusArtist})` : '')
+  const res = await throttledFetch(`https://api.spotify.com/v1/search?${params}`, {
+    Authorization: `Bearer ${accessToken}`,
+  })
   if (res === null) {
     return { status: 'rate_limited', retryAfterMs: SPOTIFY_DOWN_BACKOFF_MS }
   }
@@ -110,36 +141,71 @@ export async function searchTrack(
   }
 
   const data = await res.json()
-  const track = data.tracks?.items?.[0]
-  if (!track) {
+  const items: Array<{
+    id: string
+    uri: string
+    name: string
+    artists?: { name: string }[]
+    album: { name: string; release_date?: string; images?: { url: string }[] }
+    duration_ms: number
+  }> = data.tracks?.items ?? []
+  if (items.length === 0) {
     return { status: 'error', message: 'no track returned' }
   }
 
+  const focus = opts?.focusArtist?.trim()
+  let pick = items[0]
+  if (focus) {
+    const match = items.find(item => trackMatchesFocusArtist(mapSpotifyApiTrack(item), focus))
+    if (match) pick = match
+  }
+
+  const result = mapSpotifyApiTrack(pick)
   console.info('Spotify search response', {
-    status: res.status,
-    track: {
-      id: track.id,
-      name: track.name,
-      artists: track.artists?.map((artist: { name: string }) => artist.name),
-    },
+    query,
+    focusArtist: focus ?? null,
+    track: { id: result.id, name: result.name, artist: result.artist },
   })
 
-  const releaseYear = track.album?.release_date ? Number(track.album.release_date.slice(0, 4)) : undefined
-  const result: SpotifyTrack = {
-    id: track.id,
-    uri: track.uri,
-    name: track.name,
-    artist: track.artists[0]?.name ?? 'Unknown',
-    artists: (track.artists as { name: string }[]).map(a => a.name).filter(Boolean),
-    album: track.album.name,
-    albumArt: track.album.images[0]?.url ?? null,
-    durationMs: track.duration_ms,
-    releaseYear: Number.isFinite(releaseYear) ? releaseYear : undefined,
-    source: 'spotify',
-  }
   searchCache.set(cacheKey, result)
   persistCache(searchCache)
   return { status: 'ok', track: result }
+}
+
+/** Resolve a track on Spotify; with focusArtist, tries fielded queries and prefers matching credits. */
+export async function searchTrack(
+  query: string,
+  accessToken: string,
+  opts?: { focusArtist?: string }
+): Promise<SpotifySearchResult> {
+  const queries = opts?.focusArtist
+    ? spotifySearchQueriesForSong(query, opts.focusArtist)
+    : [query.trim()]
+
+  let lastError: SpotifySearchResult = { status: 'error', message: 'no track returned' }
+
+  for (const q of queries) {
+    const result = await searchTrackOnce(q, accessToken, {
+      focusArtist: opts?.focusArtist,
+      limit: opts?.focusArtist ? 10 : 1,
+    })
+    if (result.status === 'rate_limited' || result.status === 'unauthorized') {
+      return result
+    }
+    if (result.status !== 'ok') {
+      lastError = result
+      continue
+    }
+    if (!opts?.focusArtist || trackMatchesFocusArtist(result.track, opts.focusArtist)) {
+      return result
+    }
+    console.info(
+      `[spotify] top hit for "${q}" does not match focus "${opts.focusArtist}" (${result.track.artist}) — trying next query`
+    )
+    lastError = { status: 'error', message: 'top hit wrong artist for focus' }
+  }
+
+  return lastError
 }
 
 export async function getTracksByIds(

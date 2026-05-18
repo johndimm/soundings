@@ -79,9 +79,11 @@ NAVIGATION RULES (ratings are ★0.5–★5 in half-star steps; skipped = no sig
 - ★3: neutral. Mildly interesting but not a strong pull in either direction.
 - (skipped): no taste signal — treat as unheard.
 
-ARTIST RULE — strictly enforced:
+ARTIST RULE — default (exploration mode):
 - NEVER put two songs by the same artist (or the same group) in the same batch of 3.
-- Every batch must have 3 different artists. No exceptions, even if the user requests more from one artist.
+- Every batch must have 3 different artists.
+EXCEPTION — artist-focus mode: When USER CONSTRAINTS or the prompt name a single FOCUS ARTIST/BAND, all songs in that batch must be by that act. The 3-different-artists rule is suspended; multiple tracks by the same group in one batch are required.
+EXCEPTION — artist-list mode: When USER CONSTRAINTS list specific artists only, every song must be by one of those named acts (vary among them when several are listed; never substitute unrelated artists).
 
 THE 3-SLOT RULE — every batch of 3 must serve distinct purposes:
 - Slot 1 — NEARBY: If there are likes, pick something musically adjacent to a liked song (similar instruments, era, energy, or mood). If no likes yet, probe a different corner of the most-visited area.
@@ -150,7 +152,7 @@ function slotInstructions(mode: ExploreMode, hasLikes: boolean, numSongs: number
   return `ADVENTURE MODE: All ${numSongs} slots in maximally unexplored territory (≥40 units from everything heard). Ignore proximity to liked songs entirely.`
 }
 
-function buildUserPrompt(
+export function buildUserPrompt(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
   artistConstraint?: string,
@@ -166,7 +168,7 @@ function buildUserPrompt(
   }
 
   if (artistConstraint) {
-    prompt += `IMPORTANT: The user wants more from "${artistConstraint}". All 3 songs should be by this artist or a very similar one.\n\n`
+    prompt += `FOCUS ARTIST/BAND: "${artistConstraint}". All ${numSongs} songs in this batch must be recordings by this act (same group counts as one artist). Suspend the 3-different-artists rule — pick multiple tracks by this artist/group. Do not substitute other artists.\n\n`
   }
 
   if (alreadyHeard && alreadyHeard.length > 0) {
@@ -183,7 +185,11 @@ function buildUserPrompt(
   }
 
   if (sessionHistory.length === 0 && !priorProfile) {
-    prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the space. Match any constraints above.`
+    if (artistConstraint) {
+      prompt += `FIRST TURN — artist-focus: All ${numSongs} songs must be by "${artistConstraint}". Pick ${numSongs} different tracks by this act. Ignore the default "maximally distant across the space" first-turn rule.\n`
+    } else {
+      prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the space. Match any constraints above.`
+    }
     return prompt
   }
 
@@ -454,7 +460,7 @@ function rawYoutubeVideoIdFromRow(row: Record<string, unknown>): string | undefi
   return undefined
 }
 
-function parseSuggestedArtistsRaw(raw: unknown): string[] {
+export function parseSuggestedArtistsRaw(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   const out: string[] = []
   const seen = new Set<string>()

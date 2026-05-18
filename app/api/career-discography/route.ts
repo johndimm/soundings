@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server'
+import { DEFAULT_LLM_PROVIDER } from '@/app/lib/llm'
+import { askLlmSimpleChat, parseLlmProvider } from '@/app/lib/llmSimpleChat'
 
 /** Avoid LLM/edge timeouts on long discographies (Vercel defaults are often 10s). */
 export const maxDuration = 60
@@ -10,6 +12,9 @@ export interface CareerWork {
   reason?: string
   isCurrent?: boolean
 }
+
+const CAREER_SYSTEM =
+  'You are a music historian with comprehensive knowledge of discographies and classical repertoire.'
 
 function buildPrompt(artistName: string, source: string, trackTitle?: string, albumTitle?: string): string {
   const platform = source === 'youtube' ? 'YouTube' : 'Spotify'
@@ -33,18 +38,15 @@ Return a JSON array of objects with:
 Return ONLY the JSON array. No markdown fences, no explanation.`
 }
 
-const CAREER_LLM_MODEL = 'claude-haiku-4-5'
-
-type AnthropicMessagesResponse = {
-  content?: Array<{ type?: string; text?: string }>
-  error?: { type?: string; message?: string }
-}
-
-function getAssistantText(data: AnthropicMessagesResponse): string {
-  const block = data.content?.find(
-    c => c.type === 'text' && typeof c.text === 'string'
-  ) as { type: 'text'; text: string } | undefined
-  return block?.text ?? ''
+function userFacingLlmError(e: unknown, provider: string): string {
+  const raw = e instanceof Error ? e.message : 'LLM request failed'
+  if (/api[- ]?key|authentication|unauthorized|401|403/i.test(raw)) {
+    return `Career mode could not authenticate with ${provider}. Check the matching API key in .env.local (Settings → LLM provider).`
+  }
+  if (/not configured/i.test(raw)) {
+    return raw
+  }
+  return `Career discography failed (${provider}): ${raw}`
 }
 
 export async function GET(req: NextRequest) {
@@ -53,56 +55,24 @@ export async function GET(req: NextRequest) {
   const source = searchParams.get('source') ?? 'spotify'
   const trackTitle = searchParams.get('track')?.trim() || undefined
   const albumTitle = searchParams.get('album')?.trim() || undefined
+  const provider = parseLlmProvider(searchParams.get('provider') ?? DEFAULT_LLM_PROVIDER)
 
   if (!artist) {
     return Response.json({ error: 'artist required' }, { status: 400 })
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return Response.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
-  }
-
   let raw: string
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: CAREER_LLM_MODEL,
-        max_tokens: 4096,
-        system: 'You are a music historian with comprehensive knowledge of discographies and classical repertoire.',
-        messages: [{ role: 'user', content: buildPrompt(artist, source, trackTitle, albumTitle) }],
-      }),
-    })
-    const payload: AnthropicMessagesResponse = await res.json().catch(() => ({}))
-    if (!res.ok) {
-      const msg = payload.error?.message?.trim() || `Anthropic HTTP ${res.status}`
-      console.error('[career-discography] Anthropic error', res.status, msg, payload)
-      return Response.json(
-        { error: msg, works: [] as CareerWork[] },
-        { status: 500 }
-      )
-    }
-    raw = getAssistantText(payload)
-    if (!raw) {
-      console.error('[career-discography] no assistant text in response', JSON.stringify(payload).slice(0, 2000))
-      return Response.json(
-        { error: 'Empty LLM response', works: [] as CareerWork[] },
-        { status: 500 }
-      )
-    }
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'LLM request failed'
-    console.error('[career-discography] LLM error', e)
-    return Response.json(
-      { error: 'LLM request failed', message: msg, works: [] as CareerWork[] },
-      { status: 500 }
+    raw = await askLlmSimpleChat(
+      CAREER_SYSTEM,
+      buildPrompt(artist, source, trackTitle, albumTitle),
+      provider,
+      4096
     )
+  } catch (e) {
+    const msg = userFacingLlmError(e, provider)
+    console.error('[career-discography] LLM error', provider, e)
+    return Response.json({ error: msg, works: [] as CareerWork[] }, { status: 500 })
   }
 
   let works: CareerWork[] = []
@@ -138,7 +108,14 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => a.year - b.year)
 
   const currentIdx = works.findIndex(w => w.isCurrent)
-  console.info('[career-discography]', artist, '— track:', trackTitle, '| album:', albumTitle,
+  console.info(
+    '[career-discography]',
+    provider,
+    artist,
+    '— track:',
+    trackTitle,
+    '| album:',
+    albumTitle,
     `\n  currentIdx=${currentIdx}`,
     '\n ' + works.map((w, i) => `${i}: ${w.year} ${w.title}${w.isCurrent ? ' ← CURRENT' : ''}`).join('\n  ')
   )

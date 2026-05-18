@@ -86,6 +86,8 @@ interface Props {
   pendingSuggestions: { search: string; reason: string; spotifyId?: string }[]
   /** True while resolving DJ picks into the queue (automatic). */
   promotingDjPending?: boolean
+  /** DJ rows are waiting because the 3-slot queue is full. */
+  pendingQueueBlocked?: boolean
   /** When set, the queue section is replaced by the career discography. */
   careerWorks?: CareerWorkEntry[]
   careerCurrentIndex?: number
@@ -104,6 +106,7 @@ export default function SessionPanel({
   onRemoveQueueItem,
   pendingSuggestions,
   promotingDjPending = false,
+  pendingQueueBlocked = false,
   careerWorks,
   careerCurrentIndex = 0,
   careerLoading = false,
@@ -240,6 +243,11 @@ export default function SessionPanel({
             {pendingSuggestions.length > 0 && (
               <div className="flex flex-col gap-2">
                 <span className="text-[10px] text-zinc-600 uppercase tracking-wide">Up next</span>
+                {pendingQueueBlocked && (
+                  <p className="text-xs text-amber-500/90 leading-relaxed">
+                    Queue is full — press Next to move these into the queue.
+                  </p>
+                )}
                 {pendingSuggestions.map((s, i) => (
                   <div key={i} className="text-xs px-1">
                     <div className="text-white text-sm font-semibold leading-tight">{s.search}</div>

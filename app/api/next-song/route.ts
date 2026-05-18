@@ -14,9 +14,11 @@ import {
   logSpotifyBatchIdsSkipped,
 } from '@/app/lib/llmSpotifyIdLog'
 import { enrichAlbumArtIfMissing, getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
+import { trackMatchesFocusArtist } from '@/app/lib/spotifyArtistSearch'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import {
-  searchYouTube,
+  resolveYouTubeSuggestion,
+  type YouTubeResolveHintOpts,
   isYouTubeQuotaExceeded,
   getYouTubeQuotaWaitMs,
   getYouTubeSearchesRemaining,
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
       priorProfile?: string
       provider?: LLMProvider
       artistConstraint?: string
+      preferredArtists?: string[]
       notes?: string
       globalNotes?: string
       forceTextSearch?: boolean
@@ -141,7 +144,25 @@ export async function POST(req: NextRequest) {
   // For all Spotify paths below, accessToken is guaranteed to be present.
   const spotifyToken: string = accessToken ?? ''
 
-  const { sessionHistory, priorProfile, provider, artistConstraint, notes, globalNotes, forceTextSearch, alreadyHeard, mode, profileOnly, songsToResolve, source } = body
+  const {
+    sessionHistory,
+    priorProfile,
+    provider,
+    artistConstraint,
+    preferredArtists,
+    notes,
+    globalNotes,
+    forceTextSearch,
+    alreadyHeard,
+    mode,
+    profileOnly,
+    songsToResolve,
+    source,
+  } = body
+  const ytResolveHints: YouTubeResolveHintOpts = {
+    artistConstraint,
+    preferredArtists,
+  }
   const combinedNotes = [notes, globalNotes].filter(Boolean).join('\n\n') || undefined
 
   // ── Resolve-only path: skip LLM, just look up provided songs ────────────
@@ -159,14 +180,22 @@ export async function POST(req: NextRequest) {
       if (isYouTubeQuotaExceeded()) {
         return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
       }
-      const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songsToResolve, {
-        useTestFixture: youtubeResolveTestEffective,
-      })
+      const { songs: ytSongs, quotaExceeded, resolvedIndices } = await resolveYouTubeSongs(
+        songsToResolve,
+        {
+          useTestFixture: youtubeResolveTestEffective,
+          ...ytResolveHints,
+        }
+      )
       if (quotaExceeded) {
         return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
       }
       if (ytSongs.length === 0) return Response.json({ error: 'no_tracks_found' }, { status: 404 })
-      return Response.json({ songs: ytSongs, ytSearchesRemaining: getYouTubeSearchesRemaining() })
+      return Response.json({
+        songs: ytSongs,
+        resolvedIndices,
+        ytSearchesRemaining: getYouTubeSearchesRemaining(),
+      })
     }
 
     if (isSpotifyOffline()) {
@@ -174,12 +203,16 @@ export async function POST(req: NextRequest) {
       markRateLimited(waitMs)
       return Response.json({ error: 'rate_limited', retryAfterMs: waitMs }, { status: 429 })
     }
-    const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
+    const focusArtist =
+      artistConstraint?.trim() ||
+      preferredArtists?.map(a => a.trim()).filter(Boolean)[0]
+    const { foundSongs, resolvedSearches, rateLimitedRetryMs, unauthorized } = await resolveSongs(
       songsToResolve,
       spotifyToken,
       forceTextSearch,
       sessionHistory ?? [],
-      undefined
+      undefined,
+      focusArtist
     )
     if (unauthorized) return Response.json({ error: 'not_authenticated' }, { status: 401 })
     if (rateLimitedRetryMs) markRateLimited(rateLimitedRetryMs)
@@ -187,7 +220,7 @@ export async function POST(req: NextRequest) {
       if (rateLimitedRetryMs) return Response.json({ error: 'rate_limited', retryAfterMs: rateLimitedRetryMs }, { status: 429 })
       return Response.json({ error: 'no_tracks_found' }, { status: 404 })
     }
-    return Response.json({ songs: foundSongs })
+    return Response.json({ songs: foundSongs, resolvedSearches })
   }
 
   // The fixture is a YouTube track — only short-circuit when the caller is in
@@ -256,8 +289,9 @@ export async function POST(req: NextRequest) {
     if (isYouTubeQuotaExceeded()) {
       return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
     }
-    const { songs: ytSongs, quotaExceeded } = await resolveYouTubeSongs(songs, {
+    const { songs: ytSongs, quotaExceeded, resolvedIndices } = await resolveYouTubeSongs(songs, {
       useTestFixture: youtubeResolveTestEffective,
+      ...ytResolveHints,
     })
     if (quotaExceeded) {
       return Response.json({ error: 'rate_limited', retryAfterMs: getYouTubeQuotaWaitMs() }, { status: 429 })
@@ -267,6 +301,7 @@ export async function POST(req: NextRequest) {
     }
     return Response.json({
       songs: ytSongs,
+      resolvedIndices,
       profile,
       suggestedArtists,
       ytSearchesRemaining: getYouTubeSearchesRemaining(),
@@ -285,12 +320,16 @@ export async function POST(req: NextRequest) {
   }
 
   const llmLog = { provider: provider ?? 'deepseek', modelId: getLLMModelApiId(provider ?? 'deepseek') }
+  const focusArtist =
+    artistConstraint?.trim() ||
+    preferredArtists?.map(a => a.trim()).filter(Boolean)[0]
   const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
     songs,
     spotifyToken,
     forceTextSearch,
     sessionHistory ?? [],
-    llmLog
+    llmLog,
+    focusArtist
   )
 
   if (unauthorized) {
@@ -319,8 +358,8 @@ type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: st
 
 async function resolveYouTubeSongs(
   songs: SongSuggestion[],
-  opts?: { useTestFixture?: boolean }
-): Promise<{ songs: YTFoundSong[]; quotaExceeded: boolean }> {
+  opts?: { useTestFixture?: boolean } & YouTubeResolveHintOpts
+): Promise<{ songs: YTFoundSong[]; quotaExceeded: boolean; resolvedIndices: number[] }> {
   const useFixture = opts?.useTestFixture ?? isYoutubeResolveTestServerEnabled()
   if (useFixture) {
     console.info('[next-song] resolveYouTubeSongs: YOUTUBE_RESOLVE_TEST — fixture only, no search')
@@ -335,20 +374,31 @@ async function resolveYouTubeSongs(
         performer: song.performer,
       })),
       quotaExceeded: false,
+      resolvedIndices: songs.map((_, i) => i),
     }
   }
   const results: YTFoundSong[] = []
-  for (const song of songs) {
-    // Always search — LLM-provided video IDs are often hallucinated or non-embeddable.
-    const res = await searchYouTube(song.search)
+  const resolvedIndices: number[] = []
+  for (let i = 0; i < songs.length; i++) {
+    const song = songs[i]
+    const res = await resolveYouTubeSuggestion(song, opts)
     if (res.status === 'ok') {
-      results.push({ track: res.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })
-    }
-    if (res.status === 'quota_exceeded') {
-      return { songs: results, quotaExceeded: true }
+      results.push({
+        track: res.track,
+        reason: song.reason,
+        category: song.category,
+        coords: song.coords,
+        composed: song.composed,
+        performer: song.performer,
+      })
+      resolvedIndices.push(i)
+    } else if (res.status === 'quota_exceeded') {
+      return { songs: results, quotaExceeded: true, resolvedIndices }
+    } else if (res.status === 'error') {
+      console.warn('[next-song] YouTube resolve error', res.message, '—', song.search.slice(0, 60))
     }
   }
-  return { songs: results, quotaExceeded: false }
+  return { songs: results, quotaExceeded: false, resolvedIndices }
 }
 
 const SEARCH_DELAY_MS = 1500
@@ -363,25 +413,10 @@ function buildTrackKey(track: SpotifyTrack) {
   return `${track.name.toLowerCase()}|${track.artist.toLowerCase()}`
 }
 
-function normaliseArtist(artist: string) {
-  return artist.toLowerCase().replace(/^the\s+/, '').trim()
-}
-
-function trackIsDuplicate(
-  track: SpotifyTrack,
-  seen: Set<string>,
-  produced: Set<string>,
-  producedArtists: Set<string>
-) {
+function trackIsDuplicate(track: SpotifyTrack, seen: Set<string>, produced: Set<string>) {
   const key = buildTrackKey(track)
   if (seen.has(key) || produced.has(key)) return true
-  const artistKey = normaliseArtist(track.artist)
-  if (producedArtists.has(artistKey)) {
-    console.info('next-song: skipping duplicate artist in batch', track.artist)
-    return true
-  }
   produced.add(key)
-  producedArtists.add(artistKey)
   return false
 }
 
@@ -390,9 +425,16 @@ async function resolveSongs(
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
   sessionHistory: ListenEvent[],
-  llmContext?: { provider: LLMProvider; modelId: string }
-): Promise<{ foundSongs: FoundSong[]; rateLimitedRetryMs: number | null; unauthorized: boolean }> {
+  llmContext?: { provider: LLMProvider; modelId: string },
+  focusArtist?: string
+): Promise<{
+  foundSongs: FoundSong[]
+  resolvedSearches: string[]
+  rateLimitedRetryMs: number | null
+  unauthorized: boolean
+}> {
   const results: FoundSong[] = []
+  const resolvedSearches: string[] = []
   let rateLimitedRetryMs: number | null = null
   let unauthorized = false
 
@@ -403,8 +445,7 @@ async function resolveSongs(
   )
 
   const produced = new Set<string>()
-  const producedArtists = new Set<string>()
-  const skipTrack = (track: SpotifyTrack) => trackIsDuplicate(track, seenHistory, produced, producedArtists)
+  const skipTrack = (track: SpotifyTrack) => trackIsDuplicate(track, seenHistory, produced)
 
   console.info('resolveSongs mode', {
     forceTextSearch,
@@ -484,6 +525,16 @@ async function resolveSongs(
             return
           }
           verifiedBySpotify++
+          if (focusArtist?.trim() && !trackMatchesFocusArtist(track, focusArtist)) {
+            const song = songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === requestedId)
+            if (song) idsNeedingSearch.push(song)
+            console.info('[next-song] batch id wrong artist for focus; will text search', {
+              focusArtist,
+              got: track.artist,
+              id: track.id,
+            })
+            return
+          }
           if (skipTrack(track)) return
           const reason = idToReason.get(track.id) ?? 'Spotify batch match'
           const category = idToCategory.get(track.id)
@@ -491,6 +542,8 @@ async function resolveSongs(
           const composed = idToComposed.get(track.id)
           const performer = idToPerformer.get(track.id)
           results.push({ track, reason, category, coords, composed, performer })
+          const song = songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === track.id)
+          if (song) resolvedSearches.push(song.search)
         })
         if (llmContext) {
           logSpotifyBatchIdOutcome({
@@ -523,9 +576,10 @@ async function resolveSongs(
       accessToken,
       seenHistory,
       produced,
-      producedArtists
+      focusArtist
     )
     results.push(...sequentialResult.foundSongs)
+    resolvedSearches.push(...sequentialResult.resolvedSearches)
     if (sequentialResult.rateLimitedRetryMs) {
       rateLimitedRetryMs = sequentialResult.rateLimitedRetryMs
     }
@@ -551,7 +605,7 @@ async function resolveSongs(
     }
   }
 
-  return { foundSongs: results, rateLimitedRetryMs, unauthorized }
+  return { foundSongs: results, resolvedSearches, rateLimitedRetryMs, unauthorized }
 }
 
 async function searchSongsSequential(
@@ -559,15 +613,21 @@ async function searchSongsSequential(
   accessToken: string,
   seenHistory: Set<string>,
   produced: Set<string>,
-  producedArtists: Set<string>
-): Promise<{ foundSongs: FoundSong[]; rateLimitedRetryMs: number | null; unauthorized: boolean }> {
-  console.info('searchSongsSequential list', songs.map(song => song.search))
+  focusArtist?: string
+): Promise<{
+  foundSongs: FoundSong[]
+  resolvedSearches: string[]
+  rateLimitedRetryMs: number | null
+  unauthorized: boolean
+}> {
+  console.info('searchSongsSequential list', songs.map(song => song.search), focusArtist ? { focusArtist } : {})
   const results: FoundSong[] = []
+  const resolvedSearches: string[] = []
   let rateLimitedRetryMs: number | null = null
   let unauthorized = false
 
   for (const song of songs) {
-    const response = await searchTrack(song.search, accessToken)
+    const response = await searchTrack(song.search, accessToken, { focusArtist })
 
     if (response.status === 'rate_limited') {
       rateLimitedRetryMs = response.retryAfterMs
@@ -580,15 +640,17 @@ async function searchSongsSequential(
     }
 
     if (response.status === 'ok') {
-      if (trackIsDuplicate(response.track, seenHistory, produced, producedArtists)) {
+      if (trackIsDuplicate(response.track, seenHistory, produced)) {
+        resolvedSearches.push(song.search)
         continue
       }
       results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })
+      resolvedSearches.push(song.search)
     }
 
     await sleep(SEARCH_DELAY_MS)
   }
 
-  return { foundSongs: results, rateLimitedRetryMs, unauthorized }
+  return { foundSongs: results, resolvedSearches, rateLimitedRetryMs, unauthorized }
 }
 

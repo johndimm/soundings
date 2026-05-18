@@ -11,8 +11,10 @@ import { writeNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 import PlayerConstellationsEmbed from './PlayerConstellationsEmbed'
 import AppHeader from '@/app/components/AppHeader'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
+import { YOUTUBE_LOW_SEARCHES_THRESHOLD } from '@/app/lib/youtubeQuota'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
+import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 import { isYoutubeResolveTestClientEnabled } from '@/app/lib/youtubeResolveTestClient'
 import { getYoutubeResolveTestFixtureSuggestion } from '@/app/lib/youtubeResolveTestDefaults'
 import YoutubePlayer, { type YoutubePlayerHandle } from './YoutubePlayer'
@@ -27,6 +29,11 @@ import {
 } from '@/app/lib/devFactoryOverride'
 import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE, type CardState } from '@/app/lib/playback/types'
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
+import {
+  buildCombinedNotes,
+  enrichSearchWithFocusArtist,
+  resolveDjArtistConstraint,
+} from '@/app/lib/djArtistFocus'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
@@ -525,6 +532,15 @@ function trackPlayKey(track: { uri?: string; id: string }): string {
   return track.uri ?? track.id
 }
 
+function historyEntryPlayKey(entry: HistoryEntry): string | null {
+  const t = historyEntryToTrack(entry)
+  if (t) return trackPlayKey(t)
+  if (entry.track?.trim() && entry.artist?.trim()) {
+    return `${entry.track.trim().toLowerCase()}|${entry.artist.trim().toLowerCase()}`
+  }
+  return null
+}
+
 function formatMs(ms: number): string {
   const s = Math.floor(ms / 1000)
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
@@ -589,36 +605,6 @@ function shouldDeferLlmUntilDjChoice(
     popularity,
     discovery
   )
-}
-
-function buildCombinedNotes(
-  genres: string[],
-  genreText: string,
-  timePeriod: string,
-  notes: string,
-  popularity: number,
-  regions: string[],
-  artists: string[],
-  artistText: string
-): string {
-  const parts: string[] = []
-  if (genres.length > 0) parts.push(`Genres: ${genres.join(', ')}`)
-  if (regions.length > 0) parts.push(`World region: ${regions.join(', ')}`)
-  if (genreText.trim()) parts.push(`Style: ${genreText.trim()}`)
-  if (artists.length > 0) {
-    parts.push(
-      `Favor these artists when compatible with the 3-slot batch rules (different artists per batch): ${artists.join(', ')}`
-    )
-  }
-  if (artistText.trim()) parts.push(`More artist hints: ${artistText.trim()}`)
-  if (timePeriod.trim()) parts.push(`Time period: ${timePeriod.trim()}`)
-  if (notes.trim()) parts.push(notes.trim())
-  if (popularity <= 20) parts.push('Popularity: obscure hidden gems only — avoid anything well-known or mainstream')
-  else if (popularity <= 40) parts.push('Popularity: lean toward lesser-known tracks, avoid obvious hits')
-  else if (popularity >= 80) parts.push('Popularity: well-known popular songs preferred')
-  else if (popularity >= 60) parts.push('Popularity: lean toward recognizable songs')
-  // 41–59 = no constraint (default middle)
-  return parts.join('. ')
 }
 
 // ── Star rating component ────────────────────────────────────────────────────
@@ -1153,6 +1139,17 @@ export default function PlayerClient({
     const { attempts, successes } = resolveStatsRef.current
     return attempts === 0 ? 0.75 : successes / attempts
   }
+
+  const buildPlayedAndQueuedKeys = useCallback((): Set<string> => {
+    const seen = new Set<string>([...playedUrisRef.current])
+    for (const e of cardHistoryRef.current) {
+      const k = historyEntryPlayKey(e)
+      if (k) seen.add(k)
+    }
+    if (currentCardRef.current) seen.add(trackPlayKey(currentCardRef.current.track))
+    for (const c of queueRef.current) seen.add(trackPlayKey(c.track))
+    return seen
+  }, [])
   /** Set after `consumeDjSuggestionBuffer` is defined — used from fetchToBuffer before effect runs. */
   const consumeDjSuggestionBufferRef = useRef<
     ((opts?: { userInitiated?: boolean }) => Promise<void>) | null
@@ -1171,6 +1168,17 @@ export default function PlayerClient({
   const pendingPlaybackPositionMsRef = useRef<number | undefined>(undefined)
   /** Console filter: `[dj-queue]` — why DJ suggestions do or don’t reach Up Next */
   const DJQ = '[dj-queue]'
+
+  /** Single selected artist on the channel → LLM artist-focus mode (not 3-random-artists exploration). */
+  const djArtistConstraintForFetch = useCallback((explicit?: string): string | undefined => {
+    const ch = channelsRef.current.find(c => c.id === activeChannelIdRef.current)
+    return resolveDjArtistConstraint({
+      explicit,
+      selectedArtists: artistsRef.current,
+      channelName: ch?.id === ALL_CHANNEL_ID ? undefined : ch?.name,
+      artistText: artistTextRef.current,
+    })
+  }, [])
 
   const recomputeAlbumArtPan = useCallback(() => {
     const el = albumPanelRef.current
@@ -1625,6 +1633,7 @@ export default function PlayerClient({
       const params = new URLSearchParams({
         artist: artistName,
         source: sourceRef.current ?? 'spotify',
+        provider: providerRef.current ?? 'deepseek',
         ...(trackTitle && { track: trackTitle }),
         ...(albumTitle && { album: albumTitle }),
       })
@@ -2317,6 +2326,32 @@ export default function PlayerClient({
   useEffect(() => {
     sourceRef.current = source
   }, [source])
+
+  useEffect(() => {
+    if (isGuideDemo || source !== 'youtube') return
+    const syncYtQuota = async () => {
+      try {
+        const res = await fetch('/api/youtube/status')
+        if (!res.ok) return
+        const d = (await res.json()) as {
+          searchesRemaining?: number
+          quotaExceeded?: boolean
+          retryAfterMs?: number
+        }
+        if (typeof d.searchesRemaining === 'number') {
+          setYtSearchesRemaining(d.searchesRemaining)
+        }
+        if (d.quotaExceeded && typeof d.retryAfterMs === 'number' && d.retryAfterMs > 0) {
+          setBackoffFor('youtube', Date.now() + d.retryAfterMs)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    void syncYtQuota()
+    const interval = setInterval(() => void syncYtQuota(), 15_000)
+    return () => clearInterval(interval)
+  }, [isGuideDemo, source])
 
   /**
    * When the active playback source changes (user flipped it in Settings, or a channel with a
@@ -3518,11 +3553,12 @@ export default function PlayerClient({
         ...suggestionBufferRef.current.map(s => s.search),
       ]
       const alreadyHeardDeduped = [...new Set(alreadyHeard.map(s => s.trim()).filter(Boolean))]
+      const focusArtist = djArtistConstraintForFetch(artistConstraint)
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
         provider: providerRef.current,
-        artistConstraint,
+        artistConstraint: focusArtist,
         notes: buildCombinedNotes(
           genresRef.current,
           genreTextRef.current,
@@ -3531,7 +3567,8 @@ export default function PlayerClient({
           popularityRef.current,
           regionsRef.current,
           artistsRef.current,
-          artistTextRef.current
+          artistTextRef.current,
+          focusArtist
         ),
         globalNotes: readSettingsGlobalNotes() || undefined,
         alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
@@ -3595,91 +3632,108 @@ export default function PlayerClient({
         : []
       return { suggestions, profile: data.profile, suggestedArtists }
     },
-    [youtubeResolveTestActive, getDjContextHistories]
+    [youtubeResolveTestActive, getDjContextHistories, djArtistConstraintForFetch]
   )
 
-  /** Single Spotify search when a suggestion is promoted to Up Next / now playing. */
+  /** Single Spotify/YouTube lookup when a suggestion is promoted to Up Next / now playing. */
   const resolveOneSuggestion = useCallback(async (s: SongSuggestion): Promise<CardState | null> => {
-    // Do not preflight on client backoff — stale localStorage spotifyRateLimitUntil can block all
-    // resolves while LLM (profileOnly) still works. Rely on HTTP 429 to set backoff.
-    //
-    // Test-mode gate MUST check `sourceRef.current === 'youtube'` exclusively. Using
-    // `|| isYoutubeResolveTestFixtureSuggestion(s)` here caused an infinite flicker on
-    // Spotify login: the server echoed a fixture back for profile-only calls whenever
-    // `youtubeResolveTest: true` crossed the wire, we'd then hit /api/youtube-resolve-test,
-    // get a YouTube-typed track that Spotify can't play, fail, and retry forever.
     const ytResolveTest = youtubeResolveTestActive && sourceRef.current === 'youtube'
     const resolveUrl = ytResolveTest ? '/api/youtube-resolve-test' : '/api/next-song'
     if (ytResolveTest) {
       console.info(DJQ, 'resolveOneSuggestion: using /api/youtube-resolve-test (fixture, no search quota)')
     }
-    const res = await fetch(resolveUrl, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        songsToResolve: [s],
-        sessionHistory: sessionHistoryRef.current,
-        accessToken: accessTokenRef.current,
-        // Prefer GET /v1/tracks?ids= when LLM supplies an id (not Search); fall back to search if no id or lookup fails.
-        forceTextSearch: !normalizeSpotifyTrackId(s.spotifyId),
-        source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
-        // Only advertise test mode to the server when we're actually on YouTube.
-        // Otherwise the server's profile-only branch returns a YouTube fixture that
-        // breaks Spotify playback. See comment on `ytResolveTest` above.
-        youtubeResolveTest: ytResolveTest,
-      }),
-    })
 
-    if (res.status === 429) {
-      const errBody = await res.json().catch(() => null)
-      const payloadRetry =
-        errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
-      console.warn(DJQ, 'resolveOneSuggestion: HTTP 429', s.search.slice(0, 48), errBody)
-      recordFetch(1)
-      throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
-    }
-    if (res.status === 401) {
-      console.warn(DJQ, 'resolveOneSuggestion: HTTP 401', s.search.slice(0, 48))
-      throw new AuthError()
-    }
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      console.warn(DJQ, 'resolveOneSuggestion: HTTP', res.status, s.search.slice(0, 48), errText.slice(0, 120))
-      recordFetch(1)
-      return null
-    }
+    const attempt = async (row: SongSuggestion, forceTextSearch: boolean): Promise<CardState | null> => {
+      const res = await fetch(resolveUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          songsToResolve: [row],
+          sessionHistory: sessionHistoryRef.current,
+          accessToken: accessTokenRef.current,
+          forceTextSearch,
+          source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
+          youtubeResolveTest: ytResolveTest,
+          preferredArtists: artistsRef.current,
+          artistConstraint: djArtistConstraintForFetch(),
+        }),
+      })
 
-    const data = await res.json()
-    if (typeof data.ytSearchesRemaining === 'number') {
-      setYtSearchesRemaining(data.ytSearchesRemaining)
-    }
-    const songs = data.songs as
-      | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[]
-      | undefined
-    resolveStatsRef.current.attempts++
-    if (!songs?.length) {
-      console.warn(DJQ, 'resolveOneSuggestion: empty songs[] in response', s.search.slice(0, 48))
+      if (res.status === 429) {
+        const errBody = await res.json().catch(() => null)
+        const payloadRetry =
+          errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
+        console.warn(DJQ, 'resolveOneSuggestion: HTTP 429', row.search.slice(0, 48), errBody)
+        if (sourceRef.current !== 'youtube') recordFetch(1)
+        throw new RateLimitError(payloadRetry ?? RATE_LIMIT_DEFAULT_WAIT_MS)
+      }
+      if (res.status === 401) {
+        console.warn(DJQ, 'resolveOneSuggestion: HTTP 401', row.search.slice(0, 48))
+        throw new AuthError()
+      }
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        console.warn(DJQ, 'resolveOneSuggestion: HTTP', res.status, row.search.slice(0, 48), errText.slice(0, 120))
+        if (sourceRef.current !== 'youtube') recordFetch(1)
+        return null
+      }
+
+      const data = await res.json()
+      if (typeof data.ytSearchesRemaining === 'number') {
+        setYtSearchesRemaining(data.ytSearchesRemaining)
+      }
+      const songs = data.songs as
+        | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[]
+        | undefined
+      resolveStatsRef.current.attempts++
+      if (!songs?.length) {
+        console.warn(DJQ, 'resolveOneSuggestion: empty songs[] in response', row.search.slice(0, 48))
+        if (sourceRef.current !== 'youtube') recordFetch(1)
+        return null
+      }
+      resolveStatsRef.current.successes++
+      if (sourceRef.current !== 'youtube') recordFetch(1)
+      const t = songs[0]
       const { attempts, successes } = resolveStatsRef.current
-      console.info(DJQ, `resolve stats: ${successes}/${attempts} (${Math.round(successes/attempts*100)}%)`)
-      recordFetch(1)
+      console.info(DJQ, 'resolveOneSuggestion: ok', t.track.name, '—', t.track.artist,
+        `| resolve rate: ${successes}/${attempts} (${Math.round(successes/attempts*100)}%)`)
+      return {
+        track: t.track,
+        reason: t.reason,
+        category: t.category,
+        coords: t.coords,
+        composed: t.composed,
+        performer: t.performer,
+      }
+    }
+
+    const focusArtist = djArtistConstraintForFetch()
+    const row = { ...s, search: enrichSearchWithFocusArtist(s.search, focusArtist) }
+
+    const hasSpotifyId = Boolean(normalizeSpotifyTrackId(row.spotifyId))
+    const hasYoutubeId = Boolean(extractYoutubeVideoIdLoose(row.youtubeVideoId ?? ''))
+    try {
+      let card = await attempt(row, !hasSpotifyId && !hasYoutubeId)
+      if (!card && hasYoutubeId) {
+        console.info(DJQ, 'resolveOneSuggestion: YouTube id failed, retrying text search', row.search.slice(0, 48))
+        card = await attempt({ ...row, youtubeVideoId: undefined }, true)
+      }
+      if (!card && hasSpotifyId) {
+        console.info(DJQ, 'resolveOneSuggestion: Spotify id failed, retrying text search', row.search.slice(0, 48))
+        card = await attempt({ ...row, spotifyId: undefined, youtubeVideoId: undefined }, true)
+      }
+      if (!card) {
+        const { attempts, successes } = resolveStatsRef.current
+        console.info(DJQ, `resolve stats: ${successes}/${attempts} (${Math.round(successes/attempts*100)}%)`)
+      }
+      return card
+    } catch (e) {
+      if (e instanceof RateLimitError || e instanceof AuthError) throw e
+      console.warn(DJQ, 'resolveOneSuggestion: unexpected error', e)
       return null
     }
-    resolveStatsRef.current.successes++
-    recordFetch(1)
-    const t = songs[0]
-    const { attempts, successes } = resolveStatsRef.current
-    console.info(DJQ, 'resolveOneSuggestion: ok', t.track.name, '—', t.track.artist,
-      `| resolve rate: ${successes}/${attempts} (${Math.round(successes/attempts*100)}%)`)
-    return {
-      track: t.track,
-      reason: t.reason,
-      category: t.category,
-      coords: t.coords,
-      composed: t.composed,
-      performer: t.performer,
-    }
-  }, [youtubeResolveTestActive])
+  }, [youtubeResolveTestActive, djArtistConstraintForFetch])
   resolveOneSuggestionRef.current = resolveOneSuggestion
 
   /** Resolve up to `max` suggestions in order (constraint / replace flows). Skips failed lookups. */
@@ -3687,11 +3741,7 @@ export default function PlayerClient({
     async (list: SongSuggestion[], max: number): Promise<CardState[]> => {
       const out: CardState[] = []
       const seenUris = new Set<string>()
-      const excludeUris = new Set<string>([
-        ...playedUrisRef.current,
-        ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
-        ...queueRef.current.map(c => trackPlayKey(c.track)),
-      ])
+      const excludeUris = buildPlayedAndQueuedKeys()
       for (const s of list) {
         if (out.length >= max) break
         try {
@@ -3708,7 +3758,7 @@ export default function PlayerClient({
       }
       return out
     },
-    [resolveOneSuggestion]
+    [resolveOneSuggestion, buildPlayedAndQueuedKeys]
   )
 
   /** No Spotify search — rebuild cards from Heard when API is rate-limited. */
@@ -3801,10 +3851,12 @@ export default function PlayerClient({
     const gen = ++profileGenRef.current
     fetchingRef.current = true
     const { sessionHistory: djSessionHistory, cardHistory: djCardHistory } = getDjContextHistories()
+    const focusArtist = djArtistConstraintForFetch()
     const payload: Record<string, unknown> = {
       sessionHistory: djSessionHistory,
       priorProfile: priorProfileRef.current || undefined,
       provider: providerRef.current,
+      artistConstraint: focusArtist,
       notes: buildCombinedNotes(
         genresRef.current,
         genreTextRef.current,
@@ -3813,7 +3865,8 @@ export default function PlayerClient({
         popularityRef.current,
         regionsRef.current,
         artistsRef.current,
-        artistTextRef.current
+        artistTextRef.current,
+        focusArtist
       ),
       alreadyHeard: (() => {
         const cur = currentCardRef.current
@@ -4014,8 +4067,9 @@ export default function PlayerClient({
     })
     const sentHistory = [...getDjContextHistories().sessionHistory]
     const sentProfile = priorProfileRef.current
+    const focusArtist = djArtistConstraintForFetch(artistConstraint)
     setLoadingQueue(true)
-    fetchSuggestions(sentHistory, sentProfile, artistConstraint, forceTextSearch, numSongs)
+    fetchSuggestions(sentHistory, sentProfile, focusArtist, forceTextSearch, numSongs)
       .then(async ({ suggestions, profile: newProfile }) => {
         console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
         if (newProfile) {
@@ -4124,6 +4178,7 @@ export default function PlayerClient({
     playerConfigDj,
     youtubeResolveTestFromServer,
     getDjContextHistories,
+    djArtistConstraintForFetch,
   ])
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
@@ -4138,7 +4193,13 @@ export default function PlayerClient({
       try {
         const card = await resolveOneSuggestion(next)
         if (!card) {
-          console.warn(DJQ, 'startPlaybackFromSuggestions: resolve returned null; dropping row', next.search.slice(0, 48))
+          console.warn(DJQ, 'startPlaybackFromSuggestions: resolve failed; keeping row in Up Next', next.search.slice(0, 48))
+          return
+        }
+        const seen = buildPlayedAndQueuedKeys()
+        const playKey = trackPlayKey(card.track)
+        if (seen.has(playKey)) {
+          console.info(DJQ, 'startPlaybackFromSuggestions: duplicate; dropping row', next.search.slice(0, 40))
           const rest = suggestionBufferRef.current.slice(1)
           suggestionBufferRef.current = rest
           setSuggestionBuffer(rest)
@@ -4147,14 +4208,10 @@ export default function PlayerClient({
         const rest = suggestionBufferRef.current.slice(1)
         suggestionBufferRef.current = rest
         setSuggestionBuffer(rest)
-        const played = new Set(playedUrisRef.current)
-        if (!played.has(trackPlayKey(card.track))) {
-          currentCardRef.current = card
-          setCurrentCard(card)
-          console.info(DJQ, 'startPlaybackFromSuggestions: set now playing', card.track.name)
-          return
-        }
-        console.info(DJQ, 'startPlaybackFromSuggestions: resolved track already in played; popping', next.search.slice(0, 40))
+        currentCardRef.current = card
+        setCurrentCard(card)
+        console.info(DJQ, 'startPlaybackFromSuggestions: set now playing', card.track.name)
+        return
       } catch (e) {
         if (e instanceof RateLimitError) {
           const waitMs = (e.retryAfterMs ?? RATE_LIMIT_DEFAULT_WAIT_MS) + 5_000
@@ -4188,22 +4245,15 @@ export default function PlayerClient({
       try {
         const card = await resolveOneSuggestion(next)
         if (!card) {
-          console.warn(DJQ, 'topUpQueueFromSuggestions: resolve returned null; dropping row', next.search.slice(0, 48))
-          const rest = suggestionBufferRef.current.slice(1)
-          suggestionBufferRef.current = rest
-          setSuggestionBuffer(rest)
-          continue
+          console.warn(DJQ, 'topUpQueueFromSuggestions: resolve failed; keeping row in Up Next', next.search.slice(0, 48))
+          return
         }
+        const seen = buildPlayedAndQueuedKeys()
+        const playKey = trackPlayKey(card.track)
         const rest = suggestionBufferRef.current.slice(1)
         suggestionBufferRef.current = rest
         setSuggestionBuffer(rest)
-        const seen = new Set<string>([
-          ...playedUrisRef.current,
-          ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
-          ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
-          ...queueRef.current.map(c => trackPlayKey(c.track)),
-        ])
-        if (!seen.has(trackPlayKey(card.track))) {
+        if (!seen.has(playKey)) {
           const newQ = [...queueRef.current, card]
           queueRef.current = newQ
           setQueue(newQ)
@@ -4225,7 +4275,7 @@ export default function PlayerClient({
         return
       }
     }
-  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited])
+  }, [resolveOneSuggestion, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys])
 
   /** Outcome of batch ID promote — do not infer from isSpotifyBackoff() (stale client timer). */
   type PromoteDjResult = 'ok' | 'noop' | 'rate_limited' | 'auth_error'
@@ -4321,19 +4371,33 @@ export default function PlayerClient({
             composed?: number
           }[]
         | undefined
+      const resolvedTrackIds = new Set(songs?.map(t => t.track.id) ?? [])
+
+      const shrinkBufferAfterBatch = () => {
+        const rest: SongSuggestion[] = []
+        for (let i = 0; i < buf.length; i++) {
+          const row = buf[i]
+          if (!indicesToRemove.has(i)) {
+            rest.push(row)
+            continue
+          }
+          const id = normalizeSpotifyTrackId(row.spotifyId)
+          if (id && resolvedTrackIds.has(id)) continue
+          rest.push({ ...row, spotifyId: undefined })
+        }
+        suggestionBufferRef.current = rest
+        setSuggestionBuffer(rest)
+      }
+
       if (!songs?.length) {
-        console.warn(DJQ, 'promoteDjPendingByIdOnly: empty songs in response body')
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: empty songs in response body — retry via text search')
+        shrinkBufferAfterBatch()
         return 'noop'
       }
 
       recordFetch(1)
 
-      const seen = new Set<string>([
-        ...playedUrisRef.current,
-        ...cardHistoryRef.current.map(e => e.uri ?? '').filter(Boolean),
-        ...(currentCardRef.current ? [trackPlayKey(currentCardRef.current.track)] : []),
-        ...queueRef.current.map(c => trackPlayKey(c.track)),
-      ])
+      const seen = buildPlayedAndQueuedKeys()
 
       const cards: CardState[] = []
       for (const t of songs) {
@@ -4349,16 +4413,12 @@ export default function PlayerClient({
         })
       }
       if (cards.length === 0) {
-        console.warn(DJQ, 'promoteDjPendingByIdOnly: all tracks filtered as duplicates / seen')
-        const rest = buf.filter((_, i) => !indicesToRemove.has(i))
-        suggestionBufferRef.current = rest
-        setSuggestionBuffer(rest)
+        console.warn(DJQ, 'promoteDjPendingByIdOnly: all tracks filtered as duplicates / seen — retry via text search')
+        shrinkBufferAfterBatch()
         return 'noop'
       }
 
-      const rest = buf.filter((_, i) => !indicesToRemove.has(i))
-      suggestionBufferRef.current = rest
-      setSuggestionBuffer(rest)
+      shrinkBufferAfterBatch()
 
       if (activeChannelIdRef.current !== resolveChannelId) {
         console.info(DJQ, 'promoteDjPendingByIdOnly: channel switched mid-resolve, discarding results')
@@ -4393,7 +4453,318 @@ export default function PlayerClient({
         bufferLeft: suggestionBufferRef.current.length,
       })
       return 'ok'
-  }, [isGuideDemo, fillFromHeardWhenRateLimited])
+  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys])
+
+  /** Batch-resolve pending DJ suggestions on YouTube (one API call, artist-aware fallbacks). */
+  const promoteDjPendingYouTubeBatch = useCallback(async (): Promise<PromoteDjResult> => {
+    const resolveChannelId = activeChannelIdRef.current
+    if (isGuideDemo) {
+      console.info(DJQ, 'promoteDjPendingYouTubeBatch: skipped (guide demo)')
+      return 'noop'
+    }
+    if (sourceRef.current !== 'youtube') {
+      return 'noop'
+    }
+    const needCurrent = !currentCardRef.current
+    const queueRoom = Math.max(0, 3 - queueRef.current.length)
+    const maxTake =
+      needCurrent && queueRef.current.length === 0
+        ? 4
+        : queueRoom
+
+    if (maxTake <= 0) {
+      console.info(DJQ, 'promoteDjPendingYouTubeBatch: skipped (no slots)', {
+        needCurrent,
+        queueLen: queueRef.current.length,
+      })
+      return 'noop'
+    }
+
+    const buf = suggestionBufferRef.current
+    const take = buf.slice(0, maxTake)
+    if (take.length === 0) return 'noop'
+
+    console.info(DJQ, 'promoteDjPendingYouTubeBatch: batch request', take.length, 'rows')
+    const res = await fetch('/api/next-song', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        songsToResolve: take,
+        sessionHistory: sessionHistoryRef.current,
+        source: 'youtube',
+        preferredArtists: artistsRef.current,
+        artistConstraint: djArtistConstraintForFetch(),
+      }),
+    })
+
+    if (res.status === 429) {
+      const errBody = await res.json().catch(() => null)
+      const retryMs =
+        errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
+      console.warn(DJQ, 'promoteDjPendingYouTubeBatch: HTTP 429', errBody)
+      const waitMs = (retryMs ?? 60_000) + 5_000
+      setBackoffFor('youtube', Date.now() + waitMs)
+      setError(`YouTube is rate-limited. Blocked until ${formatRetryTime(waitMs)}.`)
+      fillFromHeardWhenRateLimited()
+      return 'rate_limited'
+    }
+    if (res.status === 401) {
+      setError('Authentication error (401). Access token may be invalid or missing.')
+      return 'auth_error'
+    }
+    if (!res.ok) {
+      const t = await res.text().catch(() => '')
+      console.warn(DJQ, 'promoteDjPendingYouTubeBatch: HTTP', res.status, t.slice(0, 160))
+      return 'noop'
+    }
+
+    const data = await res.json()
+    if (typeof data.ytSearchesRemaining === 'number') {
+      setYtSearchesRemaining(data.ytSearchesRemaining)
+    }
+    const songs = data.songs as
+      | {
+          track: SpotifyTrack
+          reason: string
+          category?: string
+          coords?: { x: number; y: number }
+          composed?: number
+        }[]
+      | undefined
+    const resolvedIndices = new Set<number>(
+      Array.isArray(data.resolvedIndices) ? data.resolvedIndices : []
+    )
+
+    const shrinkBufferAfterBatch = () => {
+      const rest: SongSuggestion[] = []
+      for (let i = 0; i < buf.length; i++) {
+        if (i >= maxTake) {
+          rest.push(buf[i])
+          continue
+        }
+        if (resolvedIndices.has(i)) continue
+        rest.push({ ...buf[i], youtubeVideoId: undefined })
+      }
+      suggestionBufferRef.current = rest
+      setSuggestionBuffer(rest)
+    }
+
+    if (!songs?.length) {
+      console.warn(DJQ, 'promoteDjPendingYouTubeBatch: empty songs — retry via text resolve')
+      shrinkBufferAfterBatch()
+      return 'noop'
+    }
+
+    const seen = buildPlayedAndQueuedKeys()
+    const cards: CardState[] = []
+    for (const t of songs) {
+      const u = trackPlayKey(t.track)
+      if (seen.has(u)) continue
+      seen.add(u)
+      cards.push({
+        track: t.track,
+        reason: t.reason,
+        category: t.category,
+        coords: t.coords,
+        composed: t.composed,
+      })
+    }
+    if (cards.length === 0) {
+      console.warn(DJQ, 'promoteDjPendingYouTubeBatch: all tracks filtered as duplicates')
+      shrinkBufferAfterBatch()
+      return 'noop'
+    }
+
+    shrinkBufferAfterBatch()
+
+    if (activeChannelIdRef.current !== resolveChannelId) {
+      console.info(DJQ, 'promoteDjPendingYouTubeBatch: channel switched mid-resolve, discarding')
+      return 'noop'
+    }
+    console.info(DJQ, 'promoteDjPendingYouTubeBatch: applying', cards.length, 'cards')
+    let restCards = cards
+    if (!currentCardRef.current) {
+      const [first, ...afterFirst] = restCards
+      currentCardRef.current = first
+      setCurrentCard(first)
+      lastPlayedUriRef.current = null
+      setCurrentStars(null)
+      currentStarsRef.current = null
+      seen.add(trackPlayKey(first.track))
+      restCards = afterFirst.slice(0, 3)
+    }
+
+    const q = [...queueRef.current]
+    for (const c of restCards) {
+      if (q.length >= 3) break
+      const ck = trackPlayKey(c.track)
+      if (seen.has(ck)) continue
+      seen.add(ck)
+      q.push(c)
+    }
+    queueRef.current = q
+    setQueue(q)
+    console.info(DJQ, 'promoteDjPendingYouTubeBatch: done', {
+      nowPlaying: Boolean(currentCardRef.current),
+      queueLen: q.length,
+      bufferLeft: suggestionBufferRef.current.length,
+    })
+    return 'ok'
+  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys, djArtistConstraintForFetch])
+
+  /** Batch-resolve pending DJ rows on Spotify (artist-aware search on the server). */
+  const promoteDjPendingSpotifyBatch = useCallback(async (): Promise<PromoteDjResult> => {
+    const resolveChannelId = activeChannelIdRef.current
+    if (isGuideDemo) return 'noop'
+    if (sourceRef.current === 'youtube') return 'noop'
+
+    const needCurrent = !currentCardRef.current
+    const queueRoom = Math.max(0, 3 - queueRef.current.length)
+    const maxTake =
+      needCurrent && queueRef.current.length === 0
+        ? 4
+        : queueRoom
+    if (maxTake <= 0) return 'noop'
+
+    const buf = suggestionBufferRef.current
+    const focus = djArtistConstraintForFetch()
+    const take = buf.slice(0, maxTake).map(s => ({
+      ...s,
+      search: enrichSearchWithFocusArtist(s.search, focus),
+    }))
+    if (take.length === 0) return 'noop'
+
+    const hasAnyId = take.some(s => Boolean(normalizeSpotifyTrackId(s.spotifyId)))
+    console.info(DJQ, 'promoteDjPendingSpotifyBatch: batch request', take.length, 'rows', {
+      focus,
+      hasAnyId,
+    })
+
+    const res = await fetch('/api/next-song', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        songsToResolve: take,
+        sessionHistory: sessionHistoryRef.current,
+        accessToken: accessTokenRef.current,
+        forceTextSearch: !hasAnyId,
+        source: 'spotify',
+        preferredArtists: artistsRef.current,
+        artistConstraint: focus,
+      }),
+    })
+
+    if (res.status === 429) {
+      const errBody = await res.json().catch(() => null)
+      const retryMs =
+        errBody && typeof errBody.retryAfterMs === 'number' ? errBody.retryAfterMs : undefined
+      const waitMs = (retryMs ?? 60_000) + 5_000
+      setBackoffFor('spotify', Date.now() + waitMs)
+      setError(`Spotify is rate limiting requests. Blocked until ${formatRetryTime(waitMs)}.`)
+      fillFromHeardWhenRateLimited()
+      return 'rate_limited'
+    }
+    if (res.status === 401) {
+      setError('Authentication error (401). Access token may be invalid or missing.')
+      return 'auth_error'
+    }
+    if (!res.ok) {
+      const t = await res.text().catch(() => '')
+      console.warn(DJQ, 'promoteDjPendingSpotifyBatch: HTTP', res.status, t.slice(0, 160))
+      return 'noop'
+    }
+
+    const data = await res.json()
+    const songs = data.songs as
+      | {
+          track: SpotifyTrack
+          reason: string
+          category?: string
+          coords?: { x: number; y: number }
+          composed?: number
+        }[]
+      | undefined
+    const resolvedSearches = new Set<string>(
+      Array.isArray(data.resolvedSearches) ? data.resolvedSearches : []
+    )
+
+    const shrinkBufferAfterBatch = () => {
+      const rest: SongSuggestion[] = []
+      for (let i = 0; i < buf.length; i++) {
+        if (i >= maxTake) {
+          rest.push(buf[i])
+          continue
+        }
+        const row = buf[i]!
+        const enriched = enrichSearchWithFocusArtist(row.search, focus)
+        if (resolvedSearches.has(row.search) || resolvedSearches.has(enriched)) continue
+        rest.push({ ...row, spotifyId: undefined })
+      }
+      suggestionBufferRef.current = rest
+      setSuggestionBuffer(rest)
+    }
+
+    if (!songs?.length) {
+      console.warn(DJQ, 'promoteDjPendingSpotifyBatch: empty songs — will retry one-by-one')
+      shrinkBufferAfterBatch()
+      return 'noop'
+    }
+
+    recordFetch(1)
+    const seen = buildPlayedAndQueuedKeys()
+    const cards: CardState[] = []
+    for (const t of songs) {
+      const u = trackPlayKey(t.track)
+      if (seen.has(u)) continue
+      seen.add(u)
+      cards.push({
+        track: t.track,
+        reason: t.reason,
+        category: t.category,
+        coords: t.coords,
+        composed: t.composed,
+      })
+    }
+    if (cards.length === 0) {
+      shrinkBufferAfterBatch()
+      return 'noop'
+    }
+
+    shrinkBufferAfterBatch()
+    if (activeChannelIdRef.current !== resolveChannelId) return 'noop'
+
+    console.info(DJQ, 'promoteDjPendingSpotifyBatch: applying', cards.length, 'cards')
+    let restCards = cards
+    if (!currentCardRef.current) {
+      const [first, ...afterFirst] = restCards
+      currentCardRef.current = first
+      setCurrentCard(first)
+      lastPlayedUriRef.current = null
+      setCurrentStars(null)
+      currentStarsRef.current = null
+      seen.add(trackPlayKey(first.track))
+      restCards = afterFirst.slice(0, 3)
+    }
+
+    const q = [...queueRef.current]
+    for (const c of restCards) {
+      if (q.length >= 3) break
+      const ck = trackPlayKey(c.track)
+      if (seen.has(ck)) continue
+      seen.add(ck)
+      q.push(c)
+    }
+    queueRef.current = q
+    setQueue(q)
+    console.info(DJQ, 'promoteDjPendingSpotifyBatch: done', {
+      nowPlaying: Boolean(currentCardRef.current),
+      queueLen: q.length,
+      bufferLeft: suggestionBufferRef.current.length,
+    })
+    return 'ok'
+  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys, djArtistConstraintForFetch])
 
   /**
    * Move DJ buffer into now playing / Up Next: batch by Spotify ID when possible, then lazy resolve.
@@ -4439,14 +4810,14 @@ export default function PlayerClient({
         return
       }
 
-      const hadIds = suggestionBufferRef.current.some(s =>
-        normalizeSpotifyTrackId(s.spotifyId)
-      )
+      const useYoutubeBatch = sourceRef.current === 'youtube'
+      const useSpotifyBatch = sourceRef.current !== 'youtube'
 
       console.info(DJQ, 'consume: start', label, {
         bufferLen: suggestionBufferRef.current.length,
         slots,
-        hadSpotifyIds: hadIds,
+        useYoutubeBatch,
+        useSpotifyBatch,
         clientBackoffHint: isBackoffActive(),
       })
 
@@ -4468,9 +4839,17 @@ export default function PlayerClient({
             break
           }
 
-          if (!promoteDone && hadIds) {
-            console.info(DJQ, 'consume: calling promoteDjPendingByIdOnly', { loop })
-            const pr = await promoteDjPendingByIdOnly()
+          if (!promoteDone && (useYoutubeBatch || useSpotifyBatch)) {
+            console.info(
+              DJQ,
+              useYoutubeBatch
+                ? 'consume: calling promoteDjPendingYouTubeBatch'
+                : 'consume: calling promoteDjPendingSpotifyBatch',
+              { loop }
+            )
+            const pr = useYoutubeBatch
+              ? await promoteDjPendingYouTubeBatch()
+              : await promoteDjPendingSpotifyBatch()
             promoteDone = true
             if (pr === 'rate_limited') {
               console.warn(DJQ, 'consume: promote returned HTTP 429', { loop })
@@ -4549,6 +4928,8 @@ export default function PlayerClient({
     [
       isGuideDemo,
       promoteDjPendingByIdOnly,
+      promoteDjPendingYouTubeBatch,
+      promoteDjPendingSpotifyBatch,
       startPlaybackFromSuggestions,
       topUpQueueFromSuggestions,
     ]
@@ -5029,7 +5410,9 @@ export default function PlayerClient({
   const spotifyStatusMessage =
     activeBackoffUntilForBanner && activeBackoffUntilForBanner > Date.now()
       ? `${rateLimitBannerIsYoutube ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-      : null
+      : rateLimitBannerIsYoutube && ytSearchesRemaining !== null && ytSearchesRemaining <= YOUTUBE_LOW_SEARCHES_THRESHOLD
+        ? `YouTube search quota: ${ytSearchesRemaining} lookups left today (resets midnight Pacific)`
+        : null
 
   const showLoadStarterChannelsPill =
     channels.length > 0 &&
@@ -5657,6 +6040,11 @@ export default function PlayerClient({
             }}
             pendingSuggestions={suggestionBuffer}
             promotingDjPending={promotingDjPending}
+            pendingQueueBlocked={
+              suggestionBuffer.length > 0 &&
+              queue.length >= QUEUE_TARGET &&
+              Boolean(currentCard)
+            }
             careerWorks={careerMode?.works}
             careerCurrentIndex={careerMode?.currentIndex}
             careerLoading={careerLoading}

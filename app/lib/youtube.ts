@@ -6,7 +6,9 @@ import {
   YOUTUBE_RESOLVE_TEST_SEARCH_HINT,
   YOUTUBE_RESOLVE_TEST_VIDEO_ID,
 } from '@/app/lib/youtubeResolveTestDefaults'
+import type { SongSuggestion } from '@/app/lib/llm'
 import { extractYoutubeVideoId, extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
+import { YOUTUBE_DAILY_SEARCH_QUOTA } from '@/app/lib/youtubeQuota'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
@@ -21,7 +23,7 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
 }
 
-// Each search call costs 100 quota units. Free tier = 10,000/day → 100 searches/day.
+// Each search.list costs 100 quota credits. Daily allowance = 110,000 credits → 1,100 searches/day.
 // Cache aggressively to disk so restarts don't re-burn quota.
 const CACHE_FILE = join(process.cwd(), '.youtube-cache.json')
 
@@ -81,27 +83,112 @@ for (const [key, entry] of searchCache) {
   for (const c of entry.candidates) videoIdToKey.set(c.videoId, key)
 }
 
-// Searches used this server session (resets on restart or when quota resets).
-let searchesUsed = 0
-const DAILY_QUOTA = 100
+const QUOTA_FILE = join(process.cwd(), '.youtube-quota.json')
+const DAILY_QUOTA = YOUTUBE_DAILY_SEARCH_QUOTA
+
+type QuotaDisk = {
+  ptDate: string
+  searchesUsed: number
+  quotaExceededUntil: number
+}
+
+function pacificDateKey(d = new Date()): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+}
+
+function loadQuotaState(): QuotaDisk {
+  const today = pacificDateKey()
+  try {
+    if (existsSync(QUOTA_FILE)) {
+      const raw = JSON.parse(readFileSync(QUOTA_FILE, 'utf-8')) as Partial<QuotaDisk>
+      if (raw.ptDate === today && typeof raw.searchesUsed === 'number') {
+        return {
+          ptDate: today,
+          searchesUsed: Math.max(0, raw.searchesUsed),
+          quotaExceededUntil: typeof raw.quotaExceededUntil === 'number' ? raw.quotaExceededUntil : 0,
+        }
+      }
+    }
+  } catch {}
+  return { ptDate: today, searchesUsed: 0, quotaExceededUntil: 0 }
+}
+
+function persistQuotaState() {
+  try {
+    const payload: QuotaDisk = {
+      ptDate: pacificDateKey(),
+      searchesUsed,
+      quotaExceededUntil,
+    }
+    writeFileSync(QUOTA_FILE, JSON.stringify(payload))
+  } catch {}
+}
+
+let quotaPtDate = pacificDateKey()
+let { searchesUsed, quotaExceededUntil } = (() => {
+  const s = loadQuotaState()
+  quotaPtDate = s.ptDate
+  return { searchesUsed: s.searchesUsed, quotaExceededUntil: s.quotaExceededUntil }
+})()
+
+function rollQuotaIfNewDay() {
+  const today = pacificDateKey()
+  if (quotaPtDate === today) return
+  quotaPtDate = today
+  searchesUsed = 0
+  quotaExceededUntil = 0
+  persistQuotaState()
+  console.info('[youtube] new Pacific day — search quota counter reset')
+}
+
+export { YOUTUBE_DAILY_SEARCH_QUOTA } from '@/app/lib/youtubeQuota'
+
+export function getYouTubeSearchesUsed(): number {
+  return searchesUsed
+}
 
 export function getYouTubeSearchesRemaining(): number {
   return Math.max(0, DAILY_QUOTA - searchesUsed)
 }
 
-// Server-side quota backoff: once quota_exceeded is hit, stop calling until reset time.
-// YouTube quota resets at midnight Pacific (UTC-8). We back off until then + 30 min buffer.
-let quotaExceededUntil = 0
+export type YouTubeQuotaStatus = {
+  dailyQuota: number
+  searchesUsed: number
+  searchesRemaining: number
+  quotaExceeded: boolean
+  retryAfterMs: number
+  resetAt: string | null
+}
 
+export function getYouTubeQuotaStatus(): YouTubeQuotaStatus {
+  rollQuotaIfNewDay()
+  const retryAfterMs = getYouTubeQuotaWaitMs()
+  const exceeded = isYouTubeQuotaExceeded()
+  let resetAt: string | null = null
+  if (exceeded && retryAfterMs > 0) {
+    resetAt = new Date(Date.now() + retryAfterMs).toISOString()
+  }
+  return {
+    dailyQuota: DAILY_QUOTA,
+    searchesUsed,
+    searchesRemaining: getYouTubeSearchesRemaining(),
+    quotaExceeded: exceeded,
+    retryAfterMs,
+    resetAt,
+  }
+}
+
+// Server-side quota backoff: once quota_exceeded is hit, stop calling until reset time.
+// YouTube quota resets at midnight Pacific. We back off until then + 30 min buffer.
 function markQuotaExceeded() {
   const now = new Date()
-  // Next midnight PT = next midnight UTC-8
   const resetUTC = new Date(now)
   resetUTC.setUTCHours(8, 30, 0, 0) // 00:30 PT = 08:30 UTC
   if (resetUTC.getTime() <= now.getTime()) {
     resetUTC.setUTCDate(resetUTC.getUTCDate() + 1)
   }
   quotaExceededUntil = resetUTC.getTime()
+  persistQuotaState()
   console.warn(`[youtube] quota exceeded — backing off until ${resetUTC.toISOString()}`)
 }
 
@@ -120,6 +207,77 @@ export type YouTubeSearchResult =
   | { status: 'quota_exceeded' }
 
 export { extractYoutubeVideoId, extractYoutubeVideoIdLoose }
+
+export type YouTubeResolveHintOpts = {
+  preferredArtists?: string[]
+  artistConstraint?: string
+}
+
+/** Extra search queries when the title-only query misses (artist-focused channels). */
+export function buildYouTubeSearchAlternates(
+  search: string,
+  opts?: YouTubeResolveHintOpts
+): string[] {
+  const q = search.trim()
+  if (!q) return []
+  const artists: string[] = []
+  const ac = opts?.artistConstraint?.trim()
+  if (ac) artists.push(ac)
+  for (const a of opts?.preferredArtists ?? []) {
+    const t = a.trim()
+    if (!t) continue
+    if (artists.some(x => x.toLowerCase() === t.toLowerCase())) continue
+    artists.push(t)
+  }
+  const qLower = q.toLowerCase()
+  const out: string[] = []
+  for (const artist of artists.slice(0, 6)) {
+    if (qLower.includes(artist.toLowerCase())) continue
+    out.push(`${artist} - ${q}`)
+    out.push(`${artist} ${q}`)
+  }
+  return out
+}
+
+function youtubeVideoIdFromSuggestion(song: SongSuggestion): string | null {
+  if (song.youtubeVideoId) {
+    const id = extractYoutubeVideoIdLoose(song.youtubeVideoId)
+    if (id) return id
+  }
+  return null
+}
+
+/** Resolve one LLM row: optional zero-quota video id, then search + artist fallbacks. */
+export async function resolveYouTubeSuggestion(
+  song: SongSuggestion,
+  opts?: YouTubeResolveHintOpts
+): Promise<YouTubeSearchResult> {
+  const queries: string[] = []
+  const seen = new Set<string>()
+  const push = (q: string) => {
+    const k = q.trim().toLowerCase()
+    if (!k || seen.has(k)) return
+    seen.add(k)
+    queries.push(q.trim())
+  }
+
+  const vid = youtubeVideoIdFromSuggestion(song)
+  if (vid) push(vid)
+
+  const main = song.search.trim()
+  if (main) push(main)
+
+  for (const alt of buildYouTubeSearchAlternates(main, opts)) {
+    push(alt)
+  }
+
+  for (const q of queries) {
+    const res = await searchYouTube(q)
+    if (res.status === 'quota_exceeded') return res
+    if (res.status === 'ok') return res
+  }
+  return { status: 'not_found' }
+}
 
 /** Prefer remaining text after stripping URLs for title/artist; else generic. */
 function searchHintForResolvedQuery(query: string, id: string): string {
@@ -287,6 +445,7 @@ function parseNameArtist(title: string, channelTitle: string): { name: string; a
 }
 
 export async function searchYouTube(query: string): Promise<YouTubeSearchResult> {
+  rollQuotaIfNewDay()
   if (isYoutubeResolveTestServerEnabled()) {
     console.info('[youtube] searchYouTube: YOUTUBE_RESOLVE_TEST — skipping Data API, using fixture')
     return {
@@ -338,6 +497,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   })
 
   searchesUsed++
+  persistQuotaState()
   console.info(`[youtube] searching: "${query}" (${getYouTubeSearchesRemaining()} remaining)`)
 
   let res: Response

@@ -12,6 +12,33 @@ import {
   normalizeChannelDiscovery,
   type Channel,
 } from '@/app/lib/channelsImportExport'
+import { extractArtistHintsFromChannel, sanitizeSelectedArtists } from '@/app/lib/artistHintsFromNotes'
+
+const SETTINGS_STORAGE_KEY = 'earprint-settings'
+const ARTIST_SUGGEST_DEBOUNCE_MS = 700
+
+function readLlmProviderFromSettings(): string | undefined {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (!raw) return undefined
+    const p = JSON.parse(raw)?.provider
+    return typeof p === 'string' ? p : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function channelWantsArtistSuggestions(ch: Channel | undefined): boolean {
+  if (!ch || ch.id === ALL_CHANNEL_ID) return false
+  if ((ch.genres?.length ?? 0) > 0) return true
+  if ((ch.timePeriods?.length ?? 0) > 0) return true
+  if ((ch.regions?.length ?? 0) > 0) return true
+  if (ch.genreText?.trim()) return true
+  if (ch.notes?.trim()) return true
+  const name = ch.name?.trim()
+  if (name && !/^new channel$/i.test(name)) return true
+  return false
+}
 
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
@@ -111,13 +138,18 @@ const ARTISTS_BY_REGION: Record<string, readonly string[]> = {
   'Southeast Asia': ['Yanni', 'Anggun'],
 }
 
-/** Union of genre + selected time periods + selected regions (deduped). */
-function deriveArtistOptions(genres: string[], timePeriods: string[], regions: string[]): string[] {
+/** Static anchors from genre / era / region chips (deduped). */
+function deriveStaticArtistOptions(
+  genres: string[],
+  timePeriods: string[],
+  regions: string[]
+): string[] {
   const out: string[] = []
   const seen = new Set<string>()
   const push = (name: string) => {
-    if (seen.has(name)) return
-    seen.add(name)
+    const key = name.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
     out.push(name)
   }
   for (const g of genres) {
@@ -128,6 +160,20 @@ function deriveArtistOptions(genres: string[], timePeriods: string[], regions: s
   }
   for (const r of regions) {
     for (const a of ARTISTS_BY_REGION[r] ?? []) push(a)
+  }
+  return out
+}
+
+function mergeArtistOptionLists(...lists: string[][]): string[] {
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const list of lists) {
+    for (const name of list) {
+      const key = name.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(name)
+    }
   }
   return out
 }
@@ -199,13 +245,24 @@ export default function ChannelsPage() {
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const [editingChannelName, setEditingChannelName] = useState('')
   const [mounted, setMounted] = useState(false)
+  const [llmArtistOptions, setLlmArtistOptions] = useState<string[]>([])
+  const [loadingArtistOptions, setLoadingArtistOptions] = useState(false)
+  const [artistSuggestError, setArtistSuggestError] = useState<string | null>(null)
+  const artistSuggestAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     let loaded: Channel[] = []
     try {
       const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
       loaded = ensureAllChannel(raw ? JSON.parse(raw) : [])
-      loaded = loaded.map(mergeArtistTextIntoNotes).map(normalizeChannelDiscovery)
+      loaded = loaded
+        .map(mergeArtistTextIntoNotes)
+        .map(normalizeChannelDiscovery)
+        .map(ch =>
+          ch.id === ALL_CHANNEL_ID
+            ? ch
+            : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
+        )
       // Persist merged notes + cleared artistText, and any All-channel insertion from ensureAllChannel
       try { localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(loaded)) } catch {}
       const activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY)
@@ -253,11 +310,14 @@ export default function ChannelsPage() {
     g: activeChannel?.genres ?? [],
     tp: activeChannel?.timePeriods ?? [],
     r: activeChannel?.regions ?? [],
+    n: activeChannel?.notes ?? '',
+    gt: activeChannel?.genreText ?? '',
+    cn: activeChannel?.name ?? '',
   })
 
-  const derivedArtistOptions = useMemo(
+  const staticArtistOptions = useMemo(
     () =>
-      deriveArtistOptions(
+      deriveStaticArtistOptions(
         activeChannel?.genres ?? [],
         activeChannel?.timePeriods ?? [],
         activeChannel?.regions ?? []
@@ -265,19 +325,96 @@ export default function ChannelsPage() {
     [selectionKey]
   )
 
+  const selectedArtists = activeChannel?.artists ?? []
+
+  const promptArtistHints = useMemo(
+    () =>
+      extractArtistHintsFromChannel({
+        name: activeChannel?.name,
+        notes: activeChannel?.notes,
+        genreText: activeChannel?.genreText,
+      }),
+    [selectionKey]
+  )
+
+  const displayArtistOptions = useMemo(
+    () =>
+      mergeArtistOptionLists(
+        promptArtistHints,
+        llmArtistOptions,
+        staticArtistOptions,
+        sanitizeSelectedArtists(selectedArtists)
+      ),
+    [promptArtistHints, llmArtistOptions, staticArtistOptions, selectedArtists]
+  )
+
+  useEffect(() => {
+    if (!mounted || !activeChannel) return
+    if (!channelWantsArtistSuggestions(activeChannel)) {
+      setLlmArtistOptions([])
+      setLoadingArtistOptions(false)
+      setArtistSuggestError(null)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      artistSuggestAbortRef.current?.abort()
+      const ac = new AbortController()
+      artistSuggestAbortRef.current = ac
+      setLoadingArtistOptions(true)
+      setArtistSuggestError(null)
+
+      void (async () => {
+        try {
+          const res = await fetch('/api/suggest-artists', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            signal: ac.signal,
+            body: JSON.stringify({
+              name: activeChannel.name,
+              genres: activeChannel.genres ?? [],
+              genreText: activeChannel.genreText ?? '',
+              timePeriods: activeChannel.timePeriods ?? [],
+              regions: activeChannel.regions ?? [],
+              notes: activeChannel.notes ?? '',
+              popularity: activeChannel.popularity ?? 50,
+              provider: readLlmProviderFromSettings(),
+            }),
+          })
+          if (!res.ok) {
+            const err = (await res.json().catch(() => null)) as { error?: string } | null
+            throw new Error(err?.error ?? `HTTP ${res.status}`)
+          }
+          const data = (await res.json()) as { artists?: string[] }
+          if (!ac.signal.aborted) {
+            setLlmArtistOptions(Array.isArray(data.artists) ? data.artists : [])
+          }
+        } catch (e) {
+          if (ac.signal.aborted) return
+          setLlmArtistOptions([])
+          setArtistSuggestError(e instanceof Error ? e.message : 'Could not load artists')
+        } finally {
+          if (!ac.signal.aborted) setLoadingArtistOptions(false)
+        }
+      })()
+    }, ARTIST_SUGGEST_DEBOUNCE_MS)
+
+    return () => {
+      clearTimeout(timer)
+      artistSuggestAbortRef.current?.abort()
+    }
+  }, [mounted, activeChannelId, selectionKey])
+
   useEffect(() => {
     if (!mounted) return
     if (!activeChannelId) return
     setChannels(prev => {
       const ch = prev.find(c => c.id === activeChannelId)
       if (!ch || ch.id === ALL_CHANNEL_ID) return prev
-      const allowed = new Set(
-        deriveArtistOptions(ch.genres ?? [], ch.timePeriods ?? [], ch.regions ?? [])
-      )
-      const cur = ch.artists ?? []
-      const pruned = cur.filter(a => allowed.has(a))
-      if (pruned.length === cur.length) return prev
-      const next = prev.map(c => (c.id === ch.id ? { ...c, artists: pruned } : c))
+      const raw = ch.artists ?? []
+      const cleaned = sanitizeSelectedArtists(raw)
+      if (cleaned.length === raw.length && cleaned.every((a, i) => a === raw[i])) return prev
+      const next = prev.map(c => (c.id === ch.id ? { ...c, artists: cleaned } : c))
       try {
         localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(next))
       } catch {}
@@ -541,16 +678,28 @@ export default function ChannelsPage() {
                     </div>
                   </div>
 
-                  {/* Artists (options = union from genres + eras + regions) */}
+                  {/* Artists — LLM discovers names from notes + chips; toggles narrow the DJ */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Artists</label>
-                    {derivedArtistOptions.length === 0 ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs text-zinc-500 uppercase tracking-wide">Artists</label>
+                      {loadingArtistOptions && (
+                        <span className="text-[10px] text-zinc-400">Finding artists…</span>
+                      )}
+                    </div>
+                    {artistSuggestError && (
+                      <p className="text-xs text-amber-700">{artistSuggestError}</p>
+                    )}
+                    {!channelWantsArtistSuggestions(activeChannel) ? (
                       <p className="text-xs text-zinc-500 leading-relaxed">
-                        Select genres, eras, or regions to see artist picks matching those choices.
+                        Describe what you want in Notes and hints, or pick genres, eras, or regions — we&apos;ll suggest artists to narrow from.
+                      </p>
+                    ) : displayArtistOptions.length === 0 && !loadingArtistOptions ? (
+                      <p className="text-xs text-zinc-500 leading-relaxed">
+                        No artist suggestions yet. Try adding more detail in Notes and hints.
                       </p>
                     ) : (
                       <div className="flex flex-wrap gap-1.5">
-                        {derivedArtistOptions.map(a => (
+                        {displayArtistOptions.map(a => (
                           <Chip
                             key={a}
                             label={a}

@@ -2,9 +2,29 @@
 
 import { useEffect, useState } from 'react'
 import { readStats, clearStats, type CallStats } from '@/app/lib/callTracker'
+import { YOUTUBE_CREDITS_PER_SEARCH, YOUTUBE_DAILY_CREDITS, YOUTUBE_LOW_SEARCHES_THRESHOLD } from '@/app/lib/youtubeQuota'
 
 type PingResult = { ok: boolean; status: number; latencyMs: number; message: string; retryAfterMs?: number }
 type YTPingResult = { ok: boolean; quotaExceeded: boolean; searchesRemaining: number; retryAfterMs?: number; message: string }
+type YTQuotaStatus = {
+  dailyQuota: number
+  searchesUsed: number
+  searchesRemaining: number
+  quotaExceeded: boolean
+  retryAfterMs: number
+  resetAt: string | null
+}
+
+function readYoutubeClientBan(): number | null {
+  try {
+    const raw = localStorage.getItem('youtubeRateLimitUntil')
+    if (!raw) return null
+    const v = Number(raw)
+    return v > Date.now() ? v : null
+  } catch {
+    return null
+  }
+}
 
 const WINDOW_MS = 30_000
 const SPOTIFY_SAFE_LIMIT = 90
@@ -135,14 +155,35 @@ function RateChart({ log, safeLimit }: ChartProps) {
 
 export default function StatusPage() {
   const [stats, setStats] = useState<CallStats | null>(null)
+  const [ytQuota, setYtQuota] = useState<YTQuotaStatus | null>(null)
+  const [ytClientBan, setYtClientBan] = useState<number | null>(null)
   const [pinging, setPinging] = useState(false)
   const [pingResult, setPingResult] = useState<PingResult | null>(null)
   const [ytPinging, setYtPinging] = useState(false)
   const [ytPingResult, setYtPingResult] = useState<YTPingResult | null>(null)
 
   useEffect(() => {
-    setStats(readStats())
-    const interval = setInterval(() => setStats(readStats()), 2000)
+    const refresh = () => {
+      setStats(readStats())
+      setYtClientBan(readYoutubeClientBan())
+    }
+    refresh()
+    const interval = setInterval(refresh, 2000)
+    return () => clearInterval(interval)
+  }, [])
+
+  useEffect(() => {
+    const loadYtQuota = async () => {
+      try {
+        const res = await fetch('/api/youtube/status')
+        if (!res.ok) return
+        setYtQuota((await res.json()) as YTQuotaStatus)
+      } catch {
+        /* ignore */
+      }
+    }
+    void loadYtQuota()
+    const interval = setInterval(() => void loadYtQuota(), 5000)
     return () => clearInterval(interval)
   }, [])
 
@@ -198,11 +239,66 @@ export default function StatusPage() {
     <div className="min-h-screen bg-white text-black font-mono text-sm">
     <div className="p-8 max-w-[800px] mx-auto">
       <a href="/player" className="text-zinc-400 hover:text-black text-xs mb-6 inline-block transition-colors">← Back to player</a>
-      <h1 className="text-lg font-bold mb-6">Spotify call tracker</h1>
+      <h1 className="text-lg font-bold mb-6">API usage</h1>
+
+      {/* YouTube daily quota (server) */}
+      <section className="mb-8">
+        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">YouTube search quota (today, Pacific)</h2>
+        {ytQuota ? (
+          <div className="rounded-xl border p-4 space-y-3" style={{
+            borderColor: ytQuota.quotaExceeded ? '#7f1d1d' : ytQuota.searchesRemaining <= YOUTUBE_LOW_SEARCHES_THRESHOLD ? '#854d0e' : '#e4e4e7',
+            backgroundColor: ytQuota.quotaExceeded ? '#fef2f2' : ytQuota.searchesRemaining <= YOUTUBE_LOW_SEARCHES_THRESHOLD ? '#fffbeb' : '#fafafa',
+          }}>
+            <div className="flex flex-wrap gap-8">
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Used</p>
+                <p className={`text-xl font-bold ${ytQuota.quotaExceeded ? 'text-red-600' : 'text-zinc-900'}`}>
+                  {ytQuota.searchesUsed} / {ytQuota.dailyQuota}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Remaining</p>
+                <p className={`text-xl font-bold ${ytQuota.searchesRemaining === 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+                  {ytQuota.searchesRemaining}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Server status</p>
+                {ytQuota.quotaExceeded ? (
+                  <p className="text-red-600 text-sm font-medium">
+                    Quota exceeded
+                    {ytQuota.resetAt && (
+                      <span className="text-zinc-600 font-normal ml-1">
+                        — clears ~{new Date(ytQuota.resetAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                      </span>
+                    )}
+                  </p>
+                ) : (
+                  <p className="text-green-700 text-sm font-medium">OK</p>
+                )}
+              </div>
+              {ytClientBan && (
+                <div>
+                  <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Player backoff</p>
+                  <p className="text-amber-700 text-sm">
+                    Until {fmt(ytClientBan)}
+                  </p>
+                </div>
+              )}
+            </div>
+            <p className="text-xs text-zinc-600">
+              Counts real <code className="text-zinc-500">search.list</code> calls on this server (cached lookups are free).
+              Refreshes every 5s — no API cost. Resets at midnight Pacific.
+            </p>
+          </div>
+        ) : (
+          <p className="text-zinc-600 text-xs">Loading YouTube quota…</p>
+        )}
+      </section>
 
       {/* Chart */}
       <section className="mb-8">
-        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Request rate — last 10 minutes</h2>
+        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Spotify request rate — last 10 minutes</h2>
         <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200">
           <RateChart log={stats.log} safeLimit={SPOTIFY_SAFE_LIMIT} />
         </div>
@@ -267,7 +363,7 @@ export default function StatusPage() {
           )}
         </div>
         <p className="text-xs text-zinc-600 mt-2">
-          Sends a real YouTube Data API <code className="text-zinc-500">search.list</code> call (costs 100 quota units — free tier is 10,000/day).
+          Sends a real YouTube Data API <code className="text-zinc-500">search.list</code> call ({YOUTUBE_CREDITS_PER_SEARCH} credits — daily allowance {YOUTUBE_DAILY_CREDITS.toLocaleString()} credits).
         </p>
       </section>
 

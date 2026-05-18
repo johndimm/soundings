@@ -59,7 +59,7 @@ We do **not** store full channel pages, comment threads, or unrelated metadata b
 
 ### 3.4 Quota and efficiency measures
 
-- Each successful `search.list` call consumes quota units as defined by Google (implementation comments reference 100 units per search).
+- Each successful `search.list` call consumes 100 quota credits. The project’s daily allowance is 110,000 credits (~1,100 searches per day), tracked in `.youtube-quota.json` on the server.
 - **Disk cache:** Results are cached in `.youtube-cache.json` (keyed by normalized query) so repeated queries do not repeat API calls across restarts.
 - **Session backoff:** On `403` with `quotaExceeded` / `dailyLimitExceeded`, the server stops calling the API until a configured reset window and returns HTTP 429 to the client with `retryAfterMs`.
 - **Client display:** Remaining search budget (implementation-defined) may be surfaced in the session UI when source is YouTube.

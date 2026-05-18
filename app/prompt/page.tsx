@@ -88,7 +88,7 @@ Global per-browser defaults: genres, genreText, timePeriod, notes, regions, arti
 
 ### / — Login page (server component)
 - Check for \`spotify_access_token\` cookie. If present, redirect to /player.
-- Two login paths: Spotify (requires Premium + whitelisted email) and YouTube (no account, ~100 searches/day from the API key).
+- Two login paths: Spotify (requires Premium + whitelisted email) and YouTube (no account, ~1,100 searches/day from the API key — 110,000 credits at 100 per search).
 - Show error messages if OAuth failed (from query params).
 - Include a "Request access" form that emails the admin if email not whitelisted.
 
