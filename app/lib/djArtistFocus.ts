@@ -88,10 +88,19 @@ export function buildCombinedNotes(
   return parts.join('. ')
 }
 
-/** Prefix focus artist on resolve when the LLM search line omitted the act name. */
-export function enrichSearchWithFocusArtist(search: string, focusArtist: string | undefined): string {
-  if (!focusArtist?.trim()) return search
-  const focus = focusArtist.trim()
-  if (search.toLowerCase().includes(focus.toLowerCase())) return search
-  return `${focus} - ${search}`
+/**
+ * Clean LLM search text before resolve. Does not prepend the focus artist (that produced
+ * strings like "Miles Davis - Cool Jazz - Concierto…"); Spotify fallbacks use artist:"…" instead.
+ */
+export function enrichSearchWithFocusArtist(
+  search: string,
+  _focusArtist?: string,
+  genrePrefixes?: string[]
+): string {
+  const { stripGenrePrefixesFromSearch, stripParentheticals } = require('@/app/lib/spotifyArtistSearch') as {
+    stripGenrePrefixesFromSearch: (s: string, g: string[]) => string
+    stripParentheticals: (s: string) => string
+  }
+  const stripped = stripGenrePrefixesFromSearch(search, genrePrefixes ?? [])
+  return stripParentheticals(stripped) || search.trim()
 }

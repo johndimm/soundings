@@ -4193,8 +4193,11 @@ export default function PlayerClient({
       try {
         const card = await resolveOneSuggestion(next)
         if (!card) {
-          console.warn(DJQ, 'startPlaybackFromSuggestions: resolve failed; keeping row in Up Next', next.search.slice(0, 48))
-          return
+          console.warn(DJQ, 'startPlaybackFromSuggestions: resolve failed; dropping row', next.search.slice(0, 48))
+          const rest = suggestionBufferRef.current.slice(1)
+          suggestionBufferRef.current = rest
+          setSuggestionBuffer(rest)
+          continue
         }
         const seen = buildPlayedAndQueuedKeys()
         const playKey = trackPlayKey(card.track)
@@ -4245,8 +4248,11 @@ export default function PlayerClient({
       try {
         const card = await resolveOneSuggestion(next)
         if (!card) {
-          console.warn(DJQ, 'topUpQueueFromSuggestions: resolve failed; keeping row in Up Next', next.search.slice(0, 48))
-          return
+          console.warn(DJQ, 'topUpQueueFromSuggestions: resolve failed; dropping row', next.search.slice(0, 48))
+          const rest = suggestionBufferRef.current.slice(1)
+          suggestionBufferRef.current = rest
+          setSuggestionBuffer(rest)
+          continue
         }
         const seen = buildPlayedAndQueuedKeys()
         const playKey = trackPlayKey(card.track)
@@ -4728,7 +4734,9 @@ export default function PlayerClient({
       })
     }
     if (cards.length === 0) {
-      shrinkBufferAfterBatch()
+      console.warn(DJQ, 'promoteDjPendingSpotifyBatch: no playable cards (resolve miss or all duplicates)')
+      suggestionBufferRef.current = buf.slice(maxTake)
+      setSuggestionBuffer(suggestionBufferRef.current)
       return 'noop'
     }
 
@@ -4895,7 +4903,14 @@ export default function PlayerClient({
               hasCurrent: Boolean(currentCardRef.current),
               queueLen: queueRef.current.length,
             })
-            if (suggestionBufferRef.current.length > 0 && userInitiated) {
+            if (suggestionBufferRef.current.length > 0) {
+              const rest = suggestionBufferRef.current.slice(1)
+              suggestionBufferRef.current = rest
+              setSuggestionBuffer(rest)
+              console.info(DJQ, 'consume: dropped stuck Up Next row to unblock')
+              continue
+            }
+            if (userInitiated) {
               setError(
                 'Could not add those tracks — they may already be queued or in your history.'
               )
@@ -5651,13 +5666,14 @@ export default function PlayerClient({
           )}
 
           {/* Queue ready but nothing playing yet — show ▶ so the user can start */}
-          {!currentCard && !error && !loadingQueue && queue.length > 0 && (
+          {!currentCard && !error && !loadingQueue && !promotingDjPending && queue.length > 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-zinc-400">
               <button
                 type="button"
                 onClick={() => {
                   const [next, ...rest] = queueRef.current
                   if (!next) return
+                  lastPlayedUriRef.current = null
                   currentCardRef.current = next
                   setCurrentCard(next)
                   setQueue(rest)
@@ -5668,6 +5684,21 @@ export default function PlayerClient({
                 ▶
               </button>
               <p className="text-sm">{queue.length} track{queue.length !== 1 ? 's' : ''} ready</p>
+            </div>
+          )}
+
+          {!currentCard && !error && !loadingQueue && !promotingDjPending && suggestionBuffer.length > 0 && queue.length === 0 && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-zinc-400 px-6 text-center z-20">
+              <button
+                type="button"
+                onClick={() => void consumeDjSuggestionBuffer({ userInitiated: true })}
+                className="text-5xl leading-none text-white/80 hover:text-white transition-colors"
+              >
+                ▶
+              </button>
+              <p className="text-sm">
+                {suggestionBuffer.length} DJ pick{suggestionBuffer.length !== 1 ? 's' : ''} — tap to load
+              </p>
             </div>
           )}
 

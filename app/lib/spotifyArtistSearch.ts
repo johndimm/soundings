@@ -16,29 +16,82 @@ export function trackMatchesFocusArtist(track: SpotifyTrack, focusArtist: string
   return names.some(n => n.includes(focus) || focus.includes(n))
 }
 
-/** Search queries to try for one LLM row when resolving to Spotify. */
-export function spotifySearchQueriesForSong(search: string, focusArtist?: string): string[] {
-  const q = search.trim()
-  if (!q) return []
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/** Remove leading genre/style labels the LLM sometimes puts in the search field. */
+export function stripGenrePrefixesFromSearch(search: string, genrePrefixes: string[]): string {
+  let s = search.trim()
+  for (const raw of genrePrefixes) {
+    const g = raw.trim()
+    if (!g || g.length < 2) continue
+    const re = new RegExp(`^${escapeRegExp(g)}\\s*[-–—:]\\s*`, 'i')
+    s = s.replace(re, '').trim()
+  }
+  return s
+}
+
+/** Drop parenthetical movement names; keep main title for lookup. */
+export function stripParentheticals(search: string): string {
+  return search.replace(/\s*\([^)]{1,80}\)/g, '').replace(/\s+/g, ' ').trim()
+}
+
+export type SpotifySearchQueryOpts = {
+  focusArtist?: string
+  genrePrefixes?: string[]
+}
+
+/** Build Spotify search attempts for one LLM `search` row (genre-stripped + title/artist variants). */
+export function spotifySearchQueriesForSong(search: string, opts?: SpotifySearchQueryOpts): string[] {
+  const genrePrefixes = opts?.genrePrefixes ?? []
+  const base = stripGenrePrefixesFromSearch(search, genrePrefixes)
+  if (!base) return []
+
   const out: string[] = []
   const seen = new Set<string>()
   const push = (s: string) => {
-    const k = s.toLowerCase()
-    if (!k || seen.has(k)) return
+    const t = s.trim()
+    const k = t.toLowerCase()
+    if (!t || seen.has(k)) return
     seen.add(k)
-    out.push(s)
+    out.push(t)
   }
 
-  push(q)
-  const focus = focusArtist?.trim()
-  if (!focus) return out
+  push(base)
+  push(stripParentheticals(base))
 
-  let title = q
-  const dashPrefix = `${focus} - `
-  if (q.toLowerCase().startsWith(dashPrefix.toLowerCase())) {
-    title = q.slice(dashPrefix.length).trim()
+  const dash = base.match(/^(.+?)\s*[-–—]\s*(.+)$/s)
+  if (dash) {
+    const left = dash[1].trim()
+    const right = dash[2].trim()
+    if (right.length >= 2) push(right)
+    if (left.length >= 2 && right.length >= 2) {
+      push(`${right} ${left}`)
+      push(`${left} ${right}`)
+    }
   }
-  push(`artist:"${focus}" ${title}`)
-  push(`${focus} ${title}`)
+
+  // "Concierto de Aranjuez (Adagio) Miles Davis" → artist at end
+  const trailingArtist = base.match(/^(.+?)\s+([A-Z][\p{L}'’.-]+(?:\s+[A-Z][\p{L}'’.-]+){0,4})$/u)
+  if (trailingArtist) {
+    const title = trailingArtist[1].trim()
+    const artist = trailingArtist[2].trim()
+    push(`artist:"${artist}" ${stripParentheticals(title)}`)
+    push(`${artist} ${stripParentheticals(title)}`)
+    push(stripParentheticals(title))
+  }
+
+  const focus = opts?.focusArtist?.trim()
+  if (focus) {
+    let title = base
+    const focusPrefix = new RegExp(`^${escapeRegExp(focus)}\\s*[-–—:]\\s*`, 'i')
+    title = title.replace(focusPrefix, '').trim()
+    if (title && !normalizeArtistName(title).includes(normalizeArtistName(focus))) {
+      push(`artist:"${focus}" ${stripParentheticals(title)}`)
+      push(`${focus} ${stripParentheticals(title)}`)
+    }
+  }
+
   return out
 }

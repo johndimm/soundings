@@ -113,7 +113,8 @@ export default function SessionPanel({
   careerLoadingArtist,
   onCareerGo,
 }: Props) {
-  const totalCount = queue.length + pendingSuggestions.length
+  const queueCount = queue.length
+  const pendingCount = pendingSuggestions.length
   const currentCareerRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -182,7 +183,7 @@ export default function SessionPanel({
         <div data-guide="up-next" className="flex flex-col gap-1">
           <div className="flex items-center justify-between w-full">
             <span className="text-xs text-zinc-500 uppercase tracking-wide">
-              Queue{totalCount > 0 ? ` (${totalCount})` : ''}
+              Queue{queueCount > 0 ? ` (${queueCount})` : ''}
             </span>
             {(loadingNext || promotingDjPending) && (
               <div className="flex items-center gap-1.5 text-zinc-300">
@@ -242,7 +243,9 @@ export default function SessionPanel({
 
             {pendingSuggestions.length > 0 && (
               <div className="flex flex-col gap-2">
-                <span className="text-[10px] text-zinc-600 uppercase tracking-wide">Up next</span>
+                <span className="text-[10px] text-zinc-600 uppercase tracking-wide">
+                  Up next{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                </span>
                 {pendingQueueBlocked && (
                   <p className="text-xs text-amber-500/90 leading-relaxed">
                     Queue is full — press Next to move these into the queue.

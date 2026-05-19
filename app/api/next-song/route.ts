@@ -641,7 +641,7 @@ async function searchSongsSequential(
 
     if (response.status === 'ok') {
       if (trackIsDuplicate(response.track, seenHistory, produced)) {
-        resolvedSearches.push(song.search)
+        console.info('[next-song] skip duplicate (history)', song.search.slice(0, 60))
         continue
       }
       results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })
