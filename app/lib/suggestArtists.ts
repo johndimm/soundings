@@ -8,8 +8,6 @@ import {
   isGenreOrStyleTerm,
   mergeArtistHintLists,
 } from '@/app/lib/artistHintsFromNotes'
-import { channelNameAsArtistFocus } from '@/app/lib/djArtistFocus'
-
 export type SuggestArtistsInput = {
   name?: string
   genres?: string[]
@@ -34,13 +32,8 @@ export function buildSuggestArtistsPrompt(input: SuggestArtistsInput): string {
     'Constraints (honor every line that is set):',
   ]
   const name = input.name?.trim()
-  const focusFromTitle = channelNameAsArtistFocus(name)
-  if (focusFromTitle) {
-    lines.push(
-      `- PRIMARY FOCUS ACT from channel title (MUST be first in the artists list): ${focusFromTitle}`
-    )
-  } else if (name && name.toLowerCase() !== 'new channel') {
-    lines.push(`- Channel title (style / theme hint): ${name}`)
+  if (name && name.toLowerCase() !== 'new channel') {
+    lines.push(`- Channel title (style / theme hint only — not a required artist): ${name}`)
   }
   if (input.genres?.length) lines.push(`- Genres: ${input.genres.join(', ')}`)
   if (input.genreText?.trim()) lines.push(`- Genre notes: ${input.genreText.trim()}`)

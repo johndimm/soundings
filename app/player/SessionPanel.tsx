@@ -95,6 +95,8 @@ interface Props {
   /** Artist name while the discography is still being fetched (before careerWorks is set). */
   careerLoadingArtist?: string | null
   onCareerGo?: (delta: number) => void
+  /** Click a queued track title to open the new-channel editor prefilled from that track. */
+  onCreateChannelFromTrack?: (track: string, artist: string, album?: string) => void
 }
 
 export default function SessionPanel({
@@ -112,6 +114,7 @@ export default function SessionPanel({
   careerLoading = false,
   careerLoadingArtist,
   onCareerGo,
+  onCreateChannelFromTrack,
 }: Props) {
   const queueCount = queue.length
   const pendingCount = pendingSuggestions.length
@@ -205,31 +208,52 @@ export default function SessionPanel({
               )}
               {queue.map((card, i) => (
                 <div key={`${card.track.uri ?? card.track.id}-${i}`} className="flex items-center gap-1">
-                  <button
-                    onClick={() => onPlayQueueItem(i)}
-                    className="flex items-center gap-3 bg-zinc-900 hover:bg-zinc-800 rounded-xl p-2 text-left transition-colors flex-1 min-w-0"
-                  >
-                    <span className="text-zinc-600 text-xs w-3 flex-shrink-0">{i + 1}</span>
-                    {card.track.albumArt ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={card.track.albumArt}
-                        alt={card.track.album}
-                        className="w-10 h-10 rounded-md object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                        <span className="text-lg">♪</span>
-                      </div>
-                    )}
+                  <div className="flex items-center gap-3 bg-zinc-900 rounded-xl p-2 flex-1 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onPlayQueueItem(i)}
+                      className="flex items-center gap-3 flex-shrink-0 text-left hover:opacity-80 transition-opacity"
+                      title="Play now"
+                    >
+                      <span className="text-zinc-600 text-xs w-3">{i + 1}</span>
+                      {card.track.albumArt ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={card.track.albumArt}
+                          alt={card.track.album}
+                          className="w-10 h-10 rounded-md object-cover"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-md bg-zinc-800 flex items-center justify-center">
+                          <span className="text-lg">♪</span>
+                        </div>
+                      )}
+                    </button>
                     <div className="flex-1 min-w-0">
-                      <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
+                      {onCreateChannelFromTrack ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onCreateChannelFromTrack(
+                              card.track.name,
+                              card.track.artist,
+                              card.track.album,
+                            )
+                          }
+                          title="Create a channel from this track"
+                          className="text-white text-sm font-medium truncate block w-full text-left hover:text-green-400 transition-colors"
+                        >
+                          {card.track.name}
+                        </button>
+                      ) : (
+                        <p className="text-white text-sm font-medium truncate">{card.track.name}</p>
+                      )}
                       <p className="text-zinc-400 text-xs truncate">{card.track.artist}</p>
                       {card.reason && (
                         <p className="text-zinc-300 text-xs leading-snug mt-0.5 line-clamp-3">{card.reason}</p>
                       )}
                     </div>
-                  </button>
+                  </div>
                   <button
                     onClick={() => onRemoveQueueItem(i)}
                     className="flex-shrink-0 text-zinc-600 hover:text-zinc-300 transition-colors px-2 py-2"

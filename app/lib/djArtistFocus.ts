@@ -1,30 +1,21 @@
+import { stripGenrePrefixesFromSearch, stripParentheticals } from '@/app/lib/spotifyArtistSearch'
+
 /**
- * DJ artist-focus helpers (single-artist channels such as Angine de poitrine).
- * Pure functions — safe for unit tests without React.
+ * DJ artist-focus helpers. Artist constraint applies only when the user explicitly
+ * sets it (one artist chip, artist text field, or an explicit override) — never from
+ * the channel title alone.
  */
 
 /** Canonical name used in tests and docs for the French coldwave act. */
 export const ANGINE_DE_POITRINE = 'Angine de poitrine'
 
-const GENERIC_CHANNEL_NAME = /^(all|new channel|untitled|channel\s*\d*)$/i
-
 export type DjArtistFocusHints = {
   explicit?: string
   selectedArtists?: string[]
-  /** Channel title when the act is named there but not toggled in artist chips. */
-  channelName?: string
   artistText?: string
 }
 
-/** Channel title is used as focus when it looks like an act name, not a generic label. */
-export function channelNameAsArtistFocus(channelName?: string): string | undefined {
-  const n = channelName?.trim()
-  if (!n || n.length < 3) return undefined
-  if (GENERIC_CHANNEL_NAME.test(n)) return undefined
-  return n
-}
-
-/** Resolve the single-artist focus for LLM + track lookup. */
+/** Resolve single-artist focus for LLM + track lookup (explicit DJ settings only). */
 export function resolveDjArtistConstraint(hints: DjArtistFocusHints): string | undefined {
   const fromArg = hints.explicit?.trim()
   if (fromArg) return fromArg
@@ -37,7 +28,7 @@ export function resolveDjArtistConstraint(hints: DjArtistFocusHints): string | u
     return fromText
   }
 
-  return channelNameAsArtistFocus(hints.channelName)
+  return undefined
 }
 
 /** @deprecated Use resolveDjArtistConstraint({ explicit, selectedArtists }) */
@@ -88,6 +79,23 @@ export function buildCombinedNotes(
   return parts.join('. ')
 }
 
+/** Genre/style labels from DJ chips + free text — used to strip LLM search prefixes. */
+export function djGenrePrefixes(genres: string[], genreText?: string): string[] {
+  const out = new Set<string>()
+  for (const g of genres) {
+    const t = g.trim()
+    if (t.length >= 2) out.add(t)
+  }
+  const text = (genreText ?? '').trim()
+  if (text) {
+    for (const part of text.split(/[,;\n]+/)) {
+      const t = part.trim()
+      if (t.length >= 2) out.add(t)
+    }
+  }
+  return [...out]
+}
+
 /**
  * Clean LLM search text before resolve. Does not prepend the focus artist (that produced
  * strings like "Miles Davis - Cool Jazz - Concierto…"); Spotify fallbacks use artist:"…" instead.
@@ -97,10 +105,6 @@ export function enrichSearchWithFocusArtist(
   _focusArtist?: string,
   genrePrefixes?: string[]
 ): string {
-  const { stripGenrePrefixesFromSearch, stripParentheticals } = require('@/app/lib/spotifyArtistSearch') as {
-    stripGenrePrefixesFromSearch: (s: string, g: string[]) => string
-    stripParentheticals: (s: string) => string
-  }
   const stripped = stripGenrePrefixesFromSearch(search, genrePrefixes ?? [])
   return stripParentheticals(stripped) || search.trim()
 }

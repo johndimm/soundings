@@ -19,12 +19,23 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Soundings",
   description: "Music discovery that learns your taste",
+  icons: {
+    icon: [{ url: "/icon.png", type: "image/png", sizes: "512x512" }],
+    apple: [{ url: "/apple-icon.png", type: "image/png", sizes: "180x180" }],
+  },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Soundings",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
   userScalable: true,
+  themeColor: "#09090b",
 };
 
 export default async function RootLayout({

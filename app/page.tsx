@@ -15,8 +15,10 @@ export default async function Home({
   const { error } = await searchParams
 
   const loginUrl = '/api/auth/login'
-  const ytUrl = '/api/auth/youtube'
+  /** Signed-in Spotify users: enter mode + clear YouTube cookie (not plain /player). */
+  const spotifyEnterUrl = '/api/auth/spotify'
   const playerUrl = '/player'
+  const ytUrl = '/api/auth/youtube'
 
   const tvUrl = process.env.TRAILER_VISION_URL || 'http://localhost:3000'
   const consUrl = process.env.CONSTELLATIONS_URL || 'http://localhost:3001'
@@ -53,7 +55,7 @@ export default async function Home({
 
             <div className="mt-8 grid grid-cols-2 gap-3 sm:gap-4">
               <a
-                href={hasSpotify ? playerUrl : loginUrl}
+                href={hasSpotify ? spotifyEnterUrl : loginUrl}
                 className={`flex flex-col items-center gap-3 rounded-xl border px-4 py-5 text-center transition-colors ${
                   hasSpotify
                     ? 'border-emerald-500/55 bg-emerald-950/35 hover:border-emerald-400/80 hover:bg-emerald-950/50'

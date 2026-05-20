@@ -1,4 +1,3 @@
-import { channelNameAsArtistFocus } from '@/app/lib/djArtistFocus'
 
 /**
  * Genre/style words must never appear as artist quick-pick toggles
@@ -96,15 +95,8 @@ export function extractArtistHintsFromChannel(input: {
   const out: string[] = []
   const seen = new Set<string>()
 
-  const fromTitle = channelNameAsArtistFocus(input.name)
-  if (fromTitle) pushArtistHint(out, seen, fromTitle)
-
   const notes = [input.notes, input.genreText].filter(Boolean).join('\n').trim()
   if (!notes) return out
-
-  if (fromTitle && notes.toLowerCase().includes(fromTitle.toLowerCase())) {
-    pushArtistHint(out, seen, fromTitle)
-  }
 
   for (const m of notes.matchAll(/"([^"]{2,80})"|'([^']{2,80})'/g)) {
     pushArtistHint(out, seen, m[1] ?? m[2] ?? '')

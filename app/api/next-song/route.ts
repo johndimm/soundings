@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
       numSongs?: number
       profileOnly?: boolean
       songsToResolve?: SongSuggestion[]
+      genrePrefixes?: string[]
       source?: PlaybackSource
       /** Client echoes test mode (dev fallback if server env is missing in the route bundle). */
       youtubeResolveTest?: boolean
@@ -157,6 +158,7 @@ export async function POST(req: NextRequest) {
     mode,
     profileOnly,
     songsToResolve,
+    genrePrefixes,
     source,
   } = body
   const ytResolveHints: YouTubeResolveHintOpts = {
@@ -212,7 +214,8 @@ export async function POST(req: NextRequest) {
       forceTextSearch,
       sessionHistory ?? [],
       undefined,
-      focusArtist
+      focusArtist,
+      genrePrefixes
     )
     if (unauthorized) return Response.json({ error: 'not_authenticated' }, { status: 401 })
     if (rateLimitedRetryMs) markRateLimited(rateLimitedRetryMs)
@@ -329,7 +332,8 @@ export async function POST(req: NextRequest) {
     forceTextSearch,
     sessionHistory ?? [],
     llmLog,
-    focusArtist
+    focusArtist,
+    genrePrefixes
   )
 
   if (unauthorized) {
@@ -426,7 +430,8 @@ async function resolveSongs(
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
   sessionHistory: ListenEvent[],
   llmContext?: { provider: LLMProvider; modelId: string },
-  focusArtist?: string
+  focusArtist?: string,
+  genrePrefixes?: string[]
 ): Promise<{
   foundSongs: FoundSong[]
   resolvedSearches: string[]
@@ -576,7 +581,8 @@ async function resolveSongs(
       accessToken,
       seenHistory,
       produced,
-      focusArtist
+      focusArtist,
+      genrePrefixes
     )
     results.push(...sequentialResult.foundSongs)
     resolvedSearches.push(...sequentialResult.resolvedSearches)
@@ -613,7 +619,8 @@ async function searchSongsSequential(
   accessToken: string,
   seenHistory: Set<string>,
   produced: Set<string>,
-  focusArtist?: string
+  focusArtist?: string,
+  genrePrefixes?: string[]
 ): Promise<{
   foundSongs: FoundSong[]
   resolvedSearches: string[]
@@ -627,7 +634,7 @@ async function searchSongsSequential(
   let unauthorized = false
 
   for (const song of songs) {
-    const response = await searchTrack(song.search, accessToken, { focusArtist })
+    const response = await searchTrack(song.search, accessToken, { focusArtist, genrePrefixes })
 
     if (response.status === 'rate_limited') {
       rateLimitedRetryMs = response.retryAfterMs

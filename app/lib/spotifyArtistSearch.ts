@@ -61,7 +61,7 @@ export function spotifySearchQueriesForSong(search: string, opts?: SpotifySearch
   push(base)
   push(stripParentheticals(base))
 
-  const dash = base.match(/^(.+?)\s*[-–—]\s*(.+)$/s)
+  const dash = base.match(/^(.+?)\s*[-–—]\s*(.+)$/)
   if (dash) {
     const left = dash[1].trim()
     const right = dash[2].trim()

@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import FilmMusicHomeLink from '@/app/components/FilmMusicHomeLink'
 
 const PAGE_LINKS = [
   { href: '/player', label: 'Player' },
@@ -22,13 +23,12 @@ export default function AppHeader() {
   return (
     <header className={`border-b ${isPlayer ? 'bg-black border-zinc-900' : 'bg-white border-zinc-200'}`}>
     <div className="flex items-center gap-2 px-4 py-2 max-w-[800px] mx-auto flex-wrap">
-      <Link
-        href="/"
-        title="Film & Music — return to hub"
-        className={`text-base font-bold transition-colors mr-1 ${isPlayer ? 'text-white hover:text-zinc-300' : 'text-black hover:text-zinc-600'}`}
-      >
-        Soundings
-      </Link>
+      <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+        <FilmMusicHomeLink variant={isPlayer ? 'playerDark' : 'surfaceLight'} />
+        <span className={`text-base font-bold ${isPlayer ? 'text-white' : 'text-black'}`}>
+          Soundings
+        </span>
+      </div>
 
       <nav className="flex items-center gap-1 flex-1 flex-wrap">
         {PAGE_LINKS.map(({ href, label }) => (

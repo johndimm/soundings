@@ -176,18 +176,22 @@ async function searchTrackOnce(
 export async function searchTrack(
   query: string,
   accessToken: string,
-  opts?: { focusArtist?: string }
+  opts?: { focusArtist?: string; genrePrefixes?: string[] }
 ): Promise<SpotifySearchResult> {
-  const queries = opts?.focusArtist
-    ? spotifySearchQueriesForSong(query, opts.focusArtist)
-    : [query.trim()]
+  let queries = spotifySearchQueriesForSong(query, {
+    focusArtist: opts?.focusArtist,
+    genrePrefixes: opts?.genrePrefixes,
+  })
+  if (queries.length === 0 && query.trim()) {
+    queries = [query.trim()]
+  }
 
   let lastError: SpotifySearchResult = { status: 'error', message: 'no track returned' }
 
   for (const q of queries) {
     const result = await searchTrackOnce(q, accessToken, {
       focusArtist: opts?.focusArtist,
-      limit: opts?.focusArtist ? 10 : 1,
+      limit: queries.length > 1 || opts?.focusArtist ? 10 : 5,
     })
     if (result.status === 'rate_limited' || result.status === 'unauthorized') {
       return result

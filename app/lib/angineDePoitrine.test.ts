@@ -4,7 +4,7 @@ import { extractArtistHintsFromChannel } from '@/app/lib/artistHintsFromNotes'
 import {
   ANGINE_DE_POITRINE,
   buildCombinedNotes,
-  channelNameAsArtistFocus,
+  djGenrePrefixes,
   enrichSearchWithFocusArtist,
   resolveDjArtistConstraint,
 } from '@/app/lib/djArtistFocus'
@@ -24,7 +24,7 @@ describe('Angine de poitrine (artist-focus channel)', () => {
     )
   })
 
-  it('extractArtistHintsFromChannel surfaces the act from channel title and notes', () => {
+  it('extractArtistHintsFromChannel reads artists from notes, not channel title alone', () => {
     expect(
       extractArtistHintsFromChannel({
         name: ANGINE_DE_POITRINE,
@@ -33,21 +33,30 @@ describe('Angine de poitrine (artist-focus channel)', () => {
     ).toContain(ANGINE_DE_POITRINE)
     expect(
       extractArtistHintsFromChannel({
+        name: ANGINE_DE_POITRINE,
+        notes: '',
+      })
+    ).not.toContain(ANGINE_DE_POITRINE)
+    expect(
+      extractArtistHintsFromChannel({
         name: 'New Channel',
         notes: `Focus on "${ANGINE_DE_POITRINE}" and similar acts`,
       })
     ).toContain(ANGINE_DE_POITRINE)
   })
 
-  it('resolves focus from channel title when artist chips are empty', () => {
+  it('does not infer artist constraint from channel title', () => {
     expect(
       resolveDjArtistConstraint({
         selectedArtists: [],
-        channelName: ANGINE_DE_POITRINE,
+      })
+    ).toBeUndefined()
+    expect(
+      resolveDjArtistConstraint({
+        selectedArtists: [],
+        artistText: ANGINE_DE_POITRINE,
       })
     ).toBe(ANGINE_DE_POITRINE)
-    expect(channelNameAsArtistFocus('All')).toBeUndefined()
-    expect(channelNameAsArtistFocus('New channel')).toBeUndefined()
   })
 
   it('does not set focus constraint when multiple artists are selected', () => {
@@ -79,19 +88,34 @@ describe('Angine de poitrine (artist-focus channel)', () => {
     expect(prompt).not.toContain('maximally distant parts of the space')
   })
 
-  it('enrichSearchWithFocusArtist prefixes bare track titles', () => {
-    expect(enrichSearchWithFocusArtist('Le Baiser', ANGINE_DE_POITRINE)).toBe(
-      `${ANGINE_DE_POITRINE} - Le Baiser`
+  it('djGenrePrefixes merges chips and free text', () => {
+    expect(djGenrePrefixes(['Cool Jazz'], 'bebop, hard bop')).toEqual(
+      expect.arrayContaining(['Cool Jazz', 'bebop', 'hard bop'])
+    )
+  })
+
+  it('enrichSearchWithFocusArtist strips genre prefix and parentheticals', () => {
+    expect(enrichSearchWithFocusArtist('Cool Jazz - Le Baiser', undefined, ['Cool Jazz'])).toBe(
+      'Le Baiser'
     )
     expect(
-      enrichSearchWithFocusArtist(`${ANGINE_DE_POITRINE} - Le Baiser`, ANGINE_DE_POITRINE)
-    ).toBe(`${ANGINE_DE_POITRINE} - Le Baiser`)
+      enrichSearchWithFocusArtist('Cool Jazz - Le Baiser (live)', undefined, ['Cool Jazz'])
+    ).toBe('Le Baiser')
   })
 
   it('spotifySearchQueriesForSong includes artist fielded search', () => {
-    const queries = spotifySearchQueriesForSong('Le Baiser', ANGINE_DE_POITRINE)
+    const queries = spotifySearchQueriesForSong('Le Baiser', { focusArtist: ANGINE_DE_POITRINE })
     expect(queries).toContain(`artist:"${ANGINE_DE_POITRINE}" Le Baiser`)
     expect(queries.some(q => q.includes('Angine'))).toBe(true)
+  })
+
+  it('spotifySearchQueriesForSong strips genre labels from LLM search rows', () => {
+    const queries = spotifySearchQueriesForSong(
+      'Cool Jazz - Concierto de Aranjuez (Adagio) Miles Davis',
+      { genrePrefixes: ['Cool Jazz'], focusArtist: 'Miles Davis' }
+    )
+    expect(queries.some(q => !/^cool jazz/i.test(q))).toBe(true)
+    expect(queries.some(q => q.includes('Miles Davis'))).toBe(true)
   })
 
   it('trackMatchesFocusArtist accepts the act name on credits', () => {

@@ -21,11 +21,21 @@
 
 const SETTINGS_STORAGE_KEY = 'earprint-settings'
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
+const YOUTUBE_MODE_COOKIE = 'earprint_youtube_mode'
 
 let freshLoginApplied = false
 
+function clearYoutubeModeCookie() {
+  try {
+    document.cookie = `${YOUTUBE_MODE_COOKIE}=; path=/; max-age=0; samesite=lax`
+  } catch {
+    /* ignore */
+  }
+}
+
 function applyFreshLoginSource(next: 'spotify' | 'youtube') {
   try {
+    if (next === 'spotify') clearYoutubeModeCookie()
     const rawSettings = localStorage.getItem(SETTINGS_STORAGE_KEY)
     const existing = rawSettings ? JSON.parse(rawSettings) : {}
     localStorage.setItem(

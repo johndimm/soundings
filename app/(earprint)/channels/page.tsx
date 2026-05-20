@@ -1,10 +1,19 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import AppHeader from '@/app/components/AppHeader'
+import ChannelEditorForm, { type ChannelEditorValues } from '@/app/components/ChannelEditorForm'
 import { getBundledFactoryChannelsForReset } from '@/app/lib/demoChannel'
+import {
+  SOUNDINGS_CHANNEL_EDITOR_CONFIG,
+  channelToEditorValues,
+  editorValuesToChannel,
+  emptySoundingsEditorValues,
+  NEW_CHANNEL_PREFILL_KEY,
+  prefillToEditorValues,
+} from '@/app/lib/channelEditorConfig'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
@@ -12,171 +21,11 @@ import {
   normalizeChannelDiscovery,
   type Channel,
 } from '@/app/lib/channelsImportExport'
-import { extractArtistHintsFromChannel, sanitizeSelectedArtists } from '@/app/lib/artistHintsFromNotes'
-
-const SETTINGS_STORAGE_KEY = 'earprint-settings'
-const ARTIST_SUGGEST_DEBOUNCE_MS = 700
-
-function readLlmProviderFromSettings(): string | undefined {
-  try {
-    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
-    if (!raw) return undefined
-    const p = JSON.parse(raw)?.provider
-    return typeof p === 'string' ? p : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function channelWantsArtistSuggestions(ch: Channel | undefined): boolean {
-  if (!ch || ch.id === ALL_CHANNEL_ID) return false
-  if ((ch.genres?.length ?? 0) > 0) return true
-  if ((ch.timePeriods?.length ?? 0) > 0) return true
-  if ((ch.regions?.length ?? 0) > 0) return true
-  if (ch.genreText?.trim()) return true
-  if (ch.notes?.trim()) return true
-  const name = ch.name?.trim()
-  if (name && !/^new channel$/i.test(name)) return true
-  return false
-}
+import { sanitizeSelectedArtists } from '@/app/lib/artistHintsFromNotes'
 
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
 const ALL_CHANNEL_ID = 'earprint-all'
-
-const GENRE_OPTIONS = [
-  'Pop', 'Rock', 'Hip-Hop', 'R&B', 'Electronic', 'Jazz', 'Classical',
-  'Country', 'Folk', 'Metal', 'Soul', 'Blues', 'Reggae', 'Latin', 'Punk',
-]
-
-const TIME_PERIOD_OPTIONS = [
-  { label: '40s', value: '1940s' },
-  { label: '50s', value: '1950s' },
-  { label: '60s', value: '1960s' },
-  { label: '70s', value: '1970s' },
-  { label: '80s', value: '1980s' },
-  { label: '90s', value: '1990s' },
-  { label: '2000s', value: '2000s' },
-  { label: '2010s', value: '2010s' },
-  { label: 'Recent', value: 'after 2020' },
-  { label: 'Medieval', value: 'medieval era' },
-  { label: 'Renaissance', value: 'Renaissance era' },
-  { label: 'Baroque', value: 'Baroque era' },
-  { label: 'Classical', value: 'Classical era' },
-  { label: 'Romantic', value: 'Romantic era' },
-  { label: '20th C.', value: '20th century classical' },
-]
-
-const REGION_OPTIONS = [
-  'US & Canada', 'UK & Ireland', 'Western Europe', 'Scandinavia',
-  'Eastern Europe', 'Latin America', 'Brazil', 'Caribbean',
-  'Africa', 'Middle East', 'India', 'East Asia', 'Southeast Asia',
-]
-
-/** Artist quick-picks keyed by genre (union when multiple genres are selected). */
-const ARTISTS_BY_GENRE: Record<string, readonly string[]> = {
-  Pop: ['The Beatles', 'Madonna', 'Michael Jackson', 'ABBA', 'Taylor Swift', 'Elton John'],
-  Rock: ['The Beatles', 'Led Zeppelin', 'Pink Floyd', 'David Bowie', 'Radiohead', 'The Cure'],
-  'Hip-Hop': ['Kendrick Lamar', 'Outkast', 'Nas', 'Missy Elliott', 'Wu-Tang Clan'],
-  'R&B': ['Marvin Gaye', 'Aretha Franklin', 'Stevie Wonder', 'Prince', 'Whitney Houston'],
-  Electronic: ['Kraftwerk', 'Aphex Twin', 'Daft Punk', 'Brian Eno', 'Depeche Mode'],
-  Jazz: ['Miles Davis', 'John Coltrane', 'Billie Holiday', 'Ella Fitzgerald', 'Duke Ellington', 'Nina Simone'],
-  Classical: [
-    'Johann Sebastian Bach',
-    'Wolfgang Amadeus Mozart',
-    'Ludwig van Beethoven',
-    'Frédéric Chopin',
-    'Claude Debussy',
-    'Igor Stravinsky',
-    'Philip Glass',
-  ],
-  Country: ['Johnny Cash', 'Dolly Parton', 'Willie Nelson', 'Patsy Cline', 'Hank Williams'],
-  Folk: ['Joni Mitchell', 'Bob Dylan', 'Joan Baez', 'Simon & Garfunkel'],
-  Metal: ['Metallica', 'Black Sabbath', 'Iron Maiden', 'Judas Priest'],
-  Soul: ['Marvin Gaye', 'Aretha Franklin', 'Otis Redding', 'James Brown'],
-  Blues: ['B.B. King', 'Muddy Waters', 'Robert Johnson', 'Howlin\' Wolf'],
-  Reggae: ['Bob Marley', 'Peter Tosh', 'Jimmy Cliff'],
-  Latin: ['Celia Cruz', 'Carlos Santana', 'Bad Bunny', 'Rosalía'],
-  Punk: ['The Ramones', 'Sex Pistols', 'The Clash', 'Black Flag'],
-}
-
-/**
- * Time chips → example names. Decade rows mix familiar recording artists with composers in the
- * notated / concert tradition (including contemporary classical); art-music era rows are historical style periods.
- */
-const ARTISTS_BY_TIME_PERIOD: Record<string, readonly string[]> = {
-  '1940s': ['Frank Sinatra', 'Billie Holiday', 'Ella Fitzgerald', 'Duke Ellington', 'Igor Stravinsky', 'Benjamin Britten'],
-  '1950s': ['Elvis Presley', 'Chuck Berry', 'Little Richard', 'Miles Davis', 'Pierre Boulez', 'John Cage'],
-  '1960s': ['The Beatles', 'Bob Dylan', 'Jimi Hendrix', 'Aretha Franklin', 'György Ligeti', 'Steve Reich'],
-  '1970s': ['Led Zeppelin', 'Stevie Wonder', 'David Bowie', 'Pink Floyd', 'Philip Glass', 'Arvo Pärt'],
-  '1980s': ['Madonna', 'Prince', 'Michael Jackson', 'The Cure', 'John Adams', 'Henryk Górecki'],
-  '1990s': ['Radiohead', 'Outkast', 'Björk', 'Nirvana', 'Thomas Adès', 'Kaija Saariaho'],
-  '2000s': ['Radiohead', 'Outkast', 'Beyoncé', 'Amy Winehouse', 'John Luther Adams', 'Anna Meredith'],
-  '2010s': ['Taylor Swift', 'Kendrick Lamar', 'Adele', 'Caroline Shaw', 'Hildur Guðnadóttir'],
-  'after 2020': ['Taylor Swift', 'Bad Bunny', 'Billie Eilish', 'Anna Thorvaldsdottir', 'Gabriel Kahane'],
-  'medieval era': ['Hildegard von Bingen', 'Guillaume de Machaut', 'Perotin'],
-  'Renaissance era': ['Josquin des Prez', 'Giovanni Palestrina', 'William Byrd'],
-  'Baroque era': ['Johann Sebastian Bach', 'George Frideric Handel', 'Antonio Vivaldi', 'Claudio Monteverdi'],
-  'Classical era': ['Wolfgang Amadeus Mozart', 'Joseph Haydn', 'Ludwig van Beethoven'],
-  'Romantic era': ['Frédéric Chopin', 'Johannes Brahms', 'Richard Wagner', 'Pyotr Ilyich Tchaikovsky'],
-  '20th century classical': ['Igor Stravinsky', 'Dmitri Shostakovich', 'Béla Bartók', 'Olivier Messiaen'],
-}
-
-const ARTISTS_BY_REGION: Record<string, readonly string[]> = {
-  'US & Canada': ['Frank Sinatra', 'Prince', 'Bob Dylan', 'Aaron Copland'],
-  'UK & Ireland': ['The Beatles', 'David Bowie', 'Kate Bush', 'Benjamin Britten'],
-  'Western Europe': ['Édith Piaf', 'Claude Debussy', 'Maurice Ravel', 'Johannes Brahms'],
-  Scandinavia: ['ABBA', 'Björk', 'Robyn', 'Jean Sibelius'],
-  'Eastern Europe': ['Frédéric Chopin', 'Dmitri Shostakovich', 'Béla Bartók'],
-  'Latin America': ['Celia Cruz', 'Carlos Santana', 'Heitor Villa-Lobos'],
-  Brazil: ['Antônio Carlos Jobim', 'Gilberto Gil', 'Caetano Veloso'],
-  Caribbean: ['Bob Marley', 'Jimmy Cliff', 'Celia Cruz'],
-  Africa: ['Fela Kuti', 'Youssou N\'Dour'],
-  'Middle East': ['Fairuz', 'Ofra Haza'],
-  India: ['Ravi Shankar', 'A.R. Rahman'],
-  'East Asia': ['Ryuichi Sakamoto', 'Yo-Yo Ma'],
-  'Southeast Asia': ['Yanni', 'Anggun'],
-}
-
-/** Static anchors from genre / era / region chips (deduped). */
-function deriveStaticArtistOptions(
-  genres: string[],
-  timePeriods: string[],
-  regions: string[]
-): string[] {
-  const out: string[] = []
-  const seen = new Set<string>()
-  const push = (name: string) => {
-    const key = name.toLowerCase()
-    if (seen.has(key)) return
-    seen.add(key)
-    out.push(name)
-  }
-  for (const g of genres) {
-    for (const a of ARTISTS_BY_GENRE[g] ?? []) push(a)
-  }
-  for (const tp of timePeriods) {
-    for (const a of ARTISTS_BY_TIME_PERIOD[tp] ?? []) push(a)
-  }
-  for (const r of regions) {
-    for (const a of ARTISTS_BY_REGION[r] ?? []) push(a)
-  }
-  return out
-}
-
-function mergeArtistOptionLists(...lists: string[][]): string[] {
-  const out: string[] = []
-  const seen = new Set<string>()
-  for (const list of lists) {
-    for (const name of list) {
-      const key = name.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push(name)
-    }
-  }
-  return out
-}
 
 function mergeArtistTextIntoNotes(ch: Channel): Channel {
   const at = typeof ch.artistText === 'string' ? ch.artistText.trim() : ''
@@ -212,28 +61,26 @@ function ensureAllChannel(channels: Channel[]): Channel[] {
   return [makeAllChannel(), ...channels]
 }
 
-function Chip({
-  label,
-  active,
-  onClick,
-}: {
-  label: string
-  active: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-        active
-          ? 'bg-black text-white border-black'
-          : 'bg-transparent text-zinc-500 border-zinc-300 hover:border-zinc-500 hover:text-black'
-      }`}
-    >
-      {label}
-    </button>
-  )
+function newChannelFromValues(values: ChannelEditorValues): Channel {
+  return normalizeChannelDiscovery({
+    id: genChannelId(),
+    name: values.name.trim() || 'New Channel',
+    isAutoNamed: false,
+    cardHistory: [],
+    sessionHistory: [],
+    profile: '',
+    createdAt: Date.now(),
+    genres: values.genres,
+    genreText: '',
+    timePeriods: values.timePeriods,
+    notes: values.freeText.trim(),
+    regions: values.regions,
+    artists: sanitizeSelectedArtists(values.artists),
+    artistText: '',
+    popularity: values.popularity,
+    discovery: CHANNEL_DISCOVERY_DEFAULT,
+    userCreated: true,
+  })
 }
 
 export default function ChannelsPage() {
@@ -241,14 +88,13 @@ export default function ChannelsPage() {
   const router = useRouter()
   const newHandled = useRef(false)
   const [channels, setChannels] = useState<Channel[]>([])
-  const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
-  const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
-  const [editingChannelName, setEditingChannelName] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showNew, setShowNew] = useState(false)
+  const [newChannelFormInitial, setNewChannelFormInitial] = useState<ChannelEditorValues>(
+    emptySoundingsEditorValues()
+  )
+  const [newChannelFormKey, setNewChannelFormKey] = useState(0)
   const [mounted, setMounted] = useState(false)
-  const [llmArtistOptions, setLlmArtistOptions] = useState<string[]>([])
-  const [loadingArtistOptions, setLoadingArtistOptions] = useState(false)
-  const [artistSuggestError, setArtistSuggestError] = useState<string | null>(null)
-  const artistSuggestAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     let loaded: Channel[] = []
@@ -263,209 +109,76 @@ export default function ChannelsPage() {
             ? ch
             : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
         )
-      // Persist merged notes + cleared artistText, and any All-channel insertion from ensureAllChannel
-      try { localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(loaded)) } catch {}
+      try {
+        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(loaded))
+      } catch {}
       const activeId = localStorage.getItem(ACTIVE_CHANNEL_KEY)
       setChannels(loaded)
-      setActiveChannelId(activeId ?? loaded[0]?.id ?? null)
+      setSelectedId(activeId ?? loaded[0]?.id ?? null)
     } catch {}
 
     if (searchParams.get('new') === '1' && !newHandled.current) {
       newHandled.current = true
-      const newCh: Channel = {
-        id: genChannelId(),
-        name: 'New Channel',
-        isAutoNamed: false,
-        cardHistory: [],
-        sessionHistory: [],
-        profile: '',
-        createdAt: Date.now(),
-        genres: [],
-        genreText: '',
-        timePeriods: [],
-        notes: '',
-        regions: [],
-        artists: [],
-        artistText: '',
-        popularity: 50,
-        discovery: CHANNEL_DISCOVERY_DEFAULT,
-        userCreated: true,
-      }
-      const updated = [...loaded, newCh]
-      setChannels(updated)
-      setActiveChannelId(newCh.id)
+      let next = emptySoundingsEditorValues()
       try {
-        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(updated))
-        localStorage.setItem(ACTIVE_CHANNEL_KEY, newCh.id)
+        const raw = sessionStorage.getItem(NEW_CHANNEL_PREFILL_KEY)
+        if (raw) {
+          next = prefillToEditorValues(JSON.parse(raw) as unknown)
+          sessionStorage.removeItem(NEW_CHANNEL_PREFILL_KEY)
+        }
       } catch {}
+      setNewChannelFormInitial(next)
+      setNewChannelFormKey(k => k + 1)
+      setShowNew(true)
+      router.replace('/channels', { scroll: false })
+    }
+
+    const selectParam = searchParams.get('select')
+    if (selectParam) {
+      setSelectedId(selectParam)
+      setShowNew(false)
       router.replace('/channels', { scroll: false })
     }
 
     setMounted(true)
-  }, [searchParams])
-
-  const activeChannel = channels.find(c => c.id === activeChannelId) ?? channels[0]
-
-  const selectionKey = JSON.stringify({
-    g: activeChannel?.genres ?? [],
-    tp: activeChannel?.timePeriods ?? [],
-    r: activeChannel?.regions ?? [],
-    n: activeChannel?.notes ?? '',
-    gt: activeChannel?.genreText ?? '',
-    cn: activeChannel?.name ?? '',
-  })
-
-  const staticArtistOptions = useMemo(
-    () =>
-      deriveStaticArtistOptions(
-        activeChannel?.genres ?? [],
-        activeChannel?.timePeriods ?? [],
-        activeChannel?.regions ?? []
-      ),
-    [selectionKey]
-  )
-
-  const selectedArtists = activeChannel?.artists ?? []
-
-  const promptArtistHints = useMemo(
-    () =>
-      extractArtistHintsFromChannel({
-        name: activeChannel?.name,
-        notes: activeChannel?.notes,
-        genreText: activeChannel?.genreText,
-      }),
-    [selectionKey]
-  )
-
-  const displayArtistOptions = useMemo(
-    () =>
-      mergeArtistOptionLists(
-        promptArtistHints,
-        llmArtistOptions,
-        staticArtistOptions,
-        sanitizeSelectedArtists(selectedArtists)
-      ),
-    [promptArtistHints, llmArtistOptions, staticArtistOptions, selectedArtists]
-  )
-
-  useEffect(() => {
-    if (!mounted || !activeChannel) return
-    if (!channelWantsArtistSuggestions(activeChannel)) {
-      setLlmArtistOptions([])
-      setLoadingArtistOptions(false)
-      setArtistSuggestError(null)
-      return
-    }
-
-    const timer = setTimeout(() => {
-      artistSuggestAbortRef.current?.abort()
-      const ac = new AbortController()
-      artistSuggestAbortRef.current = ac
-      setLoadingArtistOptions(true)
-      setArtistSuggestError(null)
-
-      void (async () => {
-        try {
-          const res = await fetch('/api/suggest-artists', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: ac.signal,
-            body: JSON.stringify({
-              name: activeChannel.name,
-              genres: activeChannel.genres ?? [],
-              genreText: activeChannel.genreText ?? '',
-              timePeriods: activeChannel.timePeriods ?? [],
-              regions: activeChannel.regions ?? [],
-              notes: activeChannel.notes ?? '',
-              popularity: activeChannel.popularity ?? 50,
-              provider: readLlmProviderFromSettings(),
-            }),
-          })
-          if (!res.ok) {
-            const err = (await res.json().catch(() => null)) as { error?: string } | null
-            throw new Error(err?.error ?? `HTTP ${res.status}`)
-          }
-          const data = (await res.json()) as { artists?: string[] }
-          if (!ac.signal.aborted) {
-            setLlmArtistOptions(Array.isArray(data.artists) ? data.artists : [])
-          }
-        } catch (e) {
-          if (ac.signal.aborted) return
-          setLlmArtistOptions([])
-          setArtistSuggestError(e instanceof Error ? e.message : 'Could not load artists')
-        } finally {
-          if (!ac.signal.aborted) setLoadingArtistOptions(false)
-        }
-      })()
-    }, ARTIST_SUGGEST_DEBOUNCE_MS)
-
-    return () => {
-      clearTimeout(timer)
-      artistSuggestAbortRef.current?.abort()
-    }
-  }, [mounted, activeChannelId, selectionKey])
-
-  useEffect(() => {
-    if (!mounted) return
-    if (!activeChannelId) return
-    setChannels(prev => {
-      const ch = prev.find(c => c.id === activeChannelId)
-      if (!ch || ch.id === ALL_CHANNEL_ID) return prev
-      const raw = ch.artists ?? []
-      const cleaned = sanitizeSelectedArtists(raw)
-      if (cleaned.length === raw.length && cleaned.every((a, i) => a === raw[i])) return prev
-      const next = prev.map(c => (c.id === ch.id ? { ...c, artists: cleaned } : c))
-      try {
-        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(next))
-      } catch {}
-      return next
-    })
-  }, [mounted, activeChannelId, selectionKey])
+  }, [searchParams, router])
 
   const persist = (updated: Channel[]) => {
-    setChannels(updated)
+    const normalized = ensureAllChannel(updated).map(ch =>
+      ch.id === ALL_CHANNEL_ID ? ch : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
+    )
+    setChannels(normalized)
     try {
-      localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(updated))
+      localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(normalized))
     } catch {}
   }
 
-  const updateActive = (patch: Partial<Channel>) => {
-    if (!activeChannel) return
-    persist(
-      channels.map(c => (c.id === activeChannel.id ? { ...c, ...patch } : c))
-    )
-  }
-
   const switchChannel = (id: string) => {
-    setActiveChannelId(id)
+    setSelectedId(id)
+    setShowNew(false)
     try {
       localStorage.setItem(ACTIVE_CHANNEL_KEY, id)
     } catch {}
   }
 
-  const createChannel = () => {
-    const newCh: Channel = {
-      id: genChannelId(),
-      name: 'New Channel',
-      isAutoNamed: false,
-      cardHistory: [],
-      sessionHistory: [],
-      profile: '',
-      createdAt: Date.now(),
-      genres: [],
-      genreText: '',
-      timePeriods: [],
-      notes: '',
-      regions: [],
-      artists: [],
-      artistText: '',
-      popularity: 50,
-      discovery: CHANNEL_DISCOVERY_DEFAULT,
-      userCreated: true,
-    }
-    const updated = [...channels, newCh]
+  const createChannel = (values: ChannelEditorValues) => {
+    const fresh = newChannelFromValues(values)
+    const updated = [...channels, fresh]
     persist(updated)
-    switchChannel(newCh.id)
+    switchChannel(fresh.id)
+    setNewChannelFormInitial(emptySoundingsEditorValues())
+    router.push('/player')
+  }
+
+  const updateChannel = (id: string, values: ChannelEditorValues) => {
+    const existing = channels.find(c => c.id === id)
+    if (!existing) return
+    const updated = channels.map(c =>
+      c.id === id ? editorValuesToChannel(existing, values) : c
+    )
+    persist(updated)
+    switchChannel(id)
+    router.push('/player')
   }
 
   const deleteChannel = (id: string) => {
@@ -473,39 +186,9 @@ export default function ChannelsPage() {
     if (channels.length <= 1) return
     const updated = channels.filter(c => c.id !== id)
     persist(updated)
-    if (id === activeChannelId) {
-      switchChannel(updated[0].id)
+    if (id === selectedId) {
+      switchChannel(updated[0]?.id ?? ALL_CHANNEL_ID)
     }
-  }
-
-  const renameChannel = (id: string, name: string) => {
-    persist(channels.map(c => (c.id === id ? { ...c, name, isAutoNamed: false } : c)))
-  }
-
-  const toggleGenre = (g: string) => {
-    const genres = activeChannel?.genres ?? []
-    updateActive({
-      genres: genres.includes(g) ? genres.filter(x => x !== g) : [...genres, g],
-    })
-  }
-
-  const toggleTimePeriod = (v: string) => {
-    const tps = activeChannel?.timePeriods ?? []
-    updateActive({ timePeriods: tps.includes(v) ? tps.filter(x => x !== v) : [...tps, v] })
-  }
-
-  const toggleRegion = (r: string) => {
-    const regions = activeChannel?.regions ?? []
-    updateActive({
-      regions: regions.includes(r) ? regions.filter(x => x !== r) : [...regions, r],
-    })
-  }
-
-  const toggleArtist = (name: string) => {
-    const list = activeChannel?.artists ?? []
-    updateActive({
-      artists: list.includes(name) ? list.filter(x => x !== name) : [...list, name],
-    })
   }
 
   const mergeFactoryChannels = async () => {
@@ -523,114 +206,86 @@ export default function ChannelsPage() {
         firstId = fb.activeChannelId
       }
       if (!incoming.length) return
-      const cur: Channel[] = channels
+      const cur = channels
       const existingIds = new Set(cur.map(c => c.id))
       const toAdd = incoming
         .filter(c => !existingIds.has(c.id))
         .map(c => (c.id === ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const }))
       const merged = [...cur, ...toAdd]
       persist(merged)
-      const newActive = firstId && merged.find(c => c.id === firstId) ? firstId : (toAdd[0]?.id ?? cur[0]?.id ?? '')
+      const newActive =
+        firstId && merged.find(c => c.id === firstId) ? firstId : (toAdd[0]?.id ?? cur[0]?.id ?? '')
       if (newActive) switchChannel(newActive)
     } catch {}
   }
 
   if (!mounted) {
     return (
-      <div className="min-h-screen bg-white text-black flex flex-col">
+      <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
         <AppHeader />
       </div>
     )
   }
 
-  const ch = activeChannel
-  const genres = ch?.genres ?? []
-  const regions = ch?.regions ?? []
-  const timePeriods = ch?.timePeriods ?? []
-  const artists = ch?.artists ?? []
-  const popularity = ch?.popularity ?? 50
-  const notes = ch?.notes ?? ''
-
-  const popularityLabel = popularity <= 20 ? 'Hidden gems' : popularity <= 40 ? 'Obscure' : popularity >= 80 ? 'Mainstream' : popularity >= 60 ? 'Popular' : 'Mixed'
+  const selected = channels.find(c => c.id === selectedId) ?? channels[0]
 
   return (
-    <div className="min-h-screen bg-white text-black flex flex-col">
+    <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
       <AppHeader />
 
-      <div className="flex flex-col sm:flex-row gap-0 flex-1 max-w-[800px] mx-auto w-full">
-        {/* Channel list sidebar */}
-        <div className="sm:w-48 border-b sm:border-b-0 sm:border-r border-zinc-200 p-3 flex flex-col gap-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-zinc-500 uppercase tracking-wide">Channels</span>
+      <div className="max-w-4xl mx-auto flex flex-1 w-full min-h-0 flex-col sm:flex-row">
+        <div className="hidden w-44 shrink-0 flex-col border-r border-zinc-200 bg-white sm:flex">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100">
+            <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Channels</span>
             <button
-              onClick={createChannel}
-              className="text-lg leading-none text-zinc-400 hover:text-black transition-colors"
+              type="button"
+              onClick={() => {
+                setNewChannelFormInitial(emptySoundingsEditorValues())
+                setNewChannelFormKey(k => k + 1)
+                setShowNew(true)
+              }}
+              className="text-zinc-400 hover:text-indigo-600 transition-colors text-lg leading-none"
               title="New channel"
             >
               +
             </button>
           </div>
-          {channels.map(c => (
-            <div key={c.id} className="flex items-center gap-1 group">
-              {editingChannelId === c.id ? (
-                <input
-                  className="flex-1 bg-transparent outline-none text-xs text-black border-b border-zinc-300 px-1"
-                  value={editingChannelName}
-                  onChange={e => setEditingChannelName(e.target.value)}
-                  onBlur={() => {
-                    renameChannel(c.id, editingChannelName)
-                    setEditingChannelId(null)
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter') {
-                      renameChannel(c.id, editingChannelName)
-                      setEditingChannelId(null)
-                    }
-                    if (e.key === 'Escape') setEditingChannelId(null)
-                  }}
-                  autoFocus
-                />
-              ) : (
-                <button
-                  onClick={() => {
-                    if (c.id === activeChannelId) {
-                      if (c.id !== ALL_CHANNEL_ID) {
-                        setEditingChannelId(c.id)
-                        setEditingChannelName(c.name)
-                      }
-                    } else {
-                      switchChannel(c.id)
-                    }
-                  }}
-                  className={`flex-1 text-left text-xs px-2 py-1.5 rounded transition-colors truncate ${
-                    c.id === activeChannelId
-                      ? 'bg-zinc-100 text-black font-medium'
-                      : 'text-zinc-500 hover:text-black hover:bg-zinc-100'
-                  }`}
-                >
-                  {c.name}
-                </button>
-              )}
-              {channels.length > 1 && c.id !== ALL_CHANNEL_ID && (
-                <button
-                  onClick={() => deleteChannel(c.id)}
-                  className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 text-xs transition-all px-1"
-                  title="Delete channel"
-                >
-                  ×
-                </button>
-              )}
-            </div>
-          ))}
+          <div className="flex-1 overflow-y-auto py-1 min-h-0">
+            {channels.map(ch => (
+              <button
+                key={ch.id}
+                type="button"
+                onClick={() => switchChannel(ch.id)}
+                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors ${
+                  selectedId === ch.id && !showNew
+                    ? 'bg-zinc-100 text-zinc-900'
+                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
+                }`}
+              >
+                {ch.name}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Main panel */}
-        {ch ? (
-          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-
-            {/* Settings */}
-            <div className="border-b border-zinc-200 px-4 pt-4 pb-5 flex flex-col gap-5">
-              {ch.id === ALL_CHANNEL_ID && channels.length === 1 ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {showNew ? (
+            <div className="p-4 sm:p-6">
+              <p className="text-sm font-semibold text-zinc-700 mb-0">New channel</p>
+              <ChannelEditorForm
+                key={`new-channel-${newChannelFormKey}`}
+                initial={newChannelFormInitial}
+                config={SOUNDINGS_CHANNEL_EDITOR_CONFIG}
+                onSave={createChannel}
+                onCancel={() => {
+                  setNewChannelFormInitial(emptySoundingsEditorValues())
+                  setShowNew(false)
+                }}
+              />
+            </div>
+          ) : selected ? (
+            <div className="p-4 sm:p-6 space-y-6">
+              {selected.id === ALL_CHANNEL_ID && channels.length === 1 ? (
                 <div className="flex flex-col gap-3 py-2">
                   <p className="text-sm text-zinc-500">No custom channels yet.</p>
                   <button
@@ -641,135 +296,39 @@ export default function ChannelsPage() {
                     Merge factory channels
                   </button>
                 </div>
-              ) : ch.id === ALL_CHANNEL_ID ? null : (
-                <>
-                  {/* Genres */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Genres</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {GENRE_OPTIONS.map(g => (
-                        <Chip key={g} label={g} active={genres.includes(g)} onClick={() => toggleGenre(g)} />
-                      ))}
-                    </div>
+              ) : selected.id !== ALL_CHANNEL_ID ? (
+                <div>
+                  <div className="flex justify-end mb-2">
+                    <button
+                      type="button"
+                      onClick={() => deleteChannel(selected.id)}
+                      className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
+                    >
+                      Delete channel
+                    </button>
                   </div>
+                  <ChannelEditorForm
+                    key={selected.id}
+                    initial={channelToEditorValues(selected)}
+                    config={SOUNDINGS_CHANNEL_EDITOR_CONFIG}
+                    onSave={values => updateChannel(selected.id, values)}
+                  />
+                </div>
+              ) : null}
 
-                  {/* Region */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Region</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {REGION_OPTIONS.map(r => (
-                        <Chip key={r} label={r} active={regions.includes(r)} onClick={() => toggleRegion(r)} />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Time period */}
-                  <div className="flex flex-col gap-2">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Time period</label>
-                    <div className="flex flex-wrap gap-1.5">
-                      {TIME_PERIOD_OPTIONS.map(opt => (
-                        <Chip
-                          key={opt.value}
-                          label={opt.label}
-                          active={timePeriods.includes(opt.value)}
-                          onClick={() => toggleTimePeriod(opt.value)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Artists — LLM discovers names from notes + chips; toggles narrow the DJ */}
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <label className="text-xs text-zinc-500 uppercase tracking-wide">Artists</label>
-                      {loadingArtistOptions && (
-                        <span className="text-[10px] text-zinc-400">Finding artists…</span>
-                      )}
-                    </div>
-                    {artistSuggestError && (
-                      <p className="text-xs text-amber-700">{artistSuggestError}</p>
-                    )}
-                    {!channelWantsArtistSuggestions(activeChannel) ? (
-                      <p className="text-xs text-zinc-500 leading-relaxed">
-                        Describe what you want in Notes and hints, or pick genres, eras, or regions — we&apos;ll suggest artists to narrow from.
-                      </p>
-                    ) : displayArtistOptions.length === 0 && !loadingArtistOptions ? (
-                      <p className="text-xs text-zinc-500 leading-relaxed">
-                        No artist suggestions yet. Try adding more detail in Notes and hints.
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5">
-                        {displayArtistOptions.map(a => (
-                          <Chip
-                            key={a}
-                            label={a}
-                            active={artists.includes(a)}
-                            onClick={() => toggleArtist(a)}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Popularity */}
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs text-zinc-500 uppercase tracking-wide">Popularity</label>
-                      <span className="text-xs text-zinc-400">{popularityLabel}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-600">Obscure</span>
-                      <input
-                        type="range" min={0} max={100} value={popularity}
-                        onChange={e => updateActive({ popularity: Number(e.target.value) })}
-                        className="flex-1 accent-zinc-400"
-                      />
-                      <span className="text-xs text-zinc-600">Mainstream</span>
-                    </div>
-                  </div>
-
-                  {/* Notes & freeform hints */}
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs text-zinc-500 uppercase tracking-wide">Notes and hints</label>
-                    <textarea
-                      value={notes}
-                      onChange={e => updateActive({ notes: e.target.value })}
-                      placeholder="Anything for the DJ — extra artists, avoid lists, mood, era, lyrics, … e.g. lean Coltrane, no smooth jazz, upbeat only, nothing after 1990."
-                      rows={4}
-                      className="w-full bg-zinc-50 border border-zinc-300 rounded-lg px-3 py-2 text-sm text-black placeholder-zinc-400 resize-none focus:outline-none focus:border-zinc-500"
-                    />
-                  </div>
-
-                  <p className="text-xs text-zinc-600 italic">
-                    Changes take effect on the next song the DJ picks.
-                  </p>
-                </>
-              )}
+              <div className="border-t border-zinc-100 pt-4">
+                <Link
+                  href={`/ratings?channel=${selected.id}`}
+                  className="block py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-medium transition-colors text-center"
+                >
+                  Channel History
+                </Link>
+              </div>
             </div>
-
-            {/* Channel History link */}
-            <div className="border-t border-zinc-100 py-3 px-4">
-              <Link
-                href={`/ratings?channel=${activeChannel?.id ?? ''}`}
-                className="flex-1 block py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 text-zinc-700 text-sm font-medium transition-colors text-center"
-              >
-                Channel History
-              </Link>
-            </div>
-          </div>
-        ) : (
-          <div className="flex-1 p-6 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-zinc-500 text-sm mb-3">No channels yet.</p>
-              <button
-                onClick={createChannel}
-                className="text-sm px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-lg text-white transition-colors"
-              >
-                Create a channel
-              </button>
-            </div>
-          </div>
-        )}
+          ) : (
+            <div className="p-10 text-center text-zinc-400 text-sm">Create a channel to get started.</div>
+          )}
+        </div>
       </div>
     </div>
   )

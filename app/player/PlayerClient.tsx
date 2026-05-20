@@ -9,6 +9,9 @@ import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 import { writeNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 import PlayerConstellationsEmbed from './PlayerConstellationsEmbed'
+import { queueNewChannelFromGraphNode } from '@/app/lib/queueNewChannelFromGraphNode'
+import { queueNewChannelFromTrack } from '@/app/lib/queueNewChannelFromTrack'
+import type { GraphNode } from '@johndimm/constellations/types'
 import AppHeader from '@/app/components/AppHeader'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
 import { YOUTUBE_LOW_SEARCHES_THRESHOLD } from '@/app/lib/youtubeQuota'
@@ -31,6 +34,7 @@ import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE, type CardState } from '@/
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
 import {
   buildCombinedNotes,
+  djGenrePrefixes,
   enrichSearchWithFocusArtist,
   resolveDjArtistConstraint,
 } from '@/app/lib/djArtistFocus'
@@ -1175,7 +1179,6 @@ export default function PlayerClient({
     return resolveDjArtistConstraint({
       explicit,
       selectedArtists: artistsRef.current,
-      channelName: ch?.id === ALL_CHANNEL_ID ? undefined : ch?.name,
       artistText: artistTextRef.current,
     })
   }, [])
@@ -1411,7 +1414,11 @@ export default function PlayerClient({
     committedSettingsRef.current = nextCommitted
     setSettingsDirty(false)
 
-    const nextSource = youtubeOnly ? 'youtube' : (ch.source ?? readSettingsSource())
+    const nextSource = youtubeOnly
+      ? 'youtube'
+      : accessTokenRef.current
+        ? 'spotify'
+        : (ch.source ?? readSettingsSource())
     setSource(nextSource)
     sourceRef.current = nextSource
 
@@ -1579,11 +1586,19 @@ export default function PlayerClient({
     })
   }, [])
 
-  const createChannelWithNotes = useCallback(async (notes: string) => {
+  const openNewChannelFromTrack = useCallback((track: string, artist: string, album?: string) => {
+    queueNewChannelFromTrack(track, artist, path => {
+      window.location.href = path
+    }, { album })
+  }, [])
+
+  const createChannelWithNotes = useCallback(async (notes: string, channelName?: string) => {
     if (channelSwitchingRef.current) return
     const trimmed = notes.trim()
     const words = trimmed.split(/\s+/).filter(Boolean)
-    const name = words.length === 0 ? 'New Channel' : words.slice(0, 4).join(' ').replace(/[,;:]+$/, '')
+    const derivedName =
+      words.length === 0 ? 'New Channel' : words.slice(0, 4).join(' ').replace(/[,;:]+$/, '')
+    const name = (channelName?.trim() || derivedName) || 'New Channel'
     const fresh: Channel = {
       id: genChannelId(),
       name,
@@ -2469,7 +2484,17 @@ export default function PlayerClient({
     setPopularity(s.popularity ?? 50)
     setDiscovery(s.discovery ?? 50)
     setProvider(s.provider ?? 'deepseek')
-    setSource(youtubeOnly ? 'youtube' : readSettingsSource())
+    const fresh = applyFreshLoginIfNeeded()
+    let hydratedSource: PlaybackSource = youtubeOnly ? 'youtube' : readSettingsSource()
+    // Spotify session wins over stale `source: youtube` in localStorage (e.g. hub opened /player without ?spotify_login=1).
+    if (!youtubeOnly && initialAccessToken) {
+      if (fresh === 'youtube') hydratedSource = 'youtube'
+      else hydratedSource = 'spotify'
+    } else if (fresh === 'spotify' || fresh === 'youtube') {
+      hydratedSource = fresh
+    }
+    setSource(hydratedSource)
+    sourceRef.current = hydratedSource
     setCommittedSettings({
       notes: s.notes ?? '',
       genreText: s.genreText ?? '',
@@ -3657,6 +3682,7 @@ export default function PlayerClient({
           youtubeResolveTest: ytResolveTest,
           preferredArtists: artistsRef.current,
           artistConstraint: djArtistConstraintForFetch(),
+          genrePrefixes: djGenrePrefixes(genresRef.current, genreTextRef.current),
         }),
       })
 
@@ -3709,7 +3735,8 @@ export default function PlayerClient({
     }
 
     const focusArtist = djArtistConstraintForFetch()
-    const row = { ...s, search: enrichSearchWithFocusArtist(s.search, focusArtist) }
+    const genrePrefixes = djGenrePrefixes(genresRef.current, genreTextRef.current)
+    const row = { ...s, search: enrichSearchWithFocusArtist(s.search, focusArtist, genrePrefixes) }
 
     const hasSpotifyId = Boolean(normalizeSpotifyTrackId(row.spotifyId))
     const hasYoutubeId = Boolean(extractYoutubeVideoIdLoose(row.youtubeVideoId ?? ''))
@@ -4635,9 +4662,10 @@ export default function PlayerClient({
 
     const buf = suggestionBufferRef.current
     const focus = djArtistConstraintForFetch()
+    const genrePrefixes = djGenrePrefixes(genresRef.current, genreTextRef.current)
     const take = buf.slice(0, maxTake).map(s => ({
       ...s,
-      search: enrichSearchWithFocusArtist(s.search, focus),
+      search: enrichSearchWithFocusArtist(s.search, focus, genrePrefixes),
     }))
     if (take.length === 0) return 'noop'
 
@@ -4659,6 +4687,7 @@ export default function PlayerClient({
         source: 'spotify',
         preferredArtists: artistsRef.current,
         artistConstraint: focus,
+        genrePrefixes,
       }),
     })
 
@@ -4704,7 +4733,7 @@ export default function PlayerClient({
           continue
         }
         const row = buf[i]!
-        const enriched = enrichSearchWithFocusArtist(row.search, focus)
+        const enriched = enrichSearchWithFocusArtist(row.search, focus, genrePrefixes)
         if (resolvedSearches.has(row.search) || resolvedSearches.has(enriched)) continue
         rest.push({ ...row, spotifyId: undefined })
       }
@@ -4735,8 +4764,7 @@ export default function PlayerClient({
     }
     if (cards.length === 0) {
       console.warn(DJQ, 'promoteDjPendingSpotifyBatch: no playable cards (resolve miss or all duplicates)')
-      suggestionBufferRef.current = buf.slice(maxTake)
-      setSuggestionBuffer(suggestionBufferRef.current)
+      shrinkBufferAfterBatch()
       return 'noop'
     }
 
@@ -5756,18 +5784,35 @@ export default function PlayerClient({
                   }
                 >
                 {/* Track info */}
-                <a
-                  href={(currentCard.track.source as string) === 'youtube'
-                    ? `https://www.youtube.com/watch?v=${currentCard.track.id}`
-                    : `https://open.spotify.com/track/${currentCard.track.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={(currentCard.track.source as string) === 'youtube' ? 'Open on YouTube' : 'Open in Spotify'}
-                  onClick={() => { openedSpotifyRef.current = true }}
-                  className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors block"
-                >
-                  {currentCard.track.name}
-                </a>
+                <div className="flex items-center gap-2 min-w-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openNewChannelFromTrack(
+                        currentCard.track.name,
+                        currentCard.track.artist,
+                        currentCard.track.album,
+                      )
+                    }
+                    title="Create a channel from this track"
+                    className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors text-left flex-1 min-w-0"
+                  >
+                    {currentCard.track.name}
+                  </button>
+                  <a
+                    href={(currentCard.track.source as string) === 'youtube'
+                      ? `https://www.youtube.com/watch?v=${currentCard.track.id}`
+                      : `https://open.spotify.com/track/${currentCard.track.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title={(currentCard.track.source as string) === 'youtube' ? 'Open on YouTube' : 'Open in Spotify'}
+                    onClick={() => { openedSpotifyRef.current = true }}
+                    className="flex-shrink-0 text-zinc-400 hover:text-green-400 text-sm px-1"
+                    aria-label={(currentCard.track.source as string) === 'youtube' ? 'Open on YouTube' : 'Open in Spotify'}
+                  >
+                    ↗
+                  </a>
+                </div>
                 <p className={`truncate transition-all ${careerMode ? 'text-indigo-300 text-xl font-semibold mt-0.5' : 'text-zinc-300 text-sm'}`}>
                   {(currentCard.track.artists && currentCard.track.artists.length > 1)
                     ? currentCard.track.artists.map((a, i) => (
@@ -6138,27 +6183,11 @@ export default function PlayerClient({
               setCurrentStars(null)
               currentStarsRef.current = null
             }}
+            onCreateChannelFromTrack={openNewChannelFromTrack}
           />
         </div>
 
-        {/* Constellations graph — below queue/up next */}
-        <PlayerConstellationsEmbed
-          onNewChannelFromNode={(node) => {
-            try {
-              sessionStorage.setItem(
-                'earprint-pending-constellations-new-channel',
-                JSON.stringify({ node, at: Date.now() })
-              )
-            } catch { /* ignore */ }
-          }}
-        />
-
-        </div>{/* end single column */}
-      </div>
-
-      {/* Footer */}
-      <div className="flex w-full max-w-[800px] justify-center border-t border-zinc-900 py-3">
-        <div className="flex items-center gap-3 w-full px-4">
+        <div className="flex items-center gap-3 w-full px-4 py-2">
           {activeChannelId !== ALL_CHANNEL_ID && (
             <Link
               href="/channels"
@@ -6173,8 +6202,23 @@ export default function PlayerClient({
           >
             Channel History
           </Link>
-          <a href="/status" className="text-xs text-zinc-700 hover:text-zinc-400 transition-colors px-2">Status</a>
         </div>
+
+        {/* Constellations graph — below queue/up next */}
+        <PlayerConstellationsEmbed
+          onNewChannelFromNode={(node: GraphNode) => {
+            queueNewChannelFromGraphNode(node, path => {
+              window.location.href = path
+            })
+          }}
+        />
+
+        </div>{/* end single column */}
+      </div>
+
+      {/* Footer */}
+      <div className="flex w-full max-w-[800px] justify-center border-t border-zinc-900 py-3">
+        <a href="/status" className="text-xs text-zinc-700 hover:text-zinc-400 transition-colors px-2">Status</a>
       </div>
 
           </div>

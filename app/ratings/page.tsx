@@ -6,6 +6,7 @@ import AppHeader from '@/app/components/AppHeader'
 import MusicMap from '@/app/player/MusicMap'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import type { HistoryEntry } from '@/app/player/SessionPanel'
+import { queueNewChannelFromTrack } from '@/app/lib/queueNewChannelFromTrack'
 import type { CardState, PlaybackSource, Track } from '@/app/lib/playback/types'
 
 /**
@@ -402,14 +403,16 @@ export default function RatingsPage() {
                   onChange={() => toggleSelect(channelId, globalIndex)}
                   className="flex-shrink-0 accent-zinc-400 cursor-pointer"
                 />
-                <button
-                  type="button"
-                  disabled={!canPlay}
-                  onClick={() => handlePlayHistoryEntry(entry)}
-                  className={`flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 hover:bg-zinc-200 rounded-xl px-2 py-1 text-left transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                    canPlay ? 'cursor-pointer' : ''
-                  }`}
-                >
+                <div className="flex-1 min-w-0 flex items-center gap-2 bg-zinc-100 rounded-xl px-2 py-1">
+                  <button
+                    type="button"
+                    disabled={!canPlay}
+                    onClick={() => handlePlayHistoryEntry(entry)}
+                    className={`flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed ${
+                      canPlay ? 'cursor-pointer hover:opacity-80' : ''
+                    }`}
+                    title={canPlay ? 'Play' : undefined}
+                  >
                   {entry.albumArt ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -418,13 +421,23 @@ export default function RatingsPage() {
                       className="w-9 h-9 rounded-md object-cover flex-shrink-0"
                     />
                   ) : (
-                    <div className="w-9 h-9 rounded-md bg-zinc-300 flex-shrink-0" />
+                    <div className="w-9 h-9 rounded-md bg-zinc-300" />
                   )}
+                  </button>
                   <div className="flex-1 min-w-0">
-                    <p className="text-black text-xs font-medium truncate">{entry.track}</p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        queueNewChannelFromTrack(entry.track, entry.artist, path => router.push(path))
+                      }
+                      title="Create a channel from this track"
+                      className="text-black text-xs font-medium truncate block w-full text-left hover:text-green-700 transition-colors"
+                    >
+                      {entry.track}
+                    </button>
                     <p className="text-zinc-500 text-xs truncate">{entry.artist}</p>
                   </div>
-                </button>
+                </div>
                 {!isChannelView && (
                   <span className="text-xs text-zinc-400 flex-shrink-0 hidden sm:block max-w-[80px] truncate" title={channelName}>
                     {channelName}
