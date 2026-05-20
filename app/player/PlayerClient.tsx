@@ -6013,10 +6013,10 @@ export default function PlayerClient({
           })()}
         </div>
 
-        {/* Stars + Next below the panel */}
+        {/* Stars + Prev/Next below the panel */}
         {currentCard && (
           <div className="flex flex-col gap-2 px-1 w-full max-w-[800px]">
-            <div className="flex items-center gap-3">
+            <div className="flex justify-center">
             <StarRating
               value={currentStars}
               onChange={v => { setCurrentStars(v); currentStarsRef.current = v }}
@@ -6026,11 +6026,13 @@ export default function PlayerClient({
                 return dur > 0 ? Math.min(1, sliderPosition / dur) : 0
               })()}
             />
+            </div>
+            <div className="flex items-stretch gap-2">
             <button
               type="button"
               onClick={() => void goToPreviousCard()}
               disabled={prevDisabled}
-              className="flex-1 py-3 text-xl font-bold bg-indigo-900 text-white rounded-2xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="min-h-[44px] min-w-[5rem] flex-1 py-3 text-base font-bold bg-indigo-900 text-white rounded-2xl hover:bg-indigo-800 active:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors sm:text-lg"
             >
               Prev
             </button>
@@ -6038,7 +6040,7 @@ export default function PlayerClient({
               type="button"
               onClick={() => careerMode ? void careerGo(1) : advanceWithFade()}
               disabled={careerLoading || (careerMode ? careerMode.currentIndex >= careerMode.works.length - 1 : false)}
-              className="flex-1 py-3 text-xl font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="min-h-[44px] min-w-[5rem] flex-1 py-3 text-base font-bold bg-white text-black rounded-2xl hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed transition-colors sm:text-lg"
             >
               {careerLoading ? '…' : 'Next'}
             </button>
@@ -6049,7 +6051,7 @@ export default function PlayerClient({
               title="Share current channel and track"
               aria-label="Share current channel and track"
               aria-busy={sharingInFlight}
-              className="flex shrink-0 items-center justify-center py-3 px-3 rounded-2xl border border-zinc-700 text-zinc-200 hover:text-white hover:border-zinc-500 hover:bg-zinc-900 active:bg-zinc-800 disabled:opacity-60 disabled:cursor-wait transition-colors"
+              className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-2xl border border-zinc-700 px-3 text-zinc-200 hover:text-white hover:border-zinc-500 hover:bg-zinc-900 active:bg-zinc-800 disabled:opacity-60 disabled:cursor-wait transition-colors"
             >
               {sharingInFlight ? (
                 <span
