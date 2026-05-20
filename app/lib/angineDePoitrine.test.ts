@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildUserPrompt } from '@/app/lib/llm'
-import { extractArtistHintsFromChannel } from '@/app/lib/artistHintsFromNotes'
+import { extractArtistHintsFromChannel, channelNameAsArtistHint, findArtistMatchingChannelName, mergeChannelNameArtistMatch } from '@/app/lib/artistHintsFromNotes'
 import {
   ANGINE_DE_POITRINE,
   buildCombinedNotes,
@@ -24,7 +24,30 @@ describe('Angine de poitrine (artist-focus channel)', () => {
     )
   })
 
-  it('extractArtistHintsFromChannel reads artists from notes, not channel title alone', () => {
+  it('findArtistMatchingChannelName links channel title to artist chips', () => {
+    const candidates = ['Angine de poitrine', 'Trisomie 21', 'The Cure']
+    expect(findArtistMatchingChannelName(ANGINE_DE_POITRINE, candidates)).toBe(ANGINE_DE_POITRINE)
+    expect(findArtistMatchingChannelName('angine de poitrine', candidates)).toBe(ANGINE_DE_POITRINE)
+    expect(findArtistMatchingChannelName('Chamber Music', candidates)).toBeUndefined()
+    expect(findArtistMatchingChannelName('Chamber Music', ['Chamber Music', 'Shostakovich'])).toBeUndefined()
+  })
+
+  it('mergeChannelNameArtistMatch adds matched artist to config', () => {
+    expect(
+      mergeChannelNameArtistMatch(ANGINE_DE_POITRINE, [], ['Angine de poitrine', 'Trisomie 21'])
+    ).toEqual([ANGINE_DE_POITRINE])
+    expect(
+      mergeChannelNameArtistMatch('Late-night jazz', [], ['Miles Davis'])
+    ).toEqual([])
+  })
+
+  it('channelNameAsArtistHint accepts act names, rejects genre-style titles', () => {
+    expect(channelNameAsArtistHint(ANGINE_DE_POITRINE)).toBe(ANGINE_DE_POITRINE)
+    expect(channelNameAsArtistHint('Chamber Music')).toBeUndefined()
+    expect(channelNameAsArtistHint('New Channel')).toBeUndefined()
+  })
+
+  it('extractArtistHintsFromChannel reads artist from channel title when it is an act name', () => {
     expect(
       extractArtistHintsFromChannel({
         name: ANGINE_DE_POITRINE,
@@ -36,7 +59,13 @@ describe('Angine de poitrine (artist-focus channel)', () => {
         name: ANGINE_DE_POITRINE,
         notes: '',
       })
-    ).not.toContain(ANGINE_DE_POITRINE)
+    ).toContain(ANGINE_DE_POITRINE)
+    expect(
+      extractArtistHintsFromChannel({
+        name: 'Chamber Music',
+        notes: '',
+      })
+    ).not.toContain('Chamber Music')
     expect(
       extractArtistHintsFromChannel({
         name: 'New Channel',

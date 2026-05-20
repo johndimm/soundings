@@ -6,9 +6,8 @@
 
 const STYLE_TERMS_BLOCKLIST = new Set<string>([
   'chillwave',
-  'cool jazz',
-  'deep house',
   'chamber music',
+  'cool jazz',
   'motown',
   'hip hop',
   'hip-hop',
@@ -95,6 +94,8 @@ export function extractArtistHintsFromChannel(input: {
   const out: string[] = []
   const seen = new Set<string>()
 
+  pushArtistHint(out, seen, input.name ?? '')
+
   const notes = [input.notes, input.genreText].filter(Boolean).join('\n').trim()
   if (!notes) return out
 
@@ -126,4 +127,38 @@ export function mergeArtistHintLists(...lists: string[][]): string[] {
     for (const name of list) pushArtistHint(out, seen, name)
   }
   return out
+}
+
+const GENERIC_CHANNEL_NAMES = new Set(['new channel', 'all', 'untitled'])
+
+/** Channel title when it looks like a real act (not a genre label or generic name). */
+export function channelNameAsArtistHint(name?: string): string | undefined {
+  const out: string[] = []
+  const seen = new Set<string>()
+  pushArtistHint(out, seen, name ?? '')
+  return out[0]
+}
+
+/** When the channel title equals a known artist name, return that canonical spelling. */
+export function findArtistMatchingChannelName(
+  channelName: string,
+  candidates: string[]
+): string | undefined {
+  const key = normalizeStyleKey(channelName)
+  if (!key || GENERIC_CHANNEL_NAMES.has(key) || isGenreOrStyleTerm(channelName)) return undefined
+  for (const candidate of candidates) {
+    if (normalizeStyleKey(candidate) === key) return candidate
+  }
+  return undefined
+}
+
+/** Include channel-title artist matches in the saved config artists list. */
+export function mergeChannelNameArtistMatch(
+  channelName: string,
+  selectedArtists: string[],
+  candidateArtists: string[]
+): string[] {
+  const match = findArtistMatchingChannelName(channelName, candidateArtists)
+  if (!match) return selectedArtists
+  return mergeArtistHintLists(selectedArtists, [match])
 }

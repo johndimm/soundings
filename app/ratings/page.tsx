@@ -245,6 +245,10 @@ export default function RatingsPage() {
     fe => selectedKeys.has(encodeSelectionKey(fe.channelId, fe.globalIndex))
   )
 
+  const allFilteredSelected = allEntries.length > 0 && allEntries.every(
+    fe => selectedKeys.has(encodeSelectionKey(fe.channelId, fe.globalIndex))
+  )
+
   const toggleSelectAll = () => {
     if (allPageSelected) {
       setSelectedKeys(prev => {
@@ -258,6 +262,16 @@ export default function RatingsPage() {
         for (const fe of pageEntries) next.add(encodeSelectionKey(fe.channelId, fe.globalIndex))
         return next
       })
+    }
+  }
+
+  const toggleSelectAllFiltered = () => {
+    if (allFilteredSelected) {
+      setSelectedKeys(new Set())
+    } else {
+      setSelectedKeys(new Set(
+        allEntries.map(fe => encodeSelectionKey(fe.channelId, fe.globalIndex))
+      ))
     }
   }
 
@@ -294,11 +308,19 @@ export default function RatingsPage() {
             {allEntries.length > 0 && (
               <>
                 <button
-                  onClick={toggleSelectAll}
+                  onClick={toggleSelectAllFiltered}
                   className="text-xs text-zinc-500 hover:text-black transition-colors"
                 >
-                  {allPageSelected ? 'Deselect page' : 'Select page'}
+                  {allFilteredSelected ? 'Deselect all' : 'Select all'}
                 </button>
+                {totalPages > 1 && (
+                  <button
+                    onClick={toggleSelectAll}
+                    className="text-xs text-zinc-500 hover:text-black transition-colors"
+                  >
+                    {allPageSelected ? 'Deselect page' : 'Select page'}
+                  </button>
+                )}
                 {selectedKeys.size > 0 && (
                   <>
                     <button
