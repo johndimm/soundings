@@ -5469,16 +5469,16 @@ export default function PlayerClient({
       <div className="flex flex-1 flex-col min-h-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-6">
         <div className="mx-auto flex w-full max-w-[min(100%,90rem)] flex-1 flex-col gap-4 min-h-0 lg:grid lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:items-start lg:gap-x-4 lg:gap-y-0 xl:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)] xl:gap-x-5">
           {channels.length > 0 && (
-            <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-11 lg:z-10 lg:max-h-[calc(100dvh-3.5rem)] lg:self-start lg:pr-1">
+            <aside className="flex min-w-0 flex-col gap-2 sm:gap-3 lg:sticky lg:top-11 lg:z-10 lg:max-h-[calc(100dvh-3.5rem)] lg:self-start lg:pr-1">
               <p className="hidden text-[11px] font-semibold uppercase tracking-wide text-zinc-500 lg:block">
                 Channels
               </p>
-              <div className="shrink-0 rounded-2xl border border-zinc-800/90 bg-zinc-950/80 p-2.5 sm:p-3">
-                <label htmlFor="channel-notes-prompt" className="mb-1.5 block text-xs font-medium text-zinc-400">
+              <div className="shrink-0 rounded-xl border border-zinc-800/90 bg-zinc-950/80 p-2 sm:rounded-2xl sm:p-3">
+                <label htmlFor="channel-notes-prompt" className="mb-1 hidden text-xs font-medium text-zinc-400 sm:block">
                   New channel
                 </label>
-                <div className="flex flex-col gap-2">
-                  <div className="relative w-full min-w-0">
+                <div className="flex flex-row items-stretch gap-1.5 sm:flex-col sm:gap-2">
+                  <div className="relative min-w-0 flex-1">
                     <textarea
                       id="channel-notes-prompt"
                       value={channelSearchText}
@@ -5490,16 +5490,16 @@ export default function PlayerClient({
                         void createChannelWithNotes(channelSearchText)
                         setChannelSearchText('')
                       }}
-                      placeholder="Genres, artists, era, mood…"
+                      placeholder="Genres, artists, era…"
                       rows={1}
-                      className="min-h-9 w-full resize-y rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 pr-8 text-sm leading-snug text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                      className="min-h-8 max-h-16 w-full resize-none rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 pr-7 text-xs leading-snug text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 sm:min-h-9 sm:max-h-none sm:resize-y sm:px-3 sm:py-2 sm:pr-8 sm:text-sm"
                     />
                     {channelSearchText.length > 0 && (
                       <button
                         type="button"
                         onPointerDown={e => e.preventDefault()}
                         onClick={() => setChannelSearchText('')}
-                        className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded text-base leading-none text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                        className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded text-sm leading-none text-zinc-500 transition-colors hover:bg-zinc-800 hover:text-zinc-200 sm:right-1.5 sm:top-1.5 sm:h-7 sm:w-7 sm:text-base"
                         title="Clear"
                         aria-label="Clear"
                       >
@@ -5512,9 +5512,10 @@ export default function PlayerClient({
                     onClick={() => { void createChannelWithNotes(channelSearchText); setChannelSearchText('') }}
                     disabled={!channelSearchText.trim()}
                     title="Create a new channel with this text"
-                    className="h-10 w-full shrink-0 rounded-lg bg-indigo-600 px-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-500 disabled:pointer-events-none disabled:opacity-40"
+                    className="h-8 shrink-0 self-stretch rounded-lg bg-indigo-600 px-2.5 text-xs font-semibold text-white transition-colors hover:bg-indigo-500 disabled:pointer-events-none disabled:opacity-40 sm:h-10 sm:w-full sm:px-3 sm:text-sm"
                   >
-                    Create channel
+                    <span className="sm:hidden">Add</span>
+                    <span className="hidden sm:inline">Create channel</span>
                   </button>
                 </div>
               </div>
