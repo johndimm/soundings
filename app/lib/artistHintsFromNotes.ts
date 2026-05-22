@@ -110,7 +110,7 @@ export function extractArtistHintsFromChannel(input: {
     for (const part of listLine[1].split(/[,;]/)) pushArtistHint(out, seen, part)
   }
 
-  // "only Angine de poitrine", "all Angine de poitrine", etc.
+  // "only Artist Name", "all Artist Name", etc.
   for (const m of notes.matchAll(
     /\b(?:only|just|all|mostly|mainly)\s+([A-ZÀ-ÿ][\w'’.-]*(?:\s+[A-Za-zÀ-ÿ][\w'’.-]*){0,5})/g
   )) {

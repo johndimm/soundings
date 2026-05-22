@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
 import {
@@ -107,11 +107,15 @@ export default function SettingsPage() {
   const [importNotice, setImportNotice] = useState<string | null>(null)
   const importFileRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
+  const refreshFromStorage = useCallback(() => {
     const settings = readSettings()
     setProvider(settings.provider)
     setSource(settings.source)
     setGlobalNotes(settings.globalNotes)
+  }, [])
+
+  useEffect(() => {
+    refreshFromStorage()
     if (SHOW_SERVER_FACTORY_UI) {
       void fetch('/api/factory-defaults', { cache: 'no-store' })
         .then(r => (r.ok ? r.json() : null))
@@ -148,7 +152,10 @@ export default function SettingsPage() {
       void probe('youtube')
     }
     setMounted(true)
-  }, [])
+    const onFocus = () => refreshFromStorage()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshFromStorage])
 
   const handleProviderChange = (p: LLMProvider) => {
     setProvider(p)

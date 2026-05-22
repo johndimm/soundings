@@ -8,7 +8,7 @@ export function normalizeArtistName(s: string): string {
     .replace(/\p{M}/gu, '')
 }
 
-/** True when any credited artist matches the focus act (handles "Angine de poitrine" vs slight variants). */
+/** True when any credited artist matches the focus act (normalized substring match). */
 export function trackMatchesFocusArtist(track: SpotifyTrack, focusArtist: string): boolean {
   const focus = normalizeArtistName(focusArtist)
   if (!focus) return true

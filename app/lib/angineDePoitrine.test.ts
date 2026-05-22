@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { buildUserPrompt } from '@/app/lib/llm'
 import { extractArtistHintsFromChannel, channelNameAsArtistHint, findArtistMatchingChannelName, mergeChannelNameArtistMatch } from '@/app/lib/artistHintsFromNotes'
 import {
-  ANGINE_DE_POITRINE,
   buildCombinedNotes,
   djGenrePrefixes,
   enrichSearchWithFocusArtist,
@@ -10,6 +9,9 @@ import {
 } from '@/app/lib/djArtistFocus'
 import { spotifySearchQueriesForSong, trackMatchesFocusArtist } from '@/app/lib/spotifyArtistSearch'
 import { buildYouTubeSearchAlternates } from '@/app/lib/youtube'
+
+/** Example act name used as a fixture — not special-cased in production code. */
+const ANGINE_DE_POITRINE = 'Angine de poitrine'
 
 describe('Angine de poitrine (artist-focus channel)', () => {
   const selected = [ANGINE_DE_POITRINE]
@@ -74,10 +76,17 @@ describe('Angine de poitrine (artist-focus channel)', () => {
     ).toContain(ANGINE_DE_POITRINE)
   })
 
-  it('does not infer artist constraint from channel title', () => {
+  it('infers artist constraint from channel title when it names an act', () => {
     expect(
       resolveDjArtistConstraint({
         selectedArtists: [],
+        channelName: ANGINE_DE_POITRINE,
+      })
+    ).toBe(ANGINE_DE_POITRINE)
+    expect(
+      resolveDjArtistConstraint({
+        selectedArtists: [],
+        channelName: 'Chamber Music',
       })
     ).toBeUndefined()
     expect(

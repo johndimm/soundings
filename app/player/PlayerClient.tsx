@@ -33,6 +33,10 @@ import {
 import { type PlaybackSource, DEFAULT_PLAYBACK_SOURCE, type CardState } from '@/app/lib/playback/types'
 import { applyFreshLoginIfNeeded } from '@/app/lib/freshLogin'
 import {
+  mergeChannelNameArtistMatch,
+  channelNameAsArtistHint,
+} from '@/app/lib/artistHintsFromNotes'
+import {
   buildCombinedNotes,
   djGenrePrefixes,
   enrichSearchWithFocusArtist,
@@ -61,6 +65,22 @@ function readSettingsGlobalNotes(): string {
     }
   } catch {}
   return ''
+}
+
+const LLM_PROVIDERS: LLMProvider[] = ['anthropic', 'openai', 'deepseek', 'gemini']
+
+/** LLM provider is owned by Settings — player only reads it (never overwrites on persist). */
+function readStoredProvider(): LLMProvider {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { provider?: string }
+      if (parsed.provider && LLM_PROVIDERS.includes(parsed.provider as LLMProvider)) {
+        return parsed.provider as LLMProvider
+      }
+    }
+  } catch {}
+  return 'deepseek'
 }
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
@@ -1180,6 +1200,7 @@ export default function PlayerClient({
       explicit,
       selectedArtists: artistsRef.current,
       artistText: artistTextRef.current,
+      channelName: ch?.name,
     })
   }, [])
 
@@ -1381,8 +1402,6 @@ export default function PlayerClient({
     const deduped = dedupeHistory(ch.cardHistory)
     setCardHistory(deduped); cardHistoryRef.current = deduped
     setSessionHistory(ch.sessionHistory); sessionHistoryRef.current = ch.sessionHistory
-    setPriorProfile(ch.profile); priorProfileRef.current = ch.profile
-    setProfile(ch.profile)
 
     // Restore settings
     const g = ch.genres ?? []; setGenres(g); genresRef.current = g
@@ -1390,8 +1409,20 @@ export default function PlayerClient({
     const tp = ch.timePeriods?.length ? ch.timePeriods.join(' and ') : (ch.timePeriod ?? ''); setTimePeriod(tp); timePeriodRef.current = tp
     const n = ch.notes ?? ''; setNotes(n); notesRef.current = n;
     const r = ch.regions ?? []; setRegions(r); regionsRef.current = r
-    const ar = ch.artists ?? []; setArtists(ar); artistsRef.current = ar
+    const arRaw = ch.artists ?? []
+    const nameHint = channelNameAsArtistHint(ch.name)
+    const ar = mergeChannelNameArtistMatch(
+      ch.name,
+      arRaw,
+      nameHint ? [nameHint, ...arRaw] : arRaw
+    )
+    setArtists(ar)
+    artistsRef.current = ar
     const at = ch.artistText ?? ''; setArtistText(at); artistTextRef.current = at
+
+    setPriorProfile(ch.profile ?? '')
+    priorProfileRef.current = ch.profile ?? ''
+    setProfile(ch.profile ?? '')
     const pop = ch.popularity ?? 50; setPopularity(pop); popularityRef.current = pop
     const disc =
       ch.id === ALL_CHANNEL_ID ? ALL_CHANNEL_DISCOVERY_DEFAULT : CHANNEL_DISCOVERY_DEFAULT
@@ -2432,25 +2463,29 @@ export default function PlayerClient({
     exploreModeRef.current = discovery
   }, [discovery])
 
-  // Persist settings to localStorage whenever they change
+  // Persist DJ fields to localStorage (merge — do not overwrite provider/globalNotes from Settings).
   useEffect(() => {
     if (isGuideDemo) return
     if (!settingsHydrated) return
     try {
-      const s: SavedSettings = {
-        genres,
-        genreText,
-        timePeriod,
-        notes,
-        regions,
-        artists,
-        artistText,
-        popularity,
-        provider,
-        discovery,
-        source,
-      }
-      localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(s))
+      const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+      const existing = raw ? (JSON.parse(raw) as Record<string, unknown>) : {}
+      localStorage.setItem(
+        SETTINGS_STORAGE_KEY,
+        JSON.stringify({
+          ...existing,
+          genres,
+          genreText,
+          timePeriod,
+          notes,
+          regions,
+          artists,
+          artistText,
+          popularity,
+          discovery,
+          source,
+        })
+      )
     } catch {}
   }, [
     genres,
@@ -2461,12 +2496,30 @@ export default function PlayerClient({
     artists,
     artistText,
     popularity,
-    provider,
     discovery,
     source,
     isGuideDemo,
     settingsHydrated,
   ])
+
+  /** Persistent player stays mounted across routes — re-read LLM choice from Settings. */
+  useEffect(() => {
+    if (isGuideDemo) return
+    const p = readStoredProvider()
+    setProvider(p)
+    providerRef.current = p
+  }, [pathname, isGuideDemo])
+
+  useEffect(() => {
+    if (isGuideDemo) return
+    const onFocus = () => {
+      const p = readStoredProvider()
+      setProvider(p)
+      providerRef.current = p
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [isGuideDemo])
 
   // Load settings from localStorage after mount (safe: avoids SSR/client hydration mismatch)
   useEffect(() => {
@@ -2485,7 +2538,9 @@ export default function PlayerClient({
     setTimePeriod(s.timePeriod ?? '')
     setPopularity(s.popularity ?? 50)
     setDiscovery(s.discovery ?? 50)
-    setProvider(s.provider ?? 'deepseek')
+    const storedProvider = readStoredProvider()
+    setProvider(storedProvider)
+    providerRef.current = storedProvider
     const fresh = applyFreshLoginIfNeeded()
     let hydratedSource: PlaybackSource = youtubeOnly ? 'youtube' : readSettingsSource()
     // Spotify session wins over stale `source: youtube` in localStorage (e.g. hub opened /player without ?spotify_login=1).
@@ -2639,11 +2694,6 @@ export default function PlayerClient({
         currentCardRef.current = nextCurrent
         setQueue(restoredQueue)
         queueRef.current = restoredQueue
-        if (active.profile) {
-          setPriorProfile(active.profile)
-          priorProfileRef.current = active.profile
-          setProfile(active.profile)
-        }
         if (active.genres) {
           setGenres(active.genres)
           genresRef.current = active.genres
@@ -2665,13 +2715,25 @@ export default function PlayerClient({
           setRegions(active.regions)
           regionsRef.current = active.regions
         }
-        if (active.artists) {
-          setArtists(active.artists)
-          artistsRef.current = active.artists
+        {
+          const arRaw = active.artists ?? []
+          const hint = channelNameAsArtistHint(active.name)
+          const ar = mergeChannelNameArtistMatch(
+            active.name,
+            arRaw,
+            hint ? [hint, ...arRaw] : arRaw
+          )
+          setArtists(ar)
+          artistsRef.current = ar
         }
         if (active.artistText !== undefined) {
           setArtistText(active.artistText)
           artistTextRef.current = active.artistText
+        }
+        {
+          setPriorProfile(active.profile ?? '')
+          priorProfileRef.current = active.profile ?? ''
+          setProfile(active.profile ?? '')
         }
         if (active.popularity !== undefined) {
           setPopularity(active.popularity)
@@ -3500,6 +3562,7 @@ export default function PlayerClient({
     sessionHistory: ListenEvent[]
     cardHistory: HistoryEntry[]
   } => {
+    // Taste profile (priorProfile) is always per-channel — only session/card history merges on All.
     if (activeChannelIdRef.current !== ALL_CHANNEL_ID) {
       return {
         sessionHistory: sessionHistoryRef.current,

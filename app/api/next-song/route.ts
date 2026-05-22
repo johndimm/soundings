@@ -387,6 +387,15 @@ async function resolveYouTubeSongs(
     const song = songs[i]
     const res = await resolveYouTubeSuggestion(song, opts)
     if (res.status === 'ok') {
+      const focus = opts?.artistConstraint?.trim()
+      if (focus && !trackMatchesFocusArtist(res.track, focus)) {
+        console.warn('[next-song] YouTube result wrong artist for focus; skipping', {
+          focus,
+          got: res.track.artist,
+          search: song.search.slice(0, 60),
+        })
+        continue
+      }
       results.push({
         track: res.track,
         reason: song.reason,

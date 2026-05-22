@@ -1,21 +1,20 @@
+import { channelNameAsArtistHint } from '@/app/lib/artistHintsFromNotes'
 import { stripGenrePrefixesFromSearch, stripParentheticals } from '@/app/lib/spotifyArtistSearch'
 
 /**
- * DJ artist-focus helpers. Artist constraint applies only when the user explicitly
- * sets it (one artist chip, artist text field, or an explicit override) — never from
- * the channel title alone.
+ * DJ artist-focus helpers. Focus applies when the user sets one artist chip, artist text,
+ * names a channel after a real act, or passes an explicit override.
  */
-
-/** Canonical name used in tests and docs for the French coldwave act. */
-export const ANGINE_DE_POITRINE = 'Angine de poitrine'
 
 export type DjArtistFocusHints = {
   explicit?: string
   selectedArtists?: string[]
   artistText?: string
+  /** When the channel title is a band name (not a genre label), treat it as focus. */
+  channelName?: string
 }
 
-/** Resolve single-artist focus for LLM + track lookup (explicit DJ settings only). */
+/** Resolve single-artist focus for LLM + track lookup. */
 export function resolveDjArtistConstraint(hints: DjArtistFocusHints): string | undefined {
   const fromArg = hints.explicit?.trim()
   if (fromArg) return fromArg
@@ -27,6 +26,9 @@ export function resolveDjArtistConstraint(hints: DjArtistFocusHints): string | u
   if (fromText && !fromText.includes(',') && fromText.length >= 3 && fromText.length <= 80) {
     return fromText
   }
+
+  const fromChannel = channelNameAsArtistHint(hints.channelName)
+  if (fromChannel && selected.length === 0) return fromChannel
 
   return undefined
 }

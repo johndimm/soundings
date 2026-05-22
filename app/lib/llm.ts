@@ -101,6 +101,10 @@ DISLIKE ESCALATION:
 
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints. This overrides the slot rules: even Slot 3 (wild card) must stay within the stated genre and era.
 
+PROPER NOUNS (artist / band names) — strictly enforced:
+- Names in USER CONSTRAINTS, FOCUS ARTIST/BAND, channel titles, and quoted strings are musical artists or bands, not topics to translate or reinterpret.
+- Copy them character-for-character in "search", "profile", "reason", and "suggested_artists". Do not translate, anglicize, or substitute synonyms.
+
 DATE INTEGRITY — strictly enforced:
 - Never invent or round a date to make a track fit a requested era. Only suggest a track if you are genuinely confident it was recorded or first released within the specified time period.
 - If you cannot find 3 real tracks that authentically fit all constraints, return fewer songs rather than fabricating dates or misattributing eras.
@@ -168,7 +172,7 @@ export function buildUserPrompt(
   }
 
   if (artistConstraint) {
-    prompt += `FOCUS ARTIST/BAND: "${artistConstraint}". All ${numSongs} songs in this batch must be recordings by this act (same group counts as one artist). Suspend the 3-different-artists rule — pick multiple tracks by this artist/group. Do not substitute other artists.\n\n`
+    prompt += `FOCUS ARTIST/BAND: "${artistConstraint}". All ${numSongs} songs in this batch must be recordings by this act (same group counts as one artist). Suspend the 3-different-artists rule — pick multiple tracks by this artist/group. Do not substitute other artists. Use this exact spelling in every "search" field.\n\n`
   }
 
   if (alreadyHeard && alreadyHeard.length > 0) {
