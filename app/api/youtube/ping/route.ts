@@ -3,10 +3,16 @@ import {
   isYouTubeQuotaExceeded,
   getYouTubeQuotaWaitMs,
   getYouTubeCreditsRemaining,
+  getYouTubeQuotaStatus,
+  probeYouTubeQuotaWhenBackoffActive,
   searchYouTube,
 } from '@/app/lib/youtube'
 
 export async function GET() {
+  if (getYouTubeQuotaStatus().googleBackoffActive) {
+    await probeYouTubeQuotaWhenBackoffActive()
+  }
+
   if (isYouTubeQuotaExceeded()) {
     return NextResponse.json({
       ok: false,

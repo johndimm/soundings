@@ -2358,6 +2358,8 @@ export default function PlayerClient({
         }
         if (d.quotaExceeded && typeof d.retryAfterMs === 'number' && d.retryAfterMs > 0) {
           setBackoffFor('youtube', Date.now() + d.retryAfterMs)
+        } else if (!d.quotaExceeded) {
+          setBackoffFor('youtube', null)
         }
       } catch {
         /* ignore */

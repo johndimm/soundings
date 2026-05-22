@@ -20,6 +20,7 @@ type YTQuotaStatus = {
   localLimitReached?: boolean
   retryAfterMs: number
   resetAt: string | null
+  probe?: { probed: boolean; googleAvailable: boolean; clearedBackoff: boolean; reason?: string }
 }
 
 function readYoutubeClientBan(): number | null {
@@ -334,13 +335,18 @@ export default function StatusPage() {
               {YOUTUBE_CREDITS_PER_VIDEOS_LIST} per call. Cached song lookups are free. Refreshes every 5s (status
               endpoint only). Resets at midnight Pacific.
             </p>
+            {ytQuota.probe?.clearedBackoff && (
+              <p className="text-xs text-green-900 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                Quota probe succeeded — server backoff cleared (1-credit <code>videos.list</code> check).
+              </p>
+            )}
             {ytQuota.googleBackoffActive && !ytQuota.localLimitReached && (
               <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                 Google refused a <code className="text-amber-950">search.list</code> on this API key (often because{' '}
-                <strong>Vercel/production</strong> already spent today&apos;s 110,000 project credits). This machine
+                <strong>Vercel/production</strong> already spent today&apos;s project credits). This machine
                 has only logged <strong>{ytQuota.creditsUsed.toLocaleString()}</strong> credits locally — the meter
-                is not wrong. Wait for Google&apos;s daily reset (~midnight Pacific, plus a short buffer), then use{' '}
-                <strong>Clear backoff</strong> below and <strong>Test YouTube search</strong> to confirm.
+                is not wrong. On load we probe with <code>videos.list</code> (1 credit); if Google accepts it, backoff
+                clears automatically. Otherwise wait for the daily reset (~midnight Pacific) or rotate the API key.
               </p>
             )}
             {(ytQuota.quotaExceeded || ytClientBan) && (

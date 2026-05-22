@@ -242,6 +242,102 @@ export function clearYouTubeQuotaBackoff(): void {
   console.info('[youtube] quota backoff cleared')
 }
 
+/** Well-known public video — used only for 1-credit quota probes. */
+const YOUTUBE_QUOTA_PROBE_VIDEO_ID = 'M7lc1UVf-VE'
+
+export type YouTubeQuotaProbeResult = {
+  probed: boolean
+  googleAvailable: boolean
+  clearedBackoff: boolean
+  httpStatus?: number
+  reason?: string
+}
+
+let quotaProbeInFlight: Promise<YouTubeQuotaProbeResult> | null = null
+
+/**
+ * When server backoff is active, call Google (videos.list, 1 credit) to see if quota
+ * was reset or the key was rotated — clears stale quotaExceededUntil on success.
+ */
+export async function probeYouTubeQuotaWhenBackoffActive(): Promise<YouTubeQuotaProbeResult> {
+  rollQuotaIfNewDay()
+  const backoffActive = quotaExceededUntil > 0 && Date.now() < quotaExceededUntil
+  if (!backoffActive) {
+    return { probed: false, googleAvailable: true, clearedBackoff: false }
+  }
+
+  if (quotaProbeInFlight) return quotaProbeInFlight
+
+  quotaProbeInFlight = (async (): Promise<YouTubeQuotaProbeResult> => {
+    const apiKey = getApiKey()
+    if (!apiKey) {
+      return { probed: true, googleAvailable: false, clearedBackoff: false, reason: 'no_api_key' }
+    }
+
+    const params = new URLSearchParams({
+      part: 'id',
+      id: YOUTUBE_QUOTA_PROBE_VIDEO_ID,
+      key: apiKey,
+    })
+
+    console.info('[youtube] probing quota via videos.list (1 credit)')
+    let res: Response
+    try {
+      res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+    } catch (err) {
+      console.warn('[youtube] quota probe network error', err)
+      return { probed: true, googleAvailable: false, clearedBackoff: false, reason: 'network_error' }
+    }
+
+    if (res.ok) {
+      chargeYouTubeCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST, 'videos.list (quota probe)')
+      clearYouTubeQuotaBackoff()
+      console.info('[youtube] quota probe OK — cleared server backoff')
+      return { probed: true, googleAvailable: true, clearedBackoff: true, httpStatus: res.status }
+    }
+
+    if (res.status === 403) {
+      const body = (await res.json().catch(() => null)) as {
+        error?: { errors?: Array<{ reason?: string }> }
+      } | null
+      const reason = body?.error?.errors?.[0]?.reason
+      if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+        markQuotaExceeded()
+        console.warn('[youtube] quota probe: still over quota', reason)
+        return {
+          probed: true,
+          googleAvailable: false,
+          clearedBackoff: false,
+          httpStatus: 403,
+          reason: reason ?? 'quotaExceeded',
+        }
+      }
+      console.warn('[youtube] quota probe 403', reason ?? body)
+      return {
+        probed: true,
+        googleAvailable: false,
+        clearedBackoff: false,
+        httpStatus: 403,
+        reason: reason ?? 'forbidden',
+      }
+    }
+
+    const text = await res.text().catch(() => '')
+    console.warn(`[youtube] quota probe HTTP ${res.status}`, text.slice(0, 120))
+    return {
+      probed: true,
+      googleAvailable: false,
+      clearedBackoff: false,
+      httpStatus: res.status,
+      reason: `http_${res.status}`,
+    }
+  })().finally(() => {
+    quotaProbeInFlight = null
+  })
+
+  return quotaProbeInFlight
+}
+
 export function isYouTubeQuotaExceeded(): boolean {
   rollQuotaIfNewDay()
   if (creditsUsed >= DAILY_CREDITS) return true
