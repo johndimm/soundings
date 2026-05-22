@@ -1,8 +1,8 @@
 import Link from 'next/link'
 
-const STATUS_URL = 'https://earprint-six.vercel.app/api/spotify/status'
-const LOGIN_URL = 'https://earprint-six.vercel.app/api/auth/login'
-const LOGOUT_URL = 'https://earprint-six.vercel.app/api/auth/logout'
+const STATUS_URL = 'https://soundings-music.vercel.app/api/spotify/status'
+const LOGIN_URL = 'https://soundings-music.vercel.app/api/auth/login'
+const LOGOUT_URL = 'https://soundings-music.vercel.app/api/auth/logout'
 
 export default function SpotifyLinksPage() {
   return (

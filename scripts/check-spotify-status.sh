@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 HOST="${SPOTIFY_STATUS_HOST:-http://127.0.0.1:8000}"
-VERCEL_URL="${SPOTIFY_VERCEL_STATUS_URL:-https://earprint-six.vercel.app}"
+VERCEL_URL="${SPOTIFY_VERCEL_STATUS_URL:-https://soundings-music.vercel.app}"
 TRACK_URI="${SPOTIFY_TEST_URI:-spotify:track:11dFghVXANMlKmJXsNCbNl}"
 
 check_status() {

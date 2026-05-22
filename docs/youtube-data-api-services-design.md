@@ -164,7 +164,7 @@ Update this section with your legal / technical contact for the product submitte
 
 - **Name:**  John Dimm
 - **Email:**  john.leansoftware@gmail.com
-- **App / deployment URL (if public):**  https://earprint-six.vercel.app/player
+- **App / deployment URL (if public):**  https://soundings-music.vercel.app/player
 
 ---
 

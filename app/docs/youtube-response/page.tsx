@@ -2,7 +2,7 @@ import AudioSilencer from '@/app/components/AudioSilencer'
 
 export const metadata = { title: 'YouTube ToS Violation Response – Soundings' }
 
-const BASE = 'https://earprint-six.vercel.app'
+const BASE = 'https://soundings-music.vercel.app'
 
 export default function YouTubeResponse() {
   return (
@@ -25,16 +25,13 @@ export default function YouTubeResponse() {
           <p className="text-zinc-200 leading-relaxed">
             <strong className="text-white">Note — application rename and URL change:</strong> Since
             this report was filed, the application has been renamed from <strong className="text-white">Earprint</strong> to{' '}
-            <strong className="text-white">Soundings</strong> and its primary URL has moved to{' '}
-            <a href="https://film-and-music.vercel.app" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
-              film-and-music.vercel.app
-            </a>. The original URL (
-            <a href="https://earprint-six.vercel.app" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
-              earprint-six.vercel.app
-            </a>) remains live. Both deployments use the same YouTube Data API key and the same
+            <strong className="text-white">Soundings</strong> and its primary URL is{' '}
+            <a href="https://soundings-music.vercel.app" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
+              soundings-music.vercel.app
+            </a>. The deployment uses the same YouTube Data API key and the same
             Google Cloud project (<strong className="text-white">390748913178</strong>), which has been
             renamed to <strong className="text-white">Soundings</strong> in the API Console. All
-            compliance improvements described below are in effect at both URLs.
+            compliance improvements described below are in effect at this URL.
           </p>
         </div>
 
