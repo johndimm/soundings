@@ -1,4 +1,8 @@
+import type { Track } from '@/app/lib/playback/types'
 import type { SpotifyTrack } from '@/app/lib/spotify'
+
+/** Minimum fields needed to compare credited artists (Spotify, YouTube, etc.). */
+export type TrackArtistCredits = Pick<Track, 'artist' | 'artists'>
 
 export function normalizeArtistName(s: string): string {
   return s
@@ -9,7 +13,7 @@ export function normalizeArtistName(s: string): string {
 }
 
 /** True when any credited artist matches the focus act (normalized substring match). */
-export function trackMatchesFocusArtist(track: SpotifyTrack, focusArtist: string): boolean {
+export function trackMatchesFocusArtist(track: TrackArtistCredits, focusArtist: string): boolean {
   const focus = normalizeArtistName(focusArtist)
   if (!focus) return true
   const names = [track.artist, ...(track.artists ?? [])].map(normalizeArtistName).filter(Boolean)
