@@ -8,7 +8,11 @@ import {
 } from '@/app/lib/youtubeResolveTestDefaults'
 import type { SongSuggestion } from '@/app/lib/llm'
 import { extractYoutubeVideoId, extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
-import { YOUTUBE_DAILY_SEARCH_QUOTA } from '@/app/lib/youtubeQuota'
+import {
+  YOUTUBE_CREDITS_PER_SEARCH,
+  YOUTUBE_CREDITS_PER_VIDEOS_LIST,
+  YOUTUBE_DAILY_CREDITS,
+} from '@/app/lib/youtubeQuota'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
@@ -84,11 +88,11 @@ for (const [key, entry] of searchCache) {
 }
 
 const QUOTA_FILE = join(process.cwd(), '.youtube-quota.json')
-const DAILY_QUOTA = YOUTUBE_DAILY_SEARCH_QUOTA
+const DAILY_CREDITS = YOUTUBE_DAILY_CREDITS
 
 type QuotaDisk = {
   ptDate: string
-  searchesUsed: number
+  creditsUsed: number
   quotaExceededUntil: number
 }
 
@@ -100,24 +104,32 @@ function loadQuotaState(): QuotaDisk {
   const today = pacificDateKey()
   try {
     if (existsSync(QUOTA_FILE)) {
-      const raw = JSON.parse(readFileSync(QUOTA_FILE, 'utf-8')) as Partial<QuotaDisk>
-      if (raw.ptDate === today && typeof raw.searchesUsed === 'number') {
+      const raw = JSON.parse(readFileSync(QUOTA_FILE, 'utf-8')) as Partial<
+        QuotaDisk & { searchesUsed?: number }
+      >
+      if (raw.ptDate === today) {
+        let creditsUsed = 0
+        if (typeof raw.creditsUsed === 'number') {
+          creditsUsed = Math.max(0, raw.creditsUsed)
+        } else if (typeof raw.searchesUsed === 'number') {
+          creditsUsed = Math.max(0, raw.searchesUsed) * YOUTUBE_CREDITS_PER_SEARCH
+        }
         return {
           ptDate: today,
-          searchesUsed: Math.max(0, raw.searchesUsed),
+          creditsUsed,
           quotaExceededUntil: typeof raw.quotaExceededUntil === 'number' ? raw.quotaExceededUntil : 0,
         }
       }
     }
   } catch {}
-  return { ptDate: today, searchesUsed: 0, quotaExceededUntil: 0 }
+  return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
 }
 
 function persistQuotaState() {
   try {
     const payload: QuotaDisk = {
       ptDate: pacificDateKey(),
-      searchesUsed,
+      creditsUsed,
       quotaExceededUntil,
     }
     writeFileSync(QUOTA_FILE, JSON.stringify(payload))
@@ -125,37 +137,63 @@ function persistQuotaState() {
 }
 
 let quotaPtDate = pacificDateKey()
-let { searchesUsed, quotaExceededUntil } = (() => {
+let { creditsUsed, quotaExceededUntil } = (() => {
   const s = loadQuotaState()
   quotaPtDate = s.ptDate
-  return { searchesUsed: s.searchesUsed, quotaExceededUntil: s.quotaExceededUntil }
+  return { creditsUsed: s.creditsUsed, quotaExceededUntil: s.quotaExceededUntil }
 })()
 
 function rollQuotaIfNewDay() {
   const today = pacificDateKey()
   if (quotaPtDate === today) return
   quotaPtDate = today
-  searchesUsed = 0
+  creditsUsed = 0
   quotaExceededUntil = 0
   persistQuotaState()
-  console.info('[youtube] new Pacific day — search quota counter reset')
+  console.info('[youtube] new Pacific day — API credit counter reset')
 }
 
-export { YOUTUBE_DAILY_SEARCH_QUOTA } from '@/app/lib/youtubeQuota'
-
-export function getYouTubeSearchesUsed(): number {
-  return searchesUsed
+function chargeYouTubeCredits(credits: number, label: string) {
+  if (credits <= 0) return
+  rollQuotaIfNewDay()
+  creditsUsed += credits
+  persistQuotaState()
+  console.info(
+    `[youtube] +${credits} credits (${label}); ${getYouTubeCreditsRemaining().toLocaleString()} remaining today`
+  )
 }
 
+export {
+  YOUTUBE_DAILY_CREDITS,
+  YOUTUBE_CREDITS_PER_SEARCH,
+  YOUTUBE_CREDITS_PER_VIDEOS_LIST,
+} from '@/app/lib/youtubeQuota'
+
+export function getYouTubeCreditsUsed(): number {
+  rollQuotaIfNewDay()
+  return creditsUsed
+}
+
+export function getYouTubeCreditsRemaining(): number {
+  rollQuotaIfNewDay()
+  return Math.max(0, DAILY_CREDITS - creditsUsed)
+}
+
+/** @deprecated Prefer getYouTubeCreditsRemaining() / 100 */
 export function getYouTubeSearchesRemaining(): number {
-  return Math.max(0, DAILY_QUOTA - searchesUsed)
+  return Math.floor(getYouTubeCreditsRemaining() / YOUTUBE_CREDITS_PER_SEARCH)
 }
 
 export type YouTubeQuotaStatus = {
-  dailyQuota: number
-  searchesUsed: number
-  searchesRemaining: number
+  dailyCredits: number
+  creditsUsed: number
+  creditsRemaining: number
+  /** Server backoff after Google returned quotaExceeded (may differ from local counter). */
   quotaExceeded: boolean
+  /** Google 403 backoff active while local credits remain (shared API key / production usage). */
+  googleBackoffActive: boolean
+  /** True when this server's tracked credits for today are exhausted. */
+  localLimitReached: boolean
   retryAfterMs: number
   resetAt: string | null
 }
@@ -163,16 +201,20 @@ export type YouTubeQuotaStatus = {
 export function getYouTubeQuotaStatus(): YouTubeQuotaStatus {
   rollQuotaIfNewDay()
   const retryAfterMs = getYouTubeQuotaWaitMs()
+  const googleBackoff = Date.now() < quotaExceededUntil
   const exceeded = isYouTubeQuotaExceeded()
+  const remaining = getYouTubeCreditsRemaining()
   let resetAt: string | null = null
-  if (exceeded && retryAfterMs > 0) {
+  if (googleBackoff && retryAfterMs > 0) {
     resetAt = new Date(Date.now() + retryAfterMs).toISOString()
   }
   return {
-    dailyQuota: DAILY_QUOTA,
-    searchesUsed,
-    searchesRemaining: getYouTubeSearchesRemaining(),
+    dailyCredits: DAILY_CREDITS,
+    creditsUsed,
+    creditsRemaining: remaining,
     quotaExceeded: exceeded,
+    googleBackoffActive: googleBackoff,
+    localLimitReached: remaining === 0,
     retryAfterMs,
     resetAt,
   }
@@ -192,8 +234,27 @@ function markQuotaExceeded() {
   console.warn(`[youtube] quota exceeded — backing off until ${resetUTC.toISOString()}`)
 }
 
+/** Clear server backoff after a successful search or when the window has passed. */
+export function clearYouTubeQuotaBackoff(): void {
+  if (quotaExceededUntil === 0) return
+  quotaExceededUntil = 0
+  persistQuotaState()
+  console.info('[youtube] quota backoff cleared')
+}
+
 export function isYouTubeQuotaExceeded(): boolean {
+  rollQuotaIfNewDay()
+  if (creditsUsed >= DAILY_CREDITS) return true
+  if (quotaExceededUntil > 0 && Date.now() >= quotaExceededUntil) {
+    clearYouTubeQuotaBackoff()
+    return false
+  }
   return Date.now() < quotaExceededUntil
+}
+
+function wouldExceedCredits(cost: number): boolean {
+  rollQuotaIfNewDay()
+  return creditsUsed + cost > DAILY_CREDITS
 }
 
 export function getYouTubeQuotaWaitMs(): number {
@@ -396,6 +457,11 @@ async function pickBestEmbeddableVideoId(
   })
   let statusById = new Map<string, boolean | undefined>()
   try {
+    if (wouldExceedCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST)) {
+      console.warn('[youtube] skipping videos.list — local daily credits exhausted')
+      return null
+    }
+    chargeYouTubeCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST, 'videos.list')
     const res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
     if (res.ok) {
       const data = (await res.json()) as {
@@ -457,6 +523,10 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     console.warn(`[youtube] quota backoff active (${Math.round(getYouTubeQuotaWaitMs() / 60000)}m remaining)`)
     return { status: 'quota_exceeded' }
   }
+  if (wouldExceedCredits(YOUTUBE_CREDITS_PER_SEARCH)) {
+    console.warn('[youtube] local daily credit budget exhausted — skipping search.list')
+    return { status: 'quota_exceeded' }
+  }
 
   const cacheKey = query.toLowerCase().trim()
   const cached = searchCache.get(cacheKey)
@@ -496,9 +566,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
     key: apiKey,
   })
 
-  searchesUsed++
-  persistQuotaState()
-  console.info(`[youtube] searching: "${query}" (${getYouTubeSearchesRemaining()} remaining)`)
+  chargeYouTubeCredits(YOUTUBE_CREDITS_PER_SEARCH, `search.list: "${query}"`)
 
   let res: Response
   try {
@@ -589,6 +657,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   videoIdToKey.set(videoId, cacheKey)
   for (const c of candidates) videoIdToKey.set(c.videoId, cacheKey)
   persistCache(searchCache)
+  clearYouTubeQuotaBackoff()
   console.info(`[youtube] found: "${title}" (${videoId}) + ${candidates.length} fallback candidates`)
   return { status: 'ok', track }
 }

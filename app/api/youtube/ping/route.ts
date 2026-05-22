@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import {
   isYouTubeQuotaExceeded,
   getYouTubeQuotaWaitMs,
-  getYouTubeSearchesRemaining,
+  getYouTubeCreditsRemaining,
   searchYouTube,
 } from '@/app/lib/youtube'
 
@@ -12,8 +12,8 @@ export async function GET() {
       ok: false,
       quotaExceeded: true,
       retryAfterMs: getYouTubeQuotaWaitMs(),
-      searchesRemaining: 0,
-      message: 'YouTube quota exceeded',
+      creditsRemaining: getYouTubeCreditsRemaining(),
+      message: 'YouTube quota exceeded (server backoff — see Status for credit count)',
     })
   }
 
@@ -24,7 +24,7 @@ export async function GET() {
       ok: false,
       quotaExceeded: true,
       retryAfterMs: getYouTubeQuotaWaitMs(),
-      searchesRemaining: 0,
+      creditsRemaining: getYouTubeCreditsRemaining(),
       message: 'YouTube quota exceeded',
     })
   }
@@ -32,7 +32,7 @@ export async function GET() {
     return NextResponse.json({
       ok: false,
       quotaExceeded: false,
-      searchesRemaining: getYouTubeSearchesRemaining(),
+      creditsRemaining: getYouTubeCreditsRemaining(),
       message: result.message,
     })
   }
@@ -40,7 +40,7 @@ export async function GET() {
   return NextResponse.json({
     ok: true,
     quotaExceeded: false,
-    searchesRemaining: getYouTubeSearchesRemaining(),
+    creditsRemaining: getYouTubeCreditsRemaining(),
     message: 'YouTube is responding normally',
   })
 }

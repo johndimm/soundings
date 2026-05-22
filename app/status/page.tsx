@@ -2,15 +2,22 @@
 
 import { useEffect, useState } from 'react'
 import { readStats, clearStats, type CallStats } from '@/app/lib/callTracker'
-import { YOUTUBE_CREDITS_PER_SEARCH, YOUTUBE_DAILY_CREDITS, YOUTUBE_LOW_SEARCHES_THRESHOLD } from '@/app/lib/youtubeQuota'
+import {
+  YOUTUBE_CREDITS_PER_SEARCH,
+  YOUTUBE_CREDITS_PER_VIDEOS_LIST,
+  YOUTUBE_DAILY_CREDITS,
+  YOUTUBE_LOW_CREDITS_THRESHOLD,
+} from '@/app/lib/youtubeQuota'
 
 type PingResult = { ok: boolean; status: number; latencyMs: number; message: string; retryAfterMs?: number }
-type YTPingResult = { ok: boolean; quotaExceeded: boolean; searchesRemaining: number; retryAfterMs?: number; message: string }
+type YTPingResult = { ok: boolean; quotaExceeded: boolean; creditsRemaining: number; retryAfterMs?: number; message: string }
 type YTQuotaStatus = {
-  dailyQuota: number
-  searchesUsed: number
-  searchesRemaining: number
+  dailyCredits: number
+  creditsUsed: number
+  creditsRemaining: number
   quotaExceeded: boolean
+  googleBackoffActive?: boolean
+  localLimitReached?: boolean
   retryAfterMs: number
   resetAt: string | null
 }
@@ -161,6 +168,8 @@ export default function StatusPage() {
   const [pingResult, setPingResult] = useState<PingResult | null>(null)
   const [ytPinging, setYtPinging] = useState(false)
   const [ytPingResult, setYtPingResult] = useState<YTPingResult | null>(null)
+  const [ytResetting, setYtResetting] = useState(false)
+  const [ytResetMsg, setYtResetMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const refresh = () => {
@@ -211,6 +220,35 @@ export default function StatusPage() {
     }
   }
 
+  const clearYoutubePlayerBackoff = () => {
+    try {
+      localStorage.removeItem('youtubeRateLimitUntil')
+    } catch {}
+    setYtClientBan(null)
+    setYtResetMsg('Cleared player backoff in this browser.')
+  }
+
+  const clearYoutubeServerBackoff = async () => {
+    setYtResetting(true)
+    setYtResetMsg(null)
+    try {
+      const res = await fetch('/api/youtube/reset-backoff', { method: 'POST' })
+      const data = (await res.json()) as { ok?: boolean; message?: string; error?: string }
+      if (!res.ok) {
+        setYtResetMsg(data.error ?? `Reset failed (${res.status})`)
+        return
+      }
+      clearYoutubePlayerBackoff()
+      const statusRes = await fetch('/api/youtube/status')
+      if (statusRes.ok) setYtQuota((await statusRes.json()) as YTQuotaStatus)
+      setYtResetMsg(data.message ?? 'Server backoff cleared.')
+    } catch {
+      setYtResetMsg('Reset request failed (network error).')
+    } finally {
+      setYtResetting(false)
+    }
+  }
+
   const pingYouTube = async () => {
     setYtPinging(true)
     setYtPingResult(null)
@@ -219,7 +257,7 @@ export default function StatusPage() {
       const data: YTPingResult = await res.json()
       setYtPingResult(data)
     } catch {
-      setYtPingResult({ ok: false, quotaExceeded: false, searchesRemaining: 0, message: 'Request failed (network error)' })
+      setYtPingResult({ ok: false, quotaExceeded: false, creditsRemaining: 0, message: 'Request failed (network error)' })
     } finally {
       setYtPinging(false)
     }
@@ -243,33 +281,37 @@ export default function StatusPage() {
 
       {/* YouTube daily quota (server) */}
       <section className="mb-8">
-        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">YouTube search quota (today, Pacific)</h2>
+        <h2 className="text-xs text-zinc-500 uppercase tracking-wide mb-3">YouTube API credits (today, Pacific)</h2>
         {ytQuota ? (
           <div className="rounded-xl border p-4 space-y-3" style={{
-            borderColor: ytQuota.quotaExceeded ? '#7f1d1d' : ytQuota.searchesRemaining <= YOUTUBE_LOW_SEARCHES_THRESHOLD ? '#854d0e' : '#e4e4e7',
-            backgroundColor: ytQuota.quotaExceeded ? '#fef2f2' : ytQuota.searchesRemaining <= YOUTUBE_LOW_SEARCHES_THRESHOLD ? '#fffbeb' : '#fafafa',
+            borderColor: ytQuota.quotaExceeded ? '#7f1d1d' : ytQuota.creditsRemaining <= YOUTUBE_LOW_CREDITS_THRESHOLD ? '#854d0e' : '#e4e4e7',
+            backgroundColor: ytQuota.quotaExceeded ? '#fef2f2' : ytQuota.creditsRemaining <= YOUTUBE_LOW_CREDITS_THRESHOLD ? '#fffbeb' : '#fafafa',
           }}>
             <div className="flex flex-wrap gap-8">
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Used</p>
                 <p className={`text-xl font-bold ${ytQuota.quotaExceeded ? 'text-red-600' : 'text-zinc-900'}`}>
-                  {ytQuota.searchesUsed} / {ytQuota.dailyQuota}
+                  {ytQuota.creditsUsed.toLocaleString()} / {ytQuota.dailyCredits.toLocaleString()}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Remaining</p>
-                <p className={`text-xl font-bold ${ytQuota.searchesRemaining === 0 ? 'text-red-600' : 'text-zinc-900'}`}>
-                  {ytQuota.searchesRemaining}
+                <p className={`text-xl font-bold ${ytQuota.creditsRemaining === 0 ? 'text-red-600' : 'text-zinc-900'}`}>
+                  {ytQuota.creditsRemaining.toLocaleString()}
                 </p>
               </div>
               <div>
                 <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">Server status</p>
                 {ytQuota.quotaExceeded ? (
                   <p className="text-red-600 text-sm font-medium">
-                    Quota exceeded
+                    {ytQuota.localLimitReached
+                      ? 'Local daily limit reached'
+                      : ytQuota.googleBackoffActive
+                        ? 'Google API blocked (shared key)'
+                        : 'YouTube API blocked'}
                     {ytQuota.resetAt && (
                       <span className="text-zinc-600 font-normal ml-1">
-                        — clears ~{new Date(ytQuota.resetAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                        — retry after ~{new Date(ytQuota.resetAt).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
                       </span>
                     )}
                   </p>
@@ -287,9 +329,42 @@ export default function StatusPage() {
               )}
             </div>
             <p className="text-xs text-zinc-600">
-              Counts real <code className="text-zinc-500">search.list</code> calls on this server (cached lookups are free).
-              Refreshes every 5s — no API cost. Resets at midnight Pacific.
+              Tracks Data API credits on this server: <code className="text-zinc-500">search.list</code> ={' '}
+              {YOUTUBE_CREDITS_PER_SEARCH}, <code className="text-zinc-500">videos.list</code> ={' '}
+              {YOUTUBE_CREDITS_PER_VIDEOS_LIST} per call. Cached song lookups are free. Refreshes every 5s (status
+              endpoint only). Resets at midnight Pacific.
             </p>
+            {ytQuota.googleBackoffActive && !ytQuota.localLimitReached && (
+              <p className="text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Google refused a <code className="text-amber-950">search.list</code> on this API key (often because{' '}
+                <strong>Vercel/production</strong> already spent today&apos;s 110,000 project credits). This machine
+                has only logged <strong>{ytQuota.creditsUsed.toLocaleString()}</strong> credits locally — the meter
+                is not wrong. Wait for Google&apos;s daily reset (~midnight Pacific, plus a short buffer), then use{' '}
+                <strong>Clear backoff</strong> below and <strong>Test YouTube search</strong> to confirm.
+              </p>
+            )}
+            {(ytQuota.quotaExceeded || ytClientBan) && (
+              <div className="flex flex-wrap items-center gap-0.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => void clearYoutubeServerBackoff()}
+                  disabled={ytResetting}
+                  className="text-xs px-3 py-1.5 rounded border border-zinc-400 text-zinc-800 hover:bg-zinc-100 disabled:opacity-50"
+                >
+                  {ytResetting ? 'Clearing…' : 'Clear server backoff (dev)'}
+                </button>
+                <button
+                  type="button"
+                  onClick={clearYoutubePlayerBackoff}
+                  className="text-xs px-3 py-1.5 rounded border border-zinc-400 text-zinc-800 hover:bg-zinc-100"
+                >
+                  Clear player backoff (browser)
+                </button>
+              </div>
+            )}
+            {ytResetMsg && (
+              <p className="text-xs text-zinc-600">{ytResetMsg}</p>
+            )}
           </div>
         ) : (
           <p className="text-zinc-600 text-xs">Loading YouTube quota…</p>
@@ -354,7 +429,7 @@ export default function StatusPage() {
             <div className={`text-xs px-3 py-2 rounded border ${ytPingResult.ok ? 'border-green-800 bg-green-950 text-green-300' : 'border-red-900 bg-red-950 text-red-300'}`}>
               <span className="font-bold">{ytPingResult.ok ? '✓' : '✗'}</span>
               {' · '}
-              {ytPingResult.searchesRemaining} searches remaining today
+              {ytPingResult.creditsRemaining.toLocaleString()} credits remaining today
               {' · '}
               {ytPingResult.quotaExceeded
                 ? `Quota exceeded — resets ${ytPingResult.retryAfterMs ? new Date(Date.now() + ytPingResult.retryAfterMs).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'soon'}`
