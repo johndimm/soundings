@@ -5,7 +5,6 @@ import {
 } from '@/app/lib/llm'
 import {
   extractArtistHintsFromChannel,
-  isGenreOrStyleTerm,
   mergeArtistHintLists,
 } from '@/app/lib/artistHintsFromNotes'
 export type SuggestArtistsInput = {
@@ -170,7 +169,7 @@ async function askSuggestArtists(
 }
 
 export function filterSuggestedArtistNames(names: string[]): string[] {
-  return names.filter(n => n.trim() && !isGenreOrStyleTerm(n))
+  return names.filter(n => n.trim())
 }
 
 export async function suggestArtistsFromConstraints(

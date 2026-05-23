@@ -79,12 +79,6 @@ NAVIGATION RULES (ratings are ★0.5–★5 in half-star steps; skipped = no sig
 - ★3: neutral. Mildly interesting but not a strong pull in either direction.
 - (skipped): no taste signal — treat as unheard.
 
-ARTIST RULE — default (exploration mode):
-- NEVER put two songs by the same artist (or the same group) in the same batch of 3.
-- Every batch must have 3 different artists.
-EXCEPTION — artist-focus mode: When USER CONSTRAINTS or the prompt name a single FOCUS ARTIST/BAND, all songs in that batch must be by that act. The 3-different-artists rule is suspended; multiple tracks by the same group in one batch are required.
-EXCEPTION — artist-list mode: When USER CONSTRAINTS list specific artists only, every song must be by one of those named acts (vary among them when several are listed; never substitute unrelated artists).
-
 THE 3-SLOT RULE — every batch of 3 must serve distinct purposes:
 - Slot 1 — NEARBY: If there are likes, pick something musically adjacent to a liked song (similar instruments, era, energy, or mood). If no likes yet, probe a different corner of the most-visited area.
 - Slot 2 — FAR: Pick from a region of the space that has NOT been visited yet. Maximize musical distance from everything heard. This is mandatory.
@@ -102,7 +96,7 @@ DISLIKE ESCALATION:
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints. This overrides the slot rules: even Slot 3 (wild card) must stay within the stated genre and era.
 
 PROPER NOUNS (artist / band names) — strictly enforced:
-- Names in USER CONSTRAINTS, FOCUS ARTIST/BAND, channel titles, and quoted strings are musical artists or bands, not topics to translate or reinterpret.
+- Names in USER CONSTRAINTS and quoted strings are musical artists or bands, not topics to translate or reinterpret.
 - Copy them character-for-character in "search", "profile", "reason", and "suggested_artists". Do not translate, anglicize, or substitute synonyms.
 
 DATE INTEGRITY — strictly enforced:
@@ -159,7 +153,6 @@ function slotInstructions(mode: ExploreMode, hasLikes: boolean, numSongs: number
 export function buildUserPrompt(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
-  artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
   mode: ExploreMode = 50,
@@ -169,10 +162,6 @@ export function buildUserPrompt(
 
   if (notes?.trim()) {
     prompt += `USER CONSTRAINTS (must be followed for every song): ${notes.trim()}\n\n`
-  }
-
-  if (artistConstraint) {
-    prompt += `FOCUS ARTIST/BAND: "${artistConstraint}". All ${numSongs} songs in this batch must be recordings by this act (same group counts as one artist). Suspend the 3-different-artists rule — pick multiple tracks by this artist/group. Do not substitute other artists. Use this exact spelling in every "search" field.\n\n`
   }
 
   if (alreadyHeard && alreadyHeard.length > 0) {
@@ -189,11 +178,7 @@ export function buildUserPrompt(
   }
 
   if (sessionHistory.length === 0 && !priorProfile) {
-    if (artistConstraint) {
-      prompt += `FIRST TURN — artist-focus: All ${numSongs} songs must be by "${artistConstraint}". Pick ${numSongs} different tracks by this act. Ignore the default "maximally distant across the space" first-turn rule.\n`
-    } else {
-      prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the space. Match any constraints above.`
-    }
+    prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the space. Match any constraints above.`
     return prompt
   }
 
@@ -221,7 +206,6 @@ export function buildUserPrompt(
 async function askAnthropic(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
-  artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
@@ -238,7 +222,7 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }],
+      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -249,7 +233,6 @@ async function askAnthropic(
 async function askOpenAI(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
-  artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
@@ -266,7 +249,7 @@ async function askOpenAI(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) },
       ],
     }),
   })
@@ -278,7 +261,6 @@ async function askOpenAI(
 async function askDeepSeek(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
-  artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
@@ -295,7 +277,7 @@ async function askDeepSeek(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) },
       ],
     }),
   })
@@ -307,7 +289,6 @@ async function askDeepSeek(
 async function askGemini(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
-  artistConstraint?: string,
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
@@ -321,7 +302,7 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs) }] }],
+        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) }] }],
         generationConfig: { maxOutputTokens: 2048 },
       }),
     }
@@ -339,7 +320,6 @@ const MAX_LLM_ATTEMPTS = 2
 export async function getNextSongQuery(
   sessionHistory: ListenEvent[],
   provider: LLMProvider = DEFAULT_LLM_PROVIDER,
-  artistConstraint?: string,
   notes?: string,
   priorProfile?: string,
   alreadyHeard?: string[],
@@ -348,10 +328,10 @@ export async function getNextSongQuery(
 ): Promise<{ songs: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> {
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
-      default: return askAnthropic(sessionHistory, priorProfile, artistConstraint, notes, alreadyHeard, mode, numSongs)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
+      default: return askAnthropic(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
     }
   }
 
@@ -368,25 +348,6 @@ export async function getNextSongQuery(
     }
     try {
       const result = parseLLMResponse(raw)
-      const yearRanges = notes ? parseYearRanges(notes) : null
-      if (yearRanges && yearRanges.length > 0) {
-        const before = result.songs.length
-        const rangeLabel = yearRanges.map(r => `[${r.min}, ${r.max}]`).join(' ∪ ')
-        result.songs = result.songs.filter(s => {
-          const composed = s.composed
-          if (composed === undefined) {
-            return true
-          }
-          const ok = yearRanges.some(r => composed >= r.min && composed <= r.max)
-          if (!ok) {
-            console.warn(`[llm] dropping "${s.search}" — composed ${composed} outside allowed year range(s): ${rangeLabel}`)
-          }
-          return ok
-        })
-        if (result.songs.length < before) {
-          console.info(`[llm] year-range filter removed ${before - result.songs.length} song(s) (${before} → ${result.songs.length})`)
-        }
-      }
       return result
     } catch (err) {
       lastError = err as Error

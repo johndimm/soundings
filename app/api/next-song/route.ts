@@ -14,7 +14,6 @@ import {
   logSpotifyBatchIdsSkipped,
 } from '@/app/lib/llmSpotifyIdLog'
 import { enrichAlbumArtIfMissing, getTracksByIds, searchTrack, type SpotifyTrack } from '@/app/lib/spotify'
-import { trackMatchesFocusArtist } from '@/app/lib/spotifyArtistSearch'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import {
   resolveYouTubeSuggestion,
@@ -162,7 +161,6 @@ export async function POST(req: NextRequest) {
     source,
   } = body
   const ytResolveHints: YouTubeResolveHintOpts = {
-    artistConstraint,
     preferredArtists,
   }
   const combinedNotes = [notes, globalNotes].filter(Boolean).join('\n\n') || undefined
@@ -205,17 +203,11 @@ export async function POST(req: NextRequest) {
       markRateLimited(waitMs)
       return Response.json({ error: 'rate_limited', retryAfterMs: waitMs }, { status: 429 })
     }
-    const focusArtist =
-      artistConstraint?.trim() ||
-      preferredArtists?.map(a => a.trim()).filter(Boolean)[0]
     const { foundSongs, resolvedSearches, rateLimitedRetryMs, unauthorized } = await resolveSongs(
       songsToResolve,
       spotifyToken,
       forceTextSearch,
-      sessionHistory ?? [],
-      undefined,
-      focusArtist,
-      genrePrefixes
+      sessionHistory ?? []
     )
     if (unauthorized) return Response.json({ error: 'not_authenticated' }, { status: 401 })
     if (rateLimitedRetryMs) markRateLimited(rateLimitedRetryMs)
@@ -254,7 +246,6 @@ export async function POST(req: NextRequest) {
     const result = await getNextSongQuery(
       sessionHistory ?? [],
       provider,
-      artistConstraint,
       combinedNotes,
       priorProfile,
       alreadyHeard,
@@ -323,17 +314,12 @@ export async function POST(req: NextRequest) {
   }
 
   const llmLog = { provider: provider ?? 'deepseek', modelId: getLLMModelApiId(provider ?? 'deepseek') }
-  const focusArtist =
-    artistConstraint?.trim() ||
-    preferredArtists?.map(a => a.trim()).filter(Boolean)[0]
   const { foundSongs, rateLimitedRetryMs, unauthorized } = await resolveSongs(
     songs,
     spotifyToken,
     forceTextSearch,
     sessionHistory ?? [],
-    llmLog,
-    focusArtist,
-    genrePrefixes
+    llmLog
   )
 
   if (unauthorized) {
@@ -387,15 +373,6 @@ async function resolveYouTubeSongs(
     const song = songs[i]
     const res = await resolveYouTubeSuggestion(song, opts)
     if (res.status === 'ok') {
-      const focus = opts?.artistConstraint?.trim()
-      if (focus && !trackMatchesFocusArtist(res.track, focus)) {
-        console.warn('[next-song] YouTube result wrong artist for focus; skipping', {
-          focus,
-          got: res.track.artist,
-          search: song.search.slice(0, 60),
-        })
-        continue
-      }
       results.push({
         track: res.track,
         reason: song.reason,
@@ -438,9 +415,7 @@ async function resolveSongs(
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
   sessionHistory: ListenEvent[],
-  llmContext?: { provider: LLMProvider; modelId: string },
-  focusArtist?: string,
-  genrePrefixes?: string[]
+  llmContext?: { provider: LLMProvider; modelId: string }
 ): Promise<{
   foundSongs: FoundSong[]
   resolvedSearches: string[]
@@ -539,16 +514,6 @@ async function resolveSongs(
             return
           }
           verifiedBySpotify++
-          if (focusArtist?.trim() && !trackMatchesFocusArtist(track, focusArtist)) {
-            const song = songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === requestedId)
-            if (song) idsNeedingSearch.push(song)
-            console.info('[next-song] batch id wrong artist for focus; will text search', {
-              focusArtist,
-              got: track.artist,
-              id: track.id,
-            })
-            return
-          }
           if (skipTrack(track)) return
           const reason = idToReason.get(track.id) ?? 'Spotify batch match'
           const category = idToCategory.get(track.id)
@@ -589,9 +554,7 @@ async function resolveSongs(
       fallbackSongs,
       accessToken,
       seenHistory,
-      produced,
-      focusArtist,
-      genrePrefixes
+      produced
     )
     results.push(...sequentialResult.foundSongs)
     resolvedSearches.push(...sequentialResult.resolvedSearches)
@@ -627,23 +590,21 @@ async function searchSongsSequential(
   songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
   accessToken: string,
   seenHistory: Set<string>,
-  produced: Set<string>,
-  focusArtist?: string,
-  genrePrefixes?: string[]
+  produced: Set<string>
 ): Promise<{
   foundSongs: FoundSong[]
   resolvedSearches: string[]
   rateLimitedRetryMs: number | null
   unauthorized: boolean
 }> {
-  console.info('searchSongsSequential list', songs.map(song => song.search), focusArtist ? { focusArtist } : {})
+  console.info('searchSongsSequential list', songs.map(song => song.search))
   const results: FoundSong[] = []
   const resolvedSearches: string[] = []
   let rateLimitedRetryMs: number | null = null
   let unauthorized = false
 
   for (const song of songs) {
-    const response = await searchTrack(song.search, accessToken, { focusArtist, genrePrefixes })
+    const response = await searchTrack(song.search, accessToken)
 
     if (response.status === 'rate_limited') {
       rateLimitedRetryMs = response.retryAfterMs

@@ -1,84 +1,18 @@
 
 /**
- * Genre/style words must never appear as artist quick-pick toggles
- * (from LLM mistakes or legacy channel data).
+ * Extract artist-name hints from channel title and notes for UI quick-picks.
+ * The app does not classify names as genres vs acts — that is the LLM's job.
  */
 
-const STYLE_TERMS_BLOCKLIST = new Set<string>([
-  'chillwave',
-  'chamber music',
-  'cool jazz',
-  'motown',
-  'hip hop',
-  'hip-hop',
-  'pop',
-  'rock',
-  'r&b',
-  'rb',
-  'electronic',
-  'jazz',
-  'classical',
-  'country',
-  'folk',
-  'metal',
-  'soul',
-  'blues',
-  'reggae',
-  'latin',
-  'punk',
-  'house',
-  'techno',
-  'ambient',
-  'downtempo',
-  'trip hop',
-  'trip-hop',
-  'nu jazz',
-  'nu-jazz',
-  'french touch',
-  'synthwave',
-  'vaporwave',
-  'shoegaze',
-  'post-punk',
-  'indie',
-  'alternative',
-  'soundtrack',
-  'instrumental',
-  'vocal',
-  'acoustic',
-  'obscure',
-  'mainstream',
-  'upbeat',
-  'mellow',
-  'chill',
-  'chillout',
-  'lounge',
-  'baroque',
-  'romantic',
-  'renaissance',
-  'medieval',
-  'quartets',
-  'trios',
-  'piano',
-  'detroit',
-  'underground',
-])
+const GENERIC_CHANNEL_NAMES = new Set(['new channel', 'all', 'untitled'])
 
-function normalizeStyleKey(s: string): string {
+function normalizeKey(s: string): string {
   return s.trim().toLowerCase().replace(/\s+/g, ' ')
-}
-
-export function isGenreOrStyleTerm(name: string): boolean {
-  return STYLE_TERMS_BLOCKLIST.has(normalizeStyleKey(name))
-}
-
-/** Drop genre/style tokens mistakenly stored in channel.artists (e.g. "Chillwave"). */
-export function sanitizeSelectedArtists(names: string[]): string[] {
-  return names.filter(n => typeof n === 'string' && n.trim() && !isGenreOrStyleTerm(n))
 }
 
 function pushArtistHint(out: string[], seen: Set<string>, raw: string) {
   const t = raw.trim().replace(/\s+/g, ' ')
-  if (t.length < 2 || t.length > 80 || isGenreOrStyleTerm(t)) return
+  if (t.length < 2 || t.length > 80) return
   const k = t.toLowerCase()
   if (seen.has(k)) return
   seen.add(k)
@@ -94,7 +28,10 @@ export function extractArtistHintsFromChannel(input: {
   const out: string[] = []
   const seen = new Set<string>()
 
-  pushArtistHint(out, seen, input.name ?? '')
+  const name = (input.name ?? '').trim()
+  if (name && !GENERIC_CHANNEL_NAMES.has(normalizeKey(name))) {
+    pushArtistHint(out, seen, name)
+  }
 
   const notes = [input.notes, input.genreText].filter(Boolean).join('\n').trim()
   if (!notes) return out
@@ -110,7 +47,6 @@ export function extractArtistHintsFromChannel(input: {
     for (const part of listLine[1].split(/[,;]/)) pushArtistHint(out, seen, part)
   }
 
-  // "only Artist Name", "all Artist Name", etc.
   for (const m of notes.matchAll(
     /\b(?:only|just|all|mostly|mainly)\s+([A-ZÀ-ÿ][\w'’.-]*(?:\s+[A-Za-zÀ-ÿ][\w'’.-]*){0,5})/g
   )) {
@@ -129,25 +65,22 @@ export function mergeArtistHintLists(...lists: string[][]): string[] {
   return out
 }
 
-const GENERIC_CHANNEL_NAMES = new Set(['new channel', 'all', 'untitled'])
-
-/** Channel title when it looks like a real act (not a genre label or generic name). */
+/** Channel title as an artist hint when it is not a generic placeholder name. */
 export function channelNameAsArtistHint(name?: string): string | undefined {
-  const out: string[] = []
-  const seen = new Set<string>()
-  pushArtistHint(out, seen, name ?? '')
-  return out[0]
+  const t = (name ?? '').trim()
+  if (!t || GENERIC_CHANNEL_NAMES.has(normalizeKey(t))) return undefined
+  return t
 }
 
-/** When the channel title equals a known artist name, return that canonical spelling. */
+/** When the channel title matches a candidate artist spelling, return canonical form. */
 export function findArtistMatchingChannelName(
   channelName: string,
   candidates: string[]
 ): string | undefined {
-  const key = normalizeStyleKey(channelName)
-  if (!key || GENERIC_CHANNEL_NAMES.has(key) || isGenreOrStyleTerm(channelName)) return undefined
+  const key = normalizeKey(channelName)
+  if (!key || GENERIC_CHANNEL_NAMES.has(key)) return undefined
   for (const candidate of candidates) {
-    if (normalizeStyleKey(candidate) === key) return candidate
+    if (normalizeKey(candidate) === key) return candidate
   }
   return undefined
 }
@@ -161,4 +94,9 @@ export function mergeChannelNameArtistMatch(
   const match = findArtistMatchingChannelName(channelName, candidateArtists)
   if (!match) return selectedArtists
   return mergeArtistHintLists(selectedArtists, [match])
+}
+
+/** Trim and drop empty artist chip strings. */
+export function sanitizeSelectedArtists(names: string[]): string[] {
+  return names.filter(n => typeof n === 'string' && n.trim())
 }

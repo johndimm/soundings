@@ -367,10 +367,9 @@ export { extractYoutubeVideoId, extractYoutubeVideoIdLoose }
 
 export type YouTubeResolveHintOpts = {
   preferredArtists?: string[]
-  artistConstraint?: string
 }
 
-/** Extra search queries when the title-only query misses (artist-focused channels). */
+/** Extra search queries when the title-only query misses. */
 export function buildYouTubeSearchAlternates(
   search: string,
   opts?: YouTubeResolveHintOpts
@@ -378,8 +377,6 @@ export function buildYouTubeSearchAlternates(
   const q = search.trim()
   if (!q) return []
   const artists: string[] = []
-  const ac = opts?.artistConstraint?.trim()
-  if (ac) artists.push(ac)
   for (const a of opts?.preferredArtists ?? []) {
     const t = a.trim()
     if (!t) continue
@@ -409,6 +406,14 @@ export async function resolveYouTubeSuggestion(
   song: SongSuggestion,
   opts?: YouTubeResolveHintOpts
 ): Promise<YouTubeSearchResult> {
+  const searchHint = song.search.trim()
+
+  const vid = youtubeVideoIdFromSuggestion(song)
+  if (vid) {
+    const track = youtubeTrackFromVideoId(vid, searchHint)
+    if (track) return { status: 'ok', track }
+  }
+
   const queries: string[] = []
   const seen = new Set<string>()
   const push = (q: string) => {
@@ -418,31 +423,54 @@ export async function resolveYouTubeSuggestion(
     queries.push(q.trim())
   }
 
-  const vid = youtubeVideoIdFromSuggestion(song)
-  if (vid) push(vid)
+  if (searchHint) push(searchHint)
 
-  const main = song.search.trim()
-  if (main) push(main)
-
-  for (const alt of buildYouTubeSearchAlternates(main, opts)) {
+  for (const alt of buildYouTubeSearchAlternates(searchHint, opts)) {
     push(alt)
   }
 
   for (const q of queries) {
-    const res = await searchYouTube(q)
+    const res = await searchYouTube(q, searchHint)
     if (res.status === 'quota_exceeded') return res
     if (res.status === 'ok') return res
   }
   return { status: 'not_found' }
 }
 
-/** Prefer remaining text after stripping URLs for title/artist; else generic. */
-function searchHintForResolvedQuery(query: string, id: string): string {
+/** Prefer metadataHint, else remaining text after stripping URLs; else generic. */
+function searchHintForResolvedQuery(query: string, id: string, metadataHint?: string): string {
+  const hint = metadataHint?.trim()
+  if (hint) return hint
   const q = query.trim()
   if (q === id) return 'Unknown track'
   if (/^https?:\/\//i.test(q) || /youtube\.com|youtu\.be/i.test(q)) return 'Unknown track'
   const stripped = q.replace(/https?:\/\/[^\s]+/g, '').replace(/\s+/g, ' ').trim()
   return stripped.length >= 3 ? stripped : 'Unknown track'
+}
+
+/** Parse LLM `search` text into display title + artist when resolving by video id (no Data API). */
+export function parseSearchHintForYouTube(searchHint: string): { name: string; artist: string } {
+  const trimmed = searchHint.trim()
+  if (!trimmed) return { name: 'Unknown track', artist: 'Unknown' }
+
+  for (const sep of [' - ', ' — ', ' – ', ': ']) {
+    const idx = trimmed.indexOf(sep)
+    if (idx !== -1) {
+      const left = trimmed.slice(0, idx).trim()
+      const right = trimmed.slice(idx + sep.length).trim()
+      if (left && right) return { artist: left, name: right }
+    }
+  }
+
+  // LLM convention: "track name artist name" — artist often last (capitalized words).
+  const trailingArtist = trimmed.match(/^(.+?)\s+([A-ZÀ-ÿ][\w'’.-]+(?:\s+[A-ZÀ-ÿ][\w'’.-]+){0,4})$/u)
+  if (trailingArtist) {
+    const name = trailingArtist[1].trim()
+    const artist = trailingArtist[2].trim()
+    if (name.length >= 2 && artist.length >= 2) return { name, artist }
+  }
+
+  return { name: trimmed, artist: 'Unknown' }
 }
 
 /**
@@ -453,19 +481,13 @@ function searchHintForResolvedQuery(query: string, id: string): string {
 export function youtubeTrackFromVideoId(videoId: string, searchHint: string): YouTubeTrack | null {
   const id = extractYoutubeVideoIdLoose(videoId.trim())
   if (!id) return null
-  let name = searchHint.trim() || 'Unknown track'
-  let artist = 'Unknown'
-  const dashIdx = name.indexOf(' - ')
-  if (dashIdx !== -1) {
-    artist = name.slice(0, dashIdx).trim()
-    name = name.slice(dashIdx + 3).trim()
-  }
+  const { name, artist } = parseSearchHintForYouTube(searchHint)
   return {
     id,
     videoId: id,
     source: 'youtube',
-    name,
-    artist,
+    name: name || 'Unknown track',
+    artist: artist || 'Unknown',
     album: '',
     albumArt: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
     durationMs: 0,
@@ -606,7 +628,7 @@ function parseNameArtist(title: string, channelTitle: string): { name: string; a
   return { name: title, artist: channelTitle }
 }
 
-export async function searchYouTube(query: string): Promise<YouTubeSearchResult> {
+export async function searchYouTube(query: string, metadataHint?: string): Promise<YouTubeSearchResult> {
   rollQuotaIfNewDay()
   if (isYoutubeResolveTestServerEnabled()) {
     console.info('[youtube] searchYouTube: YOUTUBE_RESOLVE_TEST — skipping Data API, using fixture')
@@ -634,7 +656,7 @@ export async function searchYouTube(query: string): Promise<YouTubeSearchResult>
   const qTrim = query.trim()
   const idFromQuery = extractYoutubeVideoIdLoose(qTrim)
   if (idFromQuery) {
-    const hint = searchHintForResolvedQuery(qTrim, idFromQuery)
+    const hint = searchHintForResolvedQuery(qTrim, idFromQuery, metadataHint)
     const track = youtubeTrackFromVideoId(idFromQuery, hint)
     if (track) {
       const entry: YouTubeCacheEntry = { track, candidates: [] }

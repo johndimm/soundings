@@ -2,6 +2,8 @@
 
 This document describes how **Soundings** uses the LLM’s song list after it returns, how **suggestions** (DJ buffer) relate to **Up Next** (queue), when the LLM is called again, and the main **guard rules**. Implementation lives primarily in `app/player/PlayerClient.tsx` and `app/api/next-song/route.ts`.
 
+For a full inventory of what the app filters vs what the LLM handles alone, see [llm-result-filters.md](./llm-result-filters.md).
+
 ---
 
 ## 1. Terms (UI vs code)

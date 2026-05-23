@@ -38,9 +38,6 @@ import {
 } from '@/app/lib/artistHintsFromNotes'
 import {
   buildCombinedNotes,
-  djGenrePrefixes,
-  enrichSearchWithFocusArtist,
-  resolveDjArtistConstraint,
 } from '@/app/lib/djArtistFocus'
 
 const HISTORY_STORAGE_KEY = 'earprint-history'
@@ -1193,15 +1190,17 @@ export default function PlayerClient({
   /** Console filter: `[dj-queue]` — why DJ suggestions do or don’t reach Up Next */
   const DJQ = '[dj-queue]'
 
-  /** Single selected artist on the channel → LLM artist-focus mode (not 3-random-artists exploration). */
-  const djArtistConstraintForFetch = useCallback((explicit?: string): string | undefined => {
-    const ch = channelsRef.current.find(c => c.id === activeChannelIdRef.current)
-    return resolveDjArtistConstraint({
-      explicit,
-      selectedArtists: artistsRef.current,
-      artistText: artistTextRef.current,
-      channelName: ch?.name,
-    })
+  const buildDjNotes = useCallback((): string => {
+    return buildCombinedNotes(
+      genresRef.current,
+      genreTextRef.current,
+      timePeriodRef.current,
+      notesRef.current,
+      popularityRef.current,
+      regionsRef.current,
+      artistsRef.current,
+      artistTextRef.current
+    )
   }, [])
 
   const recomputeAlbumArtPan = useCallback(() => {
@@ -3615,7 +3614,6 @@ export default function PlayerClient({
     async (
       sessionHist: ListenEvent[],
       profile: string,
-      artistConstraint?: string,
       forceTextSearch?: boolean,
       numSongs?: number
     ): Promise<{ suggestions: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> => {
@@ -3643,23 +3641,11 @@ export default function PlayerClient({
         ...suggestionBufferRef.current.map(s => s.search),
       ]
       const alreadyHeardDeduped = [...new Set(alreadyHeard.map(s => s.trim()).filter(Boolean))]
-      const focusArtist = djArtistConstraintForFetch(artistConstraint)
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
         provider: providerRef.current,
-        artistConstraint: focusArtist,
-        notes: buildCombinedNotes(
-          genresRef.current,
-          genreTextRef.current,
-          timePeriodRef.current,
-          notesRef.current,
-          popularityRef.current,
-          regionsRef.current,
-          artistsRef.current,
-          artistTextRef.current,
-          focusArtist
-        ),
+        notes: buildDjNotes(),
         globalNotes: readSettingsGlobalNotes() || undefined,
         alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
         mode: exploreModeRef.current,
@@ -3722,7 +3708,7 @@ export default function PlayerClient({
         : []
       return { suggestions, profile: data.profile, suggestedArtists }
     },
-    [youtubeResolveTestActive, getDjContextHistories, djArtistConstraintForFetch]
+    [youtubeResolveTestActive, getDjContextHistories, buildDjNotes]
   )
 
   /** Single Spotify/YouTube lookup when a suggestion is promoted to Up Next / now playing. */
@@ -3746,8 +3732,6 @@ export default function PlayerClient({
           source: sourceRef.current ?? DEFAULT_PLAYBACK_SOURCE,
           youtubeResolveTest: ytResolveTest,
           preferredArtists: artistsRef.current,
-          artistConstraint: djArtistConstraintForFetch(),
-          genrePrefixes: djGenrePrefixes(genresRef.current, genreTextRef.current),
         }),
       })
 
@@ -3799,9 +3783,7 @@ export default function PlayerClient({
       }
     }
 
-    const focusArtist = djArtistConstraintForFetch()
-    const genrePrefixes = djGenrePrefixes(genresRef.current, genreTextRef.current)
-    const row = { ...s, search: enrichSearchWithFocusArtist(s.search, focusArtist, genrePrefixes) }
+    const row = s
 
     const hasSpotifyId = Boolean(normalizeSpotifyTrackId(row.spotifyId))
     const hasYoutubeId = Boolean(extractYoutubeVideoIdLoose(row.youtubeVideoId ?? ''))
@@ -3825,7 +3807,7 @@ export default function PlayerClient({
       console.warn(DJQ, 'resolveOneSuggestion: unexpected error', e)
       return null
     }
-  }, [youtubeResolveTestActive, djArtistConstraintForFetch])
+  }, [youtubeResolveTestActive])
   resolveOneSuggestionRef.current = resolveOneSuggestion
 
   /** Resolve up to `max` suggestions in order (constraint / replace flows). Skips failed lookups. */
@@ -3943,23 +3925,11 @@ export default function PlayerClient({
     const gen = ++profileGenRef.current
     fetchingRef.current = true
     const { sessionHistory: djSessionHistory, cardHistory: djCardHistory } = getDjContextHistories()
-    const focusArtist = djArtistConstraintForFetch()
     const payload: Record<string, unknown> = {
       sessionHistory: djSessionHistory,
       priorProfile: priorProfileRef.current || undefined,
       provider: providerRef.current,
-      artistConstraint: focusArtist,
-      notes: buildCombinedNotes(
-        genresRef.current,
-        genreTextRef.current,
-        timePeriodRef.current,
-        notesRef.current,
-        popularityRef.current,
-        regionsRef.current,
-        artistsRef.current,
-        artistTextRef.current,
-        focusArtist
-      ),
+      notes: buildDjNotes(),
       alreadyHeard: (() => {
         const cur = currentCardRef.current
         const list = [
@@ -4028,12 +3998,11 @@ export default function PlayerClient({
       .finally(() => {
         fetchingRef.current = false
       })
-  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer, getDjContextHistories])
+  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer, getDjContextHistories, buildDjNotes])
 
   // ── Fetch from LLM → suggestion buffer (Spotify only when promoting to queue / now playing) ──
   const fetchToBuffer = useCallback(
     (
-      artistConstraint?: string,
       forceTextSearch?: boolean,
       onCards?: (cards: CardState[]) => void,
       force = false,
@@ -4159,9 +4128,8 @@ export default function PlayerClient({
     })
     const sentHistory = [...getDjContextHistories().sessionHistory]
     const sentProfile = priorProfileRef.current
-    const focusArtist = djArtistConstraintForFetch(artistConstraint)
     setLoadingQueue(true)
-    fetchSuggestions(sentHistory, sentProfile, focusArtist, forceTextSearch, numSongs)
+    fetchSuggestions(sentHistory, sentProfile, forceTextSearch, numSongs)
       .then(async ({ suggestions, profile: newProfile }) => {
         console.info('fetchToBuffer profile update:', newProfile ? 'YES len=' + newProfile.length : 'NO (undefined/empty)')
         if (newProfile) {
@@ -4270,7 +4238,7 @@ export default function PlayerClient({
     playerConfigDj,
     youtubeResolveTestFromServer,
     getDjContextHistories,
-    djArtistConstraintForFetch,
+    buildDjNotes,
   ])
 
   /** Pop suggestions and resolve on Spotify one-by-one until we have a track for now playing. */
@@ -4592,7 +4560,6 @@ export default function PlayerClient({
         sessionHistory: sessionHistoryRef.current,
         source: 'youtube',
         preferredArtists: artistsRef.current,
-        artistConstraint: djArtistConstraintForFetch(),
       }),
     })
 
@@ -4709,7 +4676,7 @@ export default function PlayerClient({
       bufferLeft: suggestionBufferRef.current.length,
     })
     return 'ok'
-  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys, djArtistConstraintForFetch])
+  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys])
 
   /** Batch-resolve pending DJ rows on Spotify (artist-aware search on the server). */
   const promoteDjPendingSpotifyBatch = useCallback(async (): Promise<PromoteDjResult> => {
@@ -4726,17 +4693,11 @@ export default function PlayerClient({
     if (maxTake <= 0) return 'noop'
 
     const buf = suggestionBufferRef.current
-    const focus = djArtistConstraintForFetch()
-    const genrePrefixes = djGenrePrefixes(genresRef.current, genreTextRef.current)
-    const take = buf.slice(0, maxTake).map(s => ({
-      ...s,
-      search: enrichSearchWithFocusArtist(s.search, focus, genrePrefixes),
-    }))
+    const take = buf.slice(0, maxTake)
     if (take.length === 0) return 'noop'
 
     const hasAnyId = take.some(s => Boolean(normalizeSpotifyTrackId(s.spotifyId)))
     console.info(DJQ, 'promoteDjPendingSpotifyBatch: batch request', take.length, 'rows', {
-      focus,
       hasAnyId,
     })
 
@@ -4751,8 +4712,6 @@ export default function PlayerClient({
         forceTextSearch: !hasAnyId,
         source: 'spotify',
         preferredArtists: artistsRef.current,
-        artistConstraint: focus,
-        genrePrefixes,
       }),
     })
 
@@ -4798,8 +4757,7 @@ export default function PlayerClient({
           continue
         }
         const row = buf[i]!
-        const enriched = enrichSearchWithFocusArtist(row.search, focus, genrePrefixes)
-        if (resolvedSearches.has(row.search) || resolvedSearches.has(enriched)) continue
+        if (resolvedSearches.has(row.search)) continue
         rest.push({ ...row, spotifyId: undefined })
       }
       suggestionBufferRef.current = rest
@@ -4865,7 +4823,7 @@ export default function PlayerClient({
       bufferLeft: suggestionBufferRef.current.length,
     })
     return 'ok'
-  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys, djArtistConstraintForFetch])
+  }, [isGuideDemo, fillFromHeardWhenRateLimited, buildPlayedAndQueuedKeys])
 
   /**
    * Move DJ buffer into now playing / Up Next: batch by Spotify ID when possible, then lazy resolve.
@@ -5273,7 +5231,7 @@ export default function PlayerClient({
     queueRef.current = []
     setSuggestionBuffer([])
     suggestionBufferRef.current = []
-    fetchToBuffer(undefined, undefined, undefined, true, false, true)
+    fetchToBuffer(undefined, undefined, true, false, true)
   }, [fetchToBuffer])
 
   const handleRateHistoryItem = useCallback((index: number, stars: number | null) => {
@@ -5385,7 +5343,6 @@ export default function PlayerClient({
       }
       fetchToBuffer(
         undefined,
-        undefined,
         cards => {
           handleConstraintResults(cards)
           setLoadingQueue(false)
@@ -5401,7 +5358,7 @@ export default function PlayerClient({
   const handleRetry = useCallback(() => {
     if (isGuideDemo) return
     setError(null)
-    fetchToBuffer(undefined, true, undefined, true, false, true)
+    fetchToBuffer(undefined, undefined, true, false, true)
   }, [fetchToBuffer, isGuideDemo])
 
   const handleSpotifyPingRetry = useCallback(async () => {
