@@ -37,7 +37,6 @@ async function run() {
         sessionHistory,
         PROVIDER,
         undefined,
-        undefined,
         priorProfile,
         played.map(raw => JSON.parse(raw).search),
         mode
