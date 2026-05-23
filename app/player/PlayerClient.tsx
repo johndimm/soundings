@@ -25,6 +25,7 @@ import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
 } from '@/app/lib/channelsImportExport'
+import { countCustomChannels } from '@/app/lib/channelBulkActions'
 import { BUILT_IN_FACTORY_CHANNELS_IMPORT, getMostPopularCard } from '@/app/lib/demoChannel'
 import {
   DEV_FACTORY_OVERRIDE_STORAGE_KEY,
@@ -138,7 +139,7 @@ interface Channel {
   discovery?: number
   /** Last playback position (ms) for `playbackTrackUri` when leaving this channel */
   playbackPositionMs?: number
-  /** Must match `currentCard.track.uri` for `playbackPositionMs` to apply */
+  /** Must match `trackPlayKey(currentCard.track)` for `playbackPositionMs` to apply */
   playbackTrackUri?: string
   /** Which audio source this channel uses. Defaults to 'spotify'. */
   source?: PlaybackSource
@@ -225,8 +226,17 @@ function makeAllChannel(): Channel {
 }
 
 function ensureAllChannel(channels: Channel[]): Channel[] {
-  if (channels.some(c => c.id === ALL_CHANNEL_ID)) return channels
-  return [makeAllChannel(), ...channels]
+  const withAll = channels.some(c => c.id === ALL_CHANNEL_ID)
+    ? [...channels]
+    : [makeAllChannel(), ...channels]
+  return sortChannelsAlpha(withAll)
+}
+
+function sortChannelsAlpha(channels: Channel[]): Channel[] {
+  const all = channels.filter(c => c.id === ALL_CHANNEL_ID)
+  const rest = channels.filter(c => c.id !== ALL_CHANNEL_ID)
+  rest.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  return [...(all.length > 0 ? all : [makeAllChannel()]), ...rest]
 }
 
 function channelCountsAsUserCreated(c: Channel): boolean {
@@ -285,10 +295,12 @@ function loadChannels(): Channel[] {
   return []
 }
 
-function saveChannels(channels: Channel[]) {
+function saveChannels(channels: Channel[]): Channel[] {
+  const sorted = sortChannelsAlpha(ensureAllChannel(channels))
   try {
-    localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(channels))
+    localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(sorted))
   } catch {}
+  return sorted
 }
 
 function normalizeImportedChannel(raw: unknown): Channel | null {
@@ -777,6 +789,8 @@ const PlayerChannelsToolbar = memo(function PlayerChannelsToolbar({
   onSelectChannel,
   onStartRename,
   onDeleteChannel,
+  onDeleteAllCustomChannels,
+  customChannelCount,
   showLoadStarterChannelsPill,
   loadingStartupChannels,
   onLoadStartupChannels,
@@ -794,6 +808,8 @@ const PlayerChannelsToolbar = memo(function PlayerChannelsToolbar({
   onSelectChannel: (id: string) => void
   onStartRename: (id: string, name: string) => void
   onDeleteChannel: (id: string) => void
+  onDeleteAllCustomChannels?: () => void
+  customChannelCount: number
   showLoadStarterChannelsPill: boolean
   loadingStartupChannels: boolean
   onLoadStartupChannels: () => void
@@ -885,6 +901,16 @@ const PlayerChannelsToolbar = memo(function PlayerChannelsToolbar({
           </div>
         )
       })}
+      {customChannelCount > 0 && onDeleteAllCustomChannels && (
+        <button
+          type="button"
+          onClick={onDeleteAllCustomChannels}
+          className="shrink-0 rounded-full border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-xs font-medium text-zinc-400 transition-colors hover:border-red-800 hover:bg-red-950/40 hover:text-red-300 lg:w-full lg:rounded-xl lg:py-2 lg:text-left"
+          title={`Delete all ${customChannelCount} custom channels`}
+        >
+          Clear all ({customChannelCount})
+        </button>
+      )}
       <Link
         href="/channels?new=1"
         className="flex size-8 shrink-0 items-center justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 text-lg font-light leading-none text-zinc-400 transition-colors hover:border-indigo-500 hover:bg-indigo-950 hover:text-indigo-400 lg:size-9 lg:shrink-0 lg:self-center"
@@ -1025,6 +1051,8 @@ export default function PlayerClient({
   const [playerRouteGeneration, setPlayerRouteGeneration] = useState(0)
   /** Bumps when user presses Next (etc.) so the play effect re-runs even if the next track has the same URI as before. */
   const [playGeneration, setPlayGeneration] = useState(0)
+  /** Resume offset passed to YoutubePlayer when returning to a channel mid-track */
+  const [youtubeStartAtMs, setYoutubeStartAtMs] = useState(0)
   /** LLM suggestions not yet looked up on Spotify — resolved one-at-a-time when filling Up Next or starting playback. */
   const [suggestionBuffer, setSuggestionBuffer] = useState<SongSuggestion[]>([])
   const [submittedUris, setSubmittedUris] = useState<Set<string>>(new Set())
@@ -1339,9 +1367,11 @@ export default function PlayerClient({
       const name = ch.isAutoNamed && autoName ? autoName : ch.name
       const cur = currentCardRef.current
       const dur = durationRef.current
-      const uri = cur?.track.uri
+      const trackKey = cur ? trackPlayKey(cur.track) : undefined
       const playbackPositionMs =
-        cur && uri && dur > 0 ? clampPlaybackOffsetMs(sliderRef.current, dur) : undefined
+        cur && trackKey && sliderRef.current > 0
+          ? clampPlaybackOffsetMs(sliderRef.current, dur)
+          : undefined
       return {
         ...ch,
         name,
@@ -1361,7 +1391,7 @@ export default function PlayerClient({
         artistText: artistTextRef.current,
         popularity: popularityRef.current,
         discovery: exploreModeRef.current,
-        playbackTrackUri: uri,
+        playbackTrackUri: trackKey,
         playbackPositionMs,
       }
     })
@@ -1374,7 +1404,7 @@ export default function PlayerClient({
 
     if (
       nextCurrent &&
-      ch.playbackTrackUri === nextCurrent.track.uri &&
+      ch.playbackTrackUri === trackPlayKey(nextCurrent.track) &&
       typeof ch.playbackPositionMs === 'number' &&
       ch.playbackPositionMs > 0
     ) {
@@ -1385,6 +1415,7 @@ export default function PlayerClient({
     } else {
       pendingPlaybackPositionMsRef.current = undefined
     }
+    setYoutubeStartAtMs(pendingPlaybackPositionMsRef.current ?? 0)
 
     navBackStackRef.current = []
     setNavBackDepth(0)
@@ -1487,9 +1518,9 @@ export default function PlayerClient({
         const saved = snapshotCurrentChannel()
         const t = saved.find(c => c.id === id)
         if (!t) return
-        setChannels(saved)
-        channelsRef.current = saved
-        saveChannels(saved)
+        const sorted = saveChannels(saved)
+        setChannels(sorted)
+        channelsRef.current = sorted
         loadChannelIntoState(t)
         if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
           pendingFadeInRef.current = false
@@ -1525,9 +1556,9 @@ export default function PlayerClient({
       }
       const saved = snapshotCurrentChannel()
       const updated = [...saved, fresh]
-      setChannels(updated)
-      channelsRef.current = updated
-      saveChannels(updated)
+      const sorted = saveChannels(updated)
+      setChannels(sorted)
+      channelsRef.current = sorted
       loadChannelIntoState(fresh)
       // Empty new channel: stay paused and quiet until the user picks DJ settings and playback starts again.
       // Do not setVolume(1) here — Spotify would resume the previous track at full volume.
@@ -1562,9 +1593,9 @@ export default function PlayerClient({
       }
 
       if (id !== activeChannelIdRef.current) {
-        setChannels(updated)
-        channelsRef.current = updated
-        saveChannels(updated)
+        const sorted = saveChannels(updated)
+        setChannels(sorted)
+        channelsRef.current = sorted
         return
       }
 
@@ -1580,9 +1611,9 @@ export default function PlayerClient({
           if (willPlay) pendingFadeInRef.current = true
           await fadeOutCurrentPlayback()
         }
-        setChannels(updated)
-        channelsRef.current = updated
-        saveChannels(updated)
+        const sorted = saveChannels(updated)
+        setChannels(sorted)
+        channelsRef.current = sorted
         loadChannelIntoState(replacement)
         if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
           pendingFadeInRef.current = false
@@ -1595,12 +1626,48 @@ export default function PlayerClient({
     [loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback]
   )
 
+  const deleteAllCustomChannels = useCallback(async () => {
+    const customCount = countCustomChannels(channelsRef.current)
+    if (customCount === 0) return
+    if (
+      !window.confirm(
+        `Delete all ${customCount} custom channel${customCount !== 1 ? 's' : ''}? The All channel is kept.`
+      )
+    ) {
+      return
+    }
+    const allChannel =
+      channelsRef.current.find(c => c.id === ALL_CHANNEL_ID) ?? makeAllChannel()
+    const updated = [allChannel]
+
+    if (channelSwitchingRef.current) return
+    channelSwitchingRef.current = true
+    try {
+      const willPlay = peekNextCard(allChannel) != null
+      const hadCurrent = currentCardRef.current != null
+      if (!isGuideDemo && hadCurrent) {
+        if (willPlay) pendingFadeInRef.current = true
+        await fadeOutCurrentPlayback()
+      }
+      const sorted = saveChannels(updated)
+      setChannels(sorted)
+      channelsRef.current = sorted
+      loadChannelIntoState(allChannel)
+      if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
+        pendingFadeInRef.current = false
+        await playerRef.current.setVolume(1)
+      }
+    } finally {
+      channelSwitchingRef.current = false
+    }
+  }, [loadChannelIntoState, isGuideDemo, fadeOutCurrentPlayback])
+
   const renameChannel = useCallback((id: string, name: string) => {
     setChannels(prev => {
       const updated = prev.map(ch => ch.id === id ? { ...ch, name: name.trim() || ch.name, isAutoNamed: false } : ch)
-      channelsRef.current = updated
-      saveChannels(updated)
-      return updated
+      const sorted = saveChannels(updated)
+      channelsRef.current = sorted
+      return sorted
     })
   }, [])
 
@@ -1651,9 +1718,9 @@ export default function PlayerClient({
       }
       const saved = snapshotCurrentChannel()
       const updated = [...saved, fresh]
-      setChannels(updated)
-      channelsRef.current = updated
-      saveChannels(updated)
+      const sorted = saveChannels(updated)
+      setChannels(sorted)
+      channelsRef.current = sorted
       loadChannelIntoState(fresh)
       if (!isGuideDemo && playerRef.current && hadCurrent && !willPlay) {
         pendingFadeInRef.current = true
@@ -1936,9 +2003,9 @@ export default function PlayerClient({
         return
       }
       const merged = tagNonAllAsNotUserCreated(ensureAllChannel(parsed.channels.map(withFixedDiscovery)))
-      saveChannels(merged)
-      setChannels(merged)
-      channelsRef.current = merged
+      const sorted = saveChannels(merged)
+      setChannels(sorted)
+      channelsRef.current = sorted
       const preferredActive =
         parsed.activeChannelId && merged.some(c => c.id === parsed.activeChannelId)
           ? parsed.activeChannelId
@@ -2284,9 +2351,9 @@ export default function PlayerClient({
         mergedChannels = all ? [all, fresh, ...others] : [fresh, ...others]
       }
       mergedChannels = ensureAllChannel(mergedChannels)
-      saveChannels(mergedChannels)
-      setChannels(mergedChannels)
-      channelsRef.current = mergedChannels
+      const sorted = saveChannels(mergedChannels)
+      setChannels(sorted)
+      channelsRef.current = sorted
 
       const targetCh = mergedChannels.find(c => c.id === sharedCh.id)
       if (!targetCh) {
@@ -2745,7 +2812,7 @@ export default function PlayerClient({
 
         if (
           nextCurrent &&
-          active.playbackTrackUri === nextCurrent.track.uri &&
+          active.playbackTrackUri === trackPlayKey(nextCurrent.track) &&
           typeof active.playbackPositionMs === 'number' &&
           active.playbackPositionMs > 0
         ) {
@@ -2756,6 +2823,7 @@ export default function PlayerClient({
         } else {
           pendingPlaybackPositionMsRef.current = undefined
         }
+        setYoutubeStartAtMs(pendingPlaybackPositionMsRef.current ?? 0)
       } catch {}
 
       setChannels(chsLocal)
@@ -2946,9 +3014,9 @@ export default function PlayerClient({
     if (!activeChannelId || typeof window === 'undefined') return
     if (!settingsHydrated || !historyReady) return
     const updated = snapshotCurrentChannel()
-    channelsRef.current = updated
-    saveChannels(updated)
-    setChannels(updated)
+    const sorted = saveChannels(updated)
+    channelsRef.current = sorted
+    setChannels(sorted)
   }, [
     playerRouteGeneration,
     cardHistory,
@@ -3473,14 +3541,21 @@ export default function PlayerClient({
     // new iframes even after a user gesture). The YoutubePlayer handle falls back to postMessage
     // when the JS API isn't attached yet, and latches via pendingPlayRef so onReady can play.
     if (isYoutube) {
-      console.info('[play] currentCard → YouTube', { id: currentCard.track.id, name: currentCard.track.name })
-      sliderRef.current = 0
-      setSliderPosition(0)
+      const startMs = typeof resumeMs === 'number' && resumeMs > 0 ? resumeMs : 0
+      console.info('[play] currentCard → YouTube', {
+        id: currentCard.track.id,
+        name: currentCard.track.name,
+        resumeMs: startMs,
+      })
+      setYoutubeStartAtMs(startMs)
+      sliderRef.current = startMs
+      setSliderPosition(startMs)
       durationRef.current = 0
       setYoutubeDuration(0)
       autoAdvanceRef.current = false
       try {
         youtubePlayerRef.current?.play()
+        if (startMs > 0) youtubePlayerRef.current?.seek(startMs)
       } catch (err) {
         console.warn('[play] youtube play() threw', err)
       }
@@ -5560,6 +5635,8 @@ export default function PlayerClient({
                   setEditingChannelName(name)
                 }}
                 onDeleteChannel={deleteChannel}
+                onDeleteAllCustomChannels={() => void deleteAllCustomChannels()}
+                customChannelCount={countCustomChannels(channels)}
                 showLoadStarterChannelsPill={showLoadStarterChannelsPill}
                 loadingStartupChannels={loadingStartupChannels}
                 onLoadStartupChannels={handleLoadStartupChannels}
@@ -5658,6 +5735,7 @@ export default function PlayerClient({
               key={`${currentCard.track.id}-${playGeneration}`}
               ref={youtubePlayerRef}
               videoId={currentCard.track.id}
+              startAtMs={youtubeStartAtMs}
               onEnded={() => {
                 if (autoNextAtEndRef.current) advanceRef.current?.(true)
               }}

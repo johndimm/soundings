@@ -1,3 +1,5 @@
+import { getBundledFactoryChannelsForReset } from '@/app/lib/demoChannel'
+
 /** JSON export wrapper version (see Settings → Export). */
 export const CHANNELS_EXPORT_VERSION = 1
 
@@ -120,5 +122,88 @@ export function parseChannelsImport(raw: unknown): { channels: Channel[]; active
     const ch = normalizeImportedChannel(item)
     if (ch) channels.push(ch)
   }
-  return channels.length ? { channels, activeChannelId } : null
+  return channels.length
+    ? { channels: sortChannelsAlpha(ensureAllChannel(channels)), activeChannelId }
+    : null
+}
+
+/** Empty catch-all channel (no filters, no history). */
+export function makeEmptyAllChannel(): Channel {
+  return normalizeChannelDiscovery({
+    id: EARPRINT_ALL_CHANNEL_ID,
+    name: 'All',
+    isAutoNamed: false,
+    cardHistory: [],
+    sessionHistory: [],
+    profile: '',
+    createdAt: 0,
+    genres: [],
+    genreText: '',
+    timePeriods: [],
+    notes: '',
+    regions: [],
+    artists: [],
+    artistText: '',
+    popularity: 50,
+  })
+}
+
+export function ensureAllChannel(channels: Channel[]): Channel[] {
+  const withAll = channels.some(c => c.id === EARPRINT_ALL_CHANNEL_ID)
+    ? [...channels]
+    : [makeEmptyAllChannel(), ...channels]
+  return sortChannelsAlpha(withAll)
+}
+
+/** All first, then every other channel A→Z (case-insensitive). */
+export function sortChannelsAlpha(channels: Channel[]): Channel[] {
+  const all = channels.filter(c => c.id === EARPRINT_ALL_CHANNEL_ID)
+  const rest = channels.filter(c => c.id !== EARPRINT_ALL_CHANNEL_ID)
+  rest.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+  return [...(all.length > 0 ? all : [makeEmptyAllChannel()]), ...rest]
+}
+
+/** Keep only the All channel — bulk erase of every custom tab. */
+export function deleteAllCustomChannels(channels: Channel[]): Channel[] {
+  const all = channels.find(c => c.id === EARPRINT_ALL_CHANNEL_ID)
+  return [all ? normalizeChannelDiscovery(all) : makeEmptyAllChannel()]
+}
+
+export function tagFactoryImportChannels(channels: Channel[]): Channel[] {
+  return channels.map(c =>
+    c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const }
+  )
+}
+
+export type PlaybackSourceForFactory = 'spotify' | 'youtube'
+
+/** Load factory default channel set (server file, then bundled fallback). */
+export async function fetchFactoryChannelSet(
+  source: PlaybackSourceForFactory
+): Promise<{ channels: Channel[]; activeChannelId: string } | null> {
+  try {
+    const r = await fetch(`/api/factory-defaults?source=${source}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+    const d = r.ok ? await r.json() : null
+    if (d?.ok && Array.isArray(d.channels) && d.channels.length > 0) {
+      const channels = sortChannelsAlpha(
+        ensureAllChannel(tagFactoryImportChannels(d.channels as Channel[]))
+      )
+      const activeChannelId =
+        typeof d.activeChannelId === 'string' && d.activeChannelId
+          ? d.activeChannelId
+          : (channels[0]?.id ?? EARPRINT_ALL_CHANNEL_ID)
+      return { channels, activeChannelId }
+    }
+  } catch {
+    /* fall through */
+  }
+  const fb = getBundledFactoryChannelsForReset()
+  if (!fb.channels?.length) return null
+  return {
+    channels: sortChannelsAlpha(ensureAllChannel(fb.channels as Channel[])),
+    activeChannelId: fb.activeChannelId,
+  }
 }

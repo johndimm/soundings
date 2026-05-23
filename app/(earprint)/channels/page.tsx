@@ -14,18 +14,35 @@ import {
   NEW_CHANNEL_PREFILL_KEY,
   prefillToEditorValues,
 } from '@/app/lib/channelEditorConfig'
+import { countCustomChannels, deleteChannelsByIds } from '@/app/lib/channelBulkActions'
 import {
   ALL_CHANNEL_DISCOVERY_DEFAULT,
   CHANNEL_DISCOVERY_DEFAULT,
+  ensureAllChannel,
+  EARPRINT_ALL_CHANNEL_ID,
+  fetchFactoryChannelSet,
   genChannelId,
   normalizeChannelDiscovery,
+  sortChannelsAlpha,
   type Channel,
 } from '@/app/lib/channelsImportExport'
 import { sanitizeSelectedArtists } from '@/app/lib/artistHintsFromNotes'
 
 const CHANNELS_STORAGE_KEY = 'earprint-channels'
 const ACTIVE_CHANNEL_KEY = 'earprint-active-channel'
-const ALL_CHANNEL_ID = 'earprint-all'
+const ALL_CHANNEL_ID = EARPRINT_ALL_CHANNEL_ID
+const SETTINGS_STORAGE_KEY = 'earprint-settings'
+
+function readSettingsSource(): 'spotify' | 'youtube' {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw) as { source?: string }
+      if (parsed.source === 'youtube' || parsed.source === 'spotify') return parsed.source
+    }
+  } catch {}
+  return 'spotify'
+}
 
 function mergeArtistTextIntoNotes(ch: Channel): Channel {
   const at = typeof ch.artistText === 'string' ? ch.artistText.trim() : ''
@@ -56,9 +73,8 @@ function makeAllChannel(): Channel {
   }
 }
 
-function ensureAllChannel(channels: Channel[]): Channel[] {
-  if (channels.some(c => c.id === ALL_CHANNEL_ID)) return channels
-  return [makeAllChannel(), ...channels]
+function ensureAllChannelLocal(channels: Channel[]): Channel[] {
+  return ensureAllChannel(channels.length ? channels : [makeAllChannel()])
 }
 
 function newChannelFromValues(values: ChannelEditorValues): Channel {
@@ -95,20 +111,23 @@ export default function ChannelsPage() {
   )
   const [newChannelFormKey, setNewChannelFormKey] = useState(0)
   const [mounted, setMounted] = useState(false)
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set())
+  const [bulkConfirm, setBulkConfirm] = useState<'delete-selected' | 'replace-factory' | null>(null)
 
   useEffect(() => {
     let loaded: Channel[] = []
     try {
       const raw = localStorage.getItem(CHANNELS_STORAGE_KEY)
-      loaded = ensureAllChannel(raw ? JSON.parse(raw) : [])
-      loaded = loaded
-        .map(mergeArtistTextIntoNotes)
-        .map(normalizeChannelDiscovery)
-        .map(ch =>
-          ch.id === ALL_CHANNEL_ID
-            ? ch
-            : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
-        )
+      loaded = sortChannelsAlpha(
+        ensureAllChannelLocal(raw ? JSON.parse(raw) : [])
+          .map(mergeArtistTextIntoNotes)
+          .map(normalizeChannelDiscovery)
+          .map(ch =>
+            ch.id === ALL_CHANNEL_ID
+              ? ch
+              : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
+          )
+      )
       try {
         localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(loaded))
       } catch {}
@@ -144,8 +163,10 @@ export default function ChannelsPage() {
   }, [searchParams, router])
 
   const persist = (updated: Channel[]) => {
-    const normalized = ensureAllChannel(updated).map(ch =>
-      ch.id === ALL_CHANNEL_ID ? ch : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
+    const normalized = sortChannelsAlpha(
+      ensureAllChannelLocal(updated).map(ch =>
+        ch.id === ALL_CHANNEL_ID ? ch : { ...ch, artists: sanitizeSelectedArtists(ch.artists ?? []) }
+      )
     )
     setChannels(normalized)
     try {
@@ -191,6 +212,44 @@ export default function ChannelsPage() {
     }
   }
 
+  const deleteSelected = () => {
+    const ids = checkedIds
+    const updated = deleteChannelsByIds(channels, ids)
+    persist(updated)
+    setCheckedIds(new Set())
+    if (selectedId && ids.has(selectedId)) {
+      switchChannel(updated[0]?.id ?? ALL_CHANNEL_ID)
+    }
+    setBulkConfirm(null)
+  }
+
+  const toggleChecked = (id: string, on: boolean) => {
+    if (id === ALL_CHANNEL_ID) return
+    setCheckedIds(prev => {
+      const next = new Set(prev)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const selectAllCustom = () => {
+    setCheckedIds(new Set(channels.filter(c => c.id !== ALL_CHANNEL_ID).map(c => c.id)))
+  }
+
+  const clearSelection = () => setCheckedIds(new Set())
+
+  const replaceWithFactory = async () => {
+    const loaded = await fetchFactoryChannelSet(readSettingsSource())
+    if (!loaded) {
+      setBulkConfirm(null)
+      return
+    }
+    persist(loaded.channels)
+    switchChannel(loaded.activeChannelId)
+    setBulkConfirm(null)
+  }
+
   const mergeFactoryChannels = async () => {
     try {
       const r = await fetch('/api/factory-defaults', { credentials: 'same-origin', cache: 'no-store' })
@@ -211,7 +270,7 @@ export default function ChannelsPage() {
       const toAdd = incoming
         .filter(c => !existingIds.has(c.id))
         .map(c => (c.id === ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const }))
-      const merged = [...cur, ...toAdd]
+      const merged = sortChannelsAlpha(ensureAllChannelLocal([...cur, ...toAdd]))
       persist(merged)
       const newActive =
         firstId && merged.find(c => c.id === firstId) ? firstId : (toAdd[0]?.id ?? cur[0]?.id ?? '')
@@ -228,6 +287,86 @@ export default function ChannelsPage() {
   }
 
   const selected = channels.find(c => c.id === selectedId) ?? channels[0]
+  const customCount = countCustomChannels(channels)
+  const selectedDeleteCount = checkedIds.size
+  const deletableIds = channels.filter(c => c.id !== ALL_CHANNEL_ID).map(c => c.id)
+  const allCustomSelected =
+    deletableIds.length > 0 && deletableIds.every(id => checkedIds.has(id))
+
+  const channelListRow = (ch: Channel) => {
+    const isActive = selectedId === ch.id && !showNew
+    const canCheck = ch.id !== ALL_CHANNEL_ID
+    const isChecked = checkedIds.has(ch.id)
+    return (
+      <div
+        key={ch.id}
+        className={`flex items-center gap-2 ${
+          isActive ? 'bg-zinc-100' : 'hover:bg-zinc-50'
+        } rounded-lg transition-colors`}
+      >
+        {canCheck ? (
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={e => toggleChecked(ch.id, e.target.checked)}
+            className="ml-2 h-4 w-4 shrink-0 rounded border-zinc-300 text-indigo-600 focus:ring-indigo-500"
+            aria-label={`Select ${ch.name} for deletion`}
+          />
+        ) : (
+          <span className="ml-2 w-4 shrink-0" aria-hidden />
+        )}
+        <button
+          type="button"
+          onClick={() => switchChannel(ch.id)}
+          className={`min-w-0 flex-1 text-left py-2.5 pr-3 text-sm font-medium transition-colors ${
+            isActive ? 'text-zinc-900' : 'text-zinc-600 hover:text-zinc-900'
+          }`}
+        >
+          <span className="block truncate">{ch.name}</span>
+        </button>
+      </div>
+    )
+  }
+
+  const bulkActionsBar = (className = '') => (
+    <div className={`flex flex-col gap-2 ${className}`}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        <button
+          type="button"
+          onClick={selectAllCustom}
+          disabled={deletableIds.length === 0 || allCustomSelected}
+          className="text-zinc-500 hover:text-zinc-800 disabled:opacity-40 disabled:hover:text-zinc-500"
+        >
+          Select all
+        </button>
+        <button
+          type="button"
+          onClick={clearSelection}
+          disabled={selectedDeleteCount === 0}
+          className="text-zinc-500 hover:text-zinc-800 disabled:opacity-40 disabled:hover:text-zinc-500"
+        >
+          Clear
+        </button>
+      </div>
+      <button
+        type="button"
+        onClick={() => selectedDeleteCount > 0 && setBulkConfirm('delete-selected')}
+        disabled={selectedDeleteCount === 0}
+        className="w-full text-left text-xs text-red-600 hover:text-red-700 disabled:opacity-40 disabled:hover:text-red-600 transition-colors"
+      >
+        Delete selected{selectedDeleteCount > 0 ? ` (${selectedDeleteCount})` : ''}…
+      </button>
+      {customCount > 0 && (
+        <button
+          type="button"
+          onClick={() => setBulkConfirm('replace-factory')}
+          className="w-full text-left text-xs text-zinc-500 hover:text-zinc-800 transition-colors"
+        >
+          Replace with factory defaults…
+        </button>
+      )}
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col">
@@ -250,25 +389,35 @@ export default function ChannelsPage() {
               +
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto py-1 min-h-0">
-            {channels.map(ch => (
-              <button
-                key={ch.id}
-                type="button"
-                onClick={() => switchChannel(ch.id)}
-                className={`w-full text-left px-4 py-2.5 text-sm font-medium transition-colors ${
-                  selectedId === ch.id && !showNew
-                    ? 'bg-zinc-100 text-zinc-900'
-                    : 'text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900'
-                }`}
-              >
-                {ch.name}
-              </button>
-            ))}
+          <div className="flex-1 overflow-y-auto py-1 min-h-0 px-1">
+            {channels.map(ch => channelListRow(ch))}
           </div>
+          {customCount > 0 && (
+            <div className="border-t border-zinc-100 p-3">{bulkActionsBar()}</div>
+          )}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
+          {/* Mobile channel list + bulk select */}
+          <div className="sm:hidden border-b border-zinc-200 bg-white px-3 py-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider">Channels</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setNewChannelFormInitial(emptySoundingsEditorValues())
+                  setNewChannelFormKey(k => k + 1)
+                  setShowNew(true)
+                }}
+                className="text-zinc-400 hover:text-indigo-600 text-lg leading-none"
+                title="New channel"
+              >
+                +
+              </button>
+            </div>
+            <div className="max-h-48 overflow-y-auto">{channels.map(ch => channelListRow(ch))}</div>
+            {customCount > 0 && bulkActionsBar('pt-1 border-t border-zinc-100')}
+          </div>
           {showNew ? (
             <div className="p-4 sm:p-6">
               <p className="text-sm font-semibold text-zinc-700 mb-0">New channel</p>
@@ -330,6 +479,78 @@ export default function ChannelsPage() {
           )}
         </div>
       </div>
+
+      {bulkConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+          onClick={() => setBulkConfirm(null)}
+        >
+          <div
+            className="bg-white border border-zinc-200 rounded-xl p-6 max-w-sm w-full shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {bulkConfirm === 'delete-selected' && (
+              <>
+                <h3 className="text-base font-semibold mb-2">Delete selected channels?</h3>
+                <p className="text-sm text-zinc-500 mb-6">
+                  Removes {selectedDeleteCount} channel{selectedDeleteCount !== 1 ? 's' : ''} and their history. The{' '}
+                  <strong className="text-zinc-700">All</strong> channel cannot be deleted.
+                </p>
+                <ul className="text-sm text-zinc-600 mb-6 max-h-40 overflow-y-auto space-y-1">
+                  {channels
+                    .filter(c => checkedIds.has(c.id))
+                    .map(c => (
+                      <li key={c.id} className="truncate">
+                        {c.name}
+                      </li>
+                    ))}
+                </ul>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBulkConfirm(null)}
+                    className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={deleteSelected}
+                    className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white"
+                  >
+                    Delete {selectedDeleteCount}
+                  </button>
+                </div>
+              </>
+            )}
+            {bulkConfirm === 'replace-factory' && (
+              <>
+                <h3 className="text-base font-semibold mb-2">Replace with factory defaults?</h3>
+                <p className="text-sm text-zinc-500 mb-6">
+                  Replaces your entire channel list with the factory default set. All {customCount} current custom
+                  channel{customCount !== 1 ? 's are' : ' is'} removed.
+                </p>
+                <div className="flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setBulkConfirm(null)}
+                    className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void replaceWithFactory()}
+                    className="px-4 py-2 text-sm rounded-lg bg-zinc-900 hover:bg-zinc-700 text-white"
+                  >
+                    Replace
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

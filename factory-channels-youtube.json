@@ -1,7 +1,7 @@
 {
   "earprintExportVersion": 1,
-  "exportedAt": "2026-04-22T18:54:36.416Z",
-  "activeChannelId": "moaetjl7kyqt",
+  "exportedAt": "2026-05-23T23:14:46.041Z",
+  "activeChannelId": "mpireqzd4emh",
   "channels": [
     {
       "id": "earprint-all",
@@ -9,172 +9,191 @@
       "isAutoNamed": false,
       "cardHistory": [],
       "sessionHistory": [],
-      "profile": "You're clearly drawn to late-50s/early-60s cool jazz that's calm, harmonically rich, and introspective. You prefer piano trios and lyrical melodies over driving intensity, and you respond to sparse arrangements with emotional depth—Bill Evans seems to be a touchstone for your taste.",
+      "profile": "Your taste is crisp and analytical, favoring intellectual complexity over raw energy. You value space, harmony, and cultural depth, rejecting the overtly rhythmic or commercial.",
       "createdAt": 0,
-      "currentCard": null,
-      "queue": [],
+      "currentCard": {
+        "track": {
+          "id": "PD-MdiUm1_Y",
+          "videoId": "PD-MdiUm1_Y",
+          "source": "youtube",
+          "name": "Kashmir (Live from Celebration Day) [Official Video]",
+          "artist": "Led Zeppelin",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/PD-MdiUm1_Y/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Epic orchestral rock from 1975 with droning strings and intense dynamics, far from your cool jazz comfort zone on all axes.",
+        "category": "Rock > Hard Rock",
+        "coords": {
+          "x": 55,
+          "y": 85,
+          "z": 95
+        },
+        "composed": 1975
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "ZVe2qrV2MLg",
+            "videoId": "ZVe2qrV2MLg",
+            "source": "youtube",
+            "name": "Basic Understanding of the Risks of Angina #drberg #angina #risks #health",
+            "artist": "Dr. Berg Shorts",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/ZVe2qrV2MLg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Raw 2025 French post-punk with frantic drums and abrasive vocals, mapping to intense and underground territory opposite your refined jazz.",
+          "category": "Punk > Post-Punk / Noise Rock",
+          "coords": {
+            "x": 45,
+            "y": 90,
+            "z": 10
+          }
+        },
+        {
+          "track": {
+            "id": "mh6s71MicgY",
+            "videoId": "mh6s71MicgY",
+            "source": "youtube",
+            "name": "The Sixteen   Miserere Mei Deus",
+            "artist": "EtudeFidem",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/mh6s71MicgY/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Renaissance polyphonic masterpiece for unaccompanied choir, serene and ancient — the calmest, most acoustic point yet, with no electronic or driving elements.",
+          "category": "Classical > Renaissance / Sacred Choral",
+          "coords": {
+            "x": 0,
+            "y": 5,
+            "z": 50
+          },
+          "composed": 1630
+        },
+        {
+          "track": {
+            "id": "0EBTn_3DBYo",
+            "videoId": "0EBTn_3DBYo",
+            "source": "youtube",
+            "name": "KRAFTWERK - HD Live",
+            "artist": "RADIOACTIVITY",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/0EBTn_3DBYo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Purely electronic, minimal, and driving — a complete sonic opposite to the jazz and acoustic territory, probing a high-X, mid-Y, moderately known area.",
+          "category": "Electronic > Krautrock / Synth-Pop",
+          "coords": {
+            "x": 85,
+            "y": 55,
+            "z": 65
+          },
+          "composed": 1975
+        }
+      ],
       "genres": [],
       "genreText": "",
+      "timePeriod": "",
       "timePeriods": [],
       "notes": "",
       "regions": [],
       "popularity": 50,
       "discovery": 100,
-      "playbackPositionMs": 0,
       "artists": [],
-      "artistText": ""
+      "artistText": "",
+      "source": "youtube"
     },
     {
       "id": "mo3jvkdzl7ci",
       "name": "Cool Jazz",
       "isAutoNamed": false,
-      "cardHistory": [
-        {
-          "track": "Ghost of a Chance",
-          "artist": "Lennie Tristano",
-          "stars": 4,
-          "coords": {
-            "x": 25,
-            "y": 45,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273797d6a7438bde2cf9d890be0",
-          "uri": "spotify:track:5vTBSWHl0qXtM1980R2pVM",
-          "category": "Jazz > Cool Jazz",
-          "source": "spotify"
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to cool jazz's refined textures and unhurried tempos, especially modal vamps and soft brass. West Coast luminaries like Chet Baker and Gerry Mulligan feel like home, but you're open to slightly more structured hard bop as long as it stays elegant. You appreciate melodic clarity and space over density or heat.",
+      "createdAt": 1776469170167,
+      "currentCard": {
+        "track": {
+          "id": "ez-Kefu4vvU",
+          "videoId": "ez-Kefu4vvU",
+          "source": "youtube",
+          "name": "Flamenco Sketches",
+          "artist": "Miles Davis",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/ez-Kefu4vvU/hqdefault.jpg",
+          "durationMs": 0
         },
-        {
-          "track": "Blue Rondo à la Turk",
-          "artist": "The Dave Brubeck Quartet",
-          "stars": 4,
-          "coords": {
-            "x": 22,
-            "y": 65,
-            "z": 70
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b6bd44cf06bf8f4d5ce1e080",
-          "uri": "spotify:track:7CrNF9zL7tIQ2269DVxzST",
-          "category": "Jazz > Cool Jazz/West Coast Jazz",
-          "source": "spotify"
+        "reason": "Modal cool jazz masterpiece from Kind of Blue—spacious, harmonically open, with a serene, introspective mood that extends your piano-forward explorations.",
+        "category": "Jazz > Cool Jazz > Modal",
+        "coords": {
+          "x": 15,
+          "y": 35,
+          "z": 82
         },
+        "composed": 1959
+      },
+      "queue": [
         {
-          "track": "Israel",
-          "artist": "Bill Evans Trio",
-          "stars": 3,
-          "coords": {
-            "x": 20,
-            "y": 45,
-            "z": 40
+          "track": {
+            "id": "L4ksM27dVfs",
+            "videoId": "L4ksM27dVfs",
+            "source": "youtube",
+            "name": "Django (HQ)",
+            "artist": "Modern Jazz Quartet",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/L4ksM27dVfs/hqdefault.jpg",
+            "durationMs": 0
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273cab935f4386e58f05a9705bc",
-          "uri": "spotify:track:3XiG3nHzUX3TJQ3D3UwFJ5",
-          "category": "Jazz > Cool Jazz",
-          "source": "spotify"
-        },
-        {
-          "track": "The Opium Eaters",
-          "artist": "Dean Omori",
-          "stars": 1.5,
+          "reason": "Elegant, classically-inflected cool jazz with vibraphone replacing piano—still harmonically rich but adds a shimmering, less percussive texture.",
+          "category": "Jazz > Cool Jazz > Third Stream",
           "coords": {
-            "x": 22,
-            "y": 40,
-            "z": 50
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733fad4aa33bd407f5de83dcd0",
-          "uri": "spotify:track:77dUlFRxKG5WYl6qwwmXGu",
-          "category": "Jazz > West Coast Jazz",
-          "source": "spotify"
-        },
-        {
-          "track": "My Funny Valentine - Rudy Van Gelder Remaster 2007",
-          "artist": "Miles Davis Quintet",
-          "stars": 3.5,
-          "coords": {
-            "x": 20,
-            "y": 25,
+            "x": 12,
+            "y": 38,
             "z": 65
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2732a2d01f78d82ad4d8c095ab1",
-          "uri": "spotify:track:5FYgwqjjq9kPCMj8yArfTr",
-          "category": "Jazz > Cool Jazz",
-          "source": "spotify"
+          "composed": 1954
         },
         {
-          "track": "Take Five",
-          "artist": "The Dave Brubeck Quartet",
-          "stars": 4,
-          "coords": {
-            "x": 20,
-            "y": 55,
-            "z": 85
+          "track": {
+            "id": "Ze-3pE3vSjc",
+            "videoId": "Ze-3pE3vSjc",
+            "source": "youtube",
+            "name": "Stan Getz & Charlie Byrd - Samba Triste.",
+            "artist": "04",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Ze-3pE3vSjc/hqdefault.jpg",
+            "durationMs": 0
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b6bd44cf06bf8f4d5ce1e080",
-          "uri": "spotify:track:1YQWosTIljIvxAgHWTp7KP",
-          "category": "Jazz > Cool Jazz",
-          "source": "spotify"
-        },
-        {
-          "track": "I waited for you",
-          "artist": "Chet Baker",
-          "stars": 4.5,
+          "reason": "Late-60s bossa-tinged cool jazz from Stan Getz—smooth, melodic tenor sax with gentle guitar, blending South American rhythm into your cool aesthetic.",
+          "category": "Jazz > Cool Jazz > Bossa Nova",
           "coords": {
-            "x": 15,
-            "y": 20,
-            "z": 25
+            "x": 14,
+            "y": 42,
+            "z": 60
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e844e3295cea48820012db61",
-          "uri": "spotify:track:7EF6ls57hx7h2fThxjkXB5",
-          "category": "Jazz > West Coast Cool Jazz",
-          "source": "spotify"
+          "composed": 1967
         },
         {
-          "track": "Dancing at the Blue Lagoon",
-          "artist": "Cayucas",
-          "stars": 0.5,
+          "track": {
+            "id": "u5PG7aRYS1k",
+            "videoId": "u5PG7aRYS1k",
+            "source": "youtube",
+            "name": "Night Lights (1963)",
+            "artist": "Gerry Mulligan",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/u5PG7aRYS1k/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A foggy, baritone sax-led ballad from the 1963 album of the same name, exploring a deeper, more nocturnal sonic territory far from the bright modal harmonies you've heard.",
+          "category": "Jazz > Cool Jazz > West Coast Jazz",
           "coords": {
             "x": 25,
-            "y": 35,
-            "z": 15
+            "y": 30,
+            "z": 30
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733096f802fcf724f4ee8fea83",
-          "uri": "spotify:track:0a8ySgiocIL3YIDDdOrAxF",
-          "category": "Jazz > Third Stream / Avant-Garde Cool",
-          "source": "spotify"
-        },
-        {
-          "track": "All I Wanna Do",
-          "artist": "Sheryl Crow",
-          "stars": 3.5,
-          "coords": {
-            "x": 20,
-            "y": 60,
-            "z": 20
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b478a8ce3aac61a3675aac2a",
-          "uri": "spotify:track:3ZpQiJ78LKINrW9SQTgbXd",
-          "category": "Jazz > Cool Jazz / Tristano School",
-          "source": "spotify"
-        },
-        {
-          "track": "Conception",
-          "artist": "George Shearing Quintet",
-          "stars": 2.5,
-          "coords": {
-            "x": 18,
-            "y": 28,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d70e301105c29b2a762beac2",
-          "uri": "spotify:track:0T4RB9dopywlO4cU0LuBmz",
-          "category": "Jazz > Cool Jazz",
-          "source": "spotify"
+          "composed": 1963
         }
       ],
-      "sessionHistory": [],
-      "profile": "You're navigating the intimate, harmonically sophisticated corners of 1950s-60s cool jazz, favoring piano trios and lyrical horn melodies with clear emotional resonance. Your exploration avoids both pop crossover and avant-garde abstraction, staying firmly in refined, chamber-like territory.",
-      "createdAt": 1776469170167,
-      "currentCard": null,
-      "queue": [],
       "genres": [
         "Jazz"
       ],
@@ -186,11 +205,14 @@
       ],
       "notes": "cool jazz",
       "regions": [],
-      "popularity": 0,
+      "popularity": 50,
       "discovery": 50,
-      "playbackPositionMs": 0,
-      "artists": [],
-      "artistText": ""
+      "artists": [
+        "Cool Jazz"
+      ],
+      "artistText": "",
+      "userCreated": false,
+      "source": "youtube"
     },
     {
       "id": "mo3m9pld7vzd",
@@ -198,270 +220,162 @@
       "isAutoNamed": false,
       "cardHistory": [
         {
-          "track": "String Quartet No. 14 in D Minor, D. 810 \"Der Tod und das Mädchen\": II. Andante con moto",
-          "artist": "Franz Schubert",
-          "stars": null,
+          "track": "C  Franck Piano Quintet in F       Minor, FWV 7        1 mvt",
+          "artist": "Tatjana Kravchenko",
+          "stars": 0,
           "coords": {
             "x": 5,
-            "y": 45,
-            "z": 65
+            "y": 75,
+            "z": 55
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273ffe506f95384e9dbbe961e26",
-          "uri": "spotify:track:7hLxTkJ1Yc1NiZijaX4loF",
-          "category": "Classical > Chamber Music > String Quartet",
-          "source": "spotify"
+          "albumArt": "https://i.ytimg.com/vi/h4I4xJ1LXg4/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Chamber Music > Piano Quintet",
+          "source": "youtube"
         },
         {
-          "track": "Clair de lune from Suite bergamasque",
-          "artist": "Claude Debussy",
-          "stars": null,
+          "track": "Quatuor Ebène : Bela Bartok  String quartet Nr. 4 C-major Sz 91",
+          "artist": "FestivalWissembourg",
+          "stars": 0,
           "coords": {
-            "x": 8,
-            "y": 20,
-            "z": 85
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27389b3fc504f6ffe51a0ca02ab",
-          "uri": "spotify:track:0pHFAoFikRaLe6tUMbB9FT",
-          "category": "Classical > Impressionist > Piano Solo",
-          "source": "spotify"
-        },
-        {
-          "track": "Piano Trio No. 2 in E-Flat Major, D. 929: II. Andante con moto",
-          "artist": "Franz Schubert",
-          "stars": null,
-          "coords": {
-            "x": 6,
-            "y": 40,
-            "z": 60
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27392045137235fe6a64e471e31",
-          "uri": "spotify:track:2GiNqtvA87QYLkdJuZWByl",
-          "category": "Classical > Chamber Music > Piano Trio",
-          "source": "spotify"
-        },
-        {
-          "track": "Quatuor pour la fin du temps: V. Louange a l'eternite de Jesus",
-          "artist": "Olivier Messiaen",
-          "stars": 3.5,
-          "coords": {
-            "x": 25,
-            "y": 22,
-            "z": 45
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2737fc1508f3588fe3ccd6392ef",
-          "uri": "spotify:track:1svfczKYFHKcfmLMo54Q3v",
-          "category": "Classical > 20th Century Chamber Music",
-          "source": "spotify"
-        },
-        {
-          "track": "Piano Trio in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese. Presto (Arr. for Piano by Anthony Goldstone)",
-          "artist": "Joseph Haydn",
-          "stars": null,
-          "coords": {
-            "x": 12,
-            "y": 70,
-            "z": 60
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27370dc44edd71e5913e04a5ea2",
-          "uri": "spotify:track:2b2xrD2R5UkcHtiCBp7NSl",
-          "category": "Classical > Classical Chamber Music",
-          "source": "spotify"
-        },
-        {
-          "track": "String Quartet No. 1 in G Minor, Op. 27: III. Intermezzo. Allegro molto marcato – Più vivo e scherzando",
-          "artist": "Edvard Grieg",
-          "stars": 4.5,
-          "coords": {
-            "x": 10,
-            "y": 68,
-            "z": 35
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273f8d47d9a23eb0de05d2d7ca9",
-          "uri": "spotify:track:2CRzpmeOayycp7NFktyhYQ",
-          "category": "Classical > Romantic Chamber Music",
-          "source": "spotify"
-        },
-        {
-          "track": "Six Metamorphoses after Ovid for Solo Oboe, Op. 49: I. Pan (Senza misura)",
-          "artist": "Benjamin Britten",
-          "stars": null,
-          "coords": {
-            "x": 15,
-            "y": 25,
+            "x": 4,
+            "y": 82,
             "z": 40
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dcb478d9ada77ebb3f43f129",
-          "uri": "spotify:track:2XsFd9a9Xdc4sw2xmOHW4F",
-          "category": "Classical > 20th Century Chamber Music",
-          "source": "spotify"
+          "albumArt": "https://i.ytimg.com/vi/E_XNfKk-Qbs/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Chamber Music > String Quartet",
+          "source": "youtube"
         },
         {
-          "track": "Piano Trio No. 39 in G Major, Hob. XV:25 \"Gypsy\": III. Rondo all'Ongarese (Presto) - Live",
-          "artist": "Joseph Haydn",
-          "stars": null,
-          "coords": {
-            "x": 12,
-            "y": 75,
-            "z": 50
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273266449a992b69ffde2002a02",
-          "uri": "spotify:track:6XoM0xsbAjwdjfIph7DYEd",
-          "category": "Classical > Classical Era Chamber Music",
-          "source": "spotify"
-        },
-        {
-          "track": "Piano Sonata No. 30 in E Major, Op. 109: III. Gesangvoll, mit innigster Empfindung. Andante molto cantabile ed espressivo",
-          "artist": "Ludwig van Beethoven",
-          "stars": 2,
-          "coords": {
-            "x": 15,
-            "y": 35,
-            "z": 70
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2735493dbe5586227e003b9138e",
-          "uri": "spotify:track:1q3tWQD6EYggQi1q4EKjUs",
-          "category": "Classical > Piano Sonata",
-          "source": "spotify"
-        },
-        {
-          "track": "String Quartet No. 1 in C Major, Op. 49: I. Moderato",
-          "artist": "Dmitri Shostakovich",
+          "track": "String Quartet in F major",
+          "artist": "Maurice Ravel",
           "stars": 0,
           "coords": {
-            "x": 15,
-            "y": 48,
-            "z": 35
+            "x": 10,
+            "y": 40,
+            "z": 55
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
-          "uri": "spotify:track:2LNHA8xdPWTqWl1fjuJevk",
-          "category": "Classical > 20th century chamber music",
-          "source": "spotify"
+          "albumArt": "https://i.ytimg.com/vi/ieRQyyPowH0/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > 20th Century Classical",
+          "source": "youtube"
         },
         {
-          "track": "Piano Trio No. 2 in E-Flat Major, Op. 100, D. 929: II. Andante con moto",
-          "artist": "Franz Schubert",
-          "stars": 4.5,
+          "track": "CMI  Concert 5 on 2.16.2019",
+          "artist": "Brahms Piano Quartet Rehearsal",
+          "stars": 1,
           "coords": {
             "x": 10,
-            "y": 32,
-            "z": 65
+            "y": 75,
+            "z": 40
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273a2376e7fe1516e8680f70491",
-          "uri": "spotify:track:15OYOsjhgsfYUAOx9ocEbm",
-          "category": "Classical > Romantic chamber music",
-          "source": "spotify"
+          "albumArt": "https://i.ytimg.com/vi/jkucuBI5bRs/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Romantic Chamber Music",
+          "source": "youtube"
         },
         {
-          "track": "String Quartet No. 8 in C Minor, Op. 110: II. Allegro molto",
-          "artist": "Dmitri Shostakovich",
-          "stars": 0.5,
-          "coords": {
-            "x": 12,
-            "y": 78,
-            "z": 45
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e6737d3026a9814286d745f9",
-          "uri": "spotify:track:1zwNC4HIvgQQ6nga0ygjIg",
-          "category": "Classical > 20th century chamber music",
-          "source": "spotify"
-        },
-        {
-          "track": "String Quartet No.2 in A Minor, Op. 51 No. 2: III. Quasi minuetto, moderato",
-          "artist": "Johannes Brahms",
-          "stars": 3,
+          "track": "YUNDI plays Mozart: Piano Sonata No. 11 in A Major, K. 331 \"Alla Turca\": III. Rondo alla Turca",
+          "artist": "Warner Classics",
+          "stars": 0,
           "coords": {
             "x": 8,
-            "y": 45,
-            "z": 65
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27351d03a11b744ed7eb80e5722",
-          "uri": "spotify:track:7azxNVzn68pB1wiV4yuBnt",
-          "category": "Classical > String Quartet",
-          "source": "spotify"
-        },
-        {
-          "track": "Piano Trio No. 1 in D Minor, Op. 49: I. Molto allegro ed agitato",
-          "artist": "Felix Mendelssohn",
-          "stars": 2.5,
-          "coords": {
-            "x": 10,
-            "y": 70,
-            "z": 60
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733848c889f1d1181738a3fc20",
-          "uri": "spotify:track:2LgjcWjFkDchhIBseKQ1OY",
-          "category": "Classical > Piano Trio",
-          "source": "spotify"
-        },
-        {
-          "track": "String Quartet No. 15 in A Minor, Op. 132: III. Molto adagio",
-          "artist": "Ludwig van Beethoven",
-          "stars": 0,
-          "coords": {
-            "x": 15,
             "y": 40,
-            "z": 65
+            "z": 50
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2739a2a82704f5c70e139e49f92",
-          "uri": "spotify:track:0VE54DT9IVFpA3koSDLYI4",
-          "category": "Classical > Chamber Music > String Quartet",
-          "source": "spotify"
-        },
-        {
-          "track": "Piano Quintet in A Major, D. 667 \"Trout Quintet\": IV. Theme – Andantino – Vars. 1-5 – Allegretto",
-          "artist": "Franz Schubert",
-          "stars": 0.5,
-          "coords": {
-            "x": 12,
-            "y": 55,
-            "z": 70
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27321f2c8f40bd9ced38bbbf5c1",
-          "uri": "spotify:track:0HlnpuRVyVhOWkd94cvQ2M",
-          "category": "Classical > Chamber Music > Piano Quintet",
-          "source": "spotify"
-        },
-        {
-          "track": "String Quartet No. 2 \"Intimate Letters\": III. Moderato - Adagio",
-          "artist": "Leoš Janáček",
-          "stars": 0,
-          "coords": {
-            "x": 18,
-            "y": 70,
-            "z": 35
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e90df068ce37535f4824c606",
-          "uri": "spotify:track:5yv1U67AVILquLS42wAo47",
-          "category": "Classical > Chamber Music > String Quartet",
-          "source": "spotify"
+          "albumArt": "https://i.ytimg.com/vi/n2Tru4Qa3pc/hqdefault.jpg",
+          "uri": null,
+          "category": "Classical > Classical",
+          "source": "youtube"
         }
       ],
-      "sessionHistory": [
-        {
-          "track": "Piano Quintet in A Major, D. 667 \"Trout Quintet\": IV. Theme – Andantino – Vars. 1-5 – Allegretto",
-          "artist": "Franz Schubert",
-          "stars": 0.5,
-          "coords": {
-            "x": 12,
-            "y": 55,
-            "z": 70
-          }
-        },
-        {
-          "track": "String Quartet No. 2 \"Intimate Letters\": III. Moderato - Adagio",
-          "artist": "Leoš Janáček",
-          "stars": 0,
-          "coords": {
-            "x": 18,
-            "y": 70,
-            "z": 35
-          }
-        }
-      ],
-      "profile": "You're exploring lyrical, emotionally transparent chamber music, especially from the Romantic era, with a clear preference for warmth and flow over agitation or stark modernism. Schubert's conversational trios resonate, while high-dissonance 20th-century works feel distant.",
+      "sessionHistory": [],
+      "profile": "You gravitate toward calm, flowing chamber music with clear melodic lines, especially piano works from the Classical and Romantic eras. You value emotional depth without harsh dissonance, and you prefer transparent textures and moderate energy over dense or aggressive sounds.",
       "createdAt": 1776473189329,
-      "currentCard": null,
-      "queue": [],
+      "currentCard": {
+        "track": {
+          "id": "rHsvD6_gRyo",
+          "videoId": "rHsvD6_gRyo",
+          "source": "youtube",
+          "name": "11.10.18",
+          "artist": "Martha Argerich plays Schumann Piano Quintet at the Israel Philharmonic",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/rHsvD6_gRyo/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Ashkenazy leads a Romantic piano quintet with rich, flowing lines and moderate drama, a middle-ground exploration of 19th-century chamber music.",
+        "category": "Classical > Romantic Chamber Music",
+        "coords": {
+          "x": 4,
+          "y": 50,
+          "z": 55
+        },
+        "composed": 1842
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "Gv94m_S3QDo",
+            "videoId": "Gv94m_S3QDo",
+            "source": "youtube",
+            "name": "Goldberg Variations: Aria (Glenn Gould)",
+            "artist": "Bach",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Gv94m_S3QDo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Gould's precise, introspective take on Bach's aria is a calm, solo-keyboard exploration with clear melody and low energy, probing a different corner of your taste.",
+          "category": "Classical > Baroque Keyboard",
+          "coords": {
+            "x": 2,
+            "y": 15,
+            "z": 70
+          },
+          "composed": 1741
+        },
+        {
+          "track": {
+            "id": "OYG-Q-TlC8E",
+            "videoId": "OYG-Q-TlC8E",
+            "source": "youtube",
+            "name": "Chopin Piano Sonata No. 2",
+            "artist": "Vladimir Horowitz",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/OYG-Q-TlC8E/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A fiery Romantic-era piano sonata with dramatic intensity and virtuosity, exploring a higher-energy zone far from Ravel’s calm aesthetic.",
+          "category": "Classical > Piano",
+          "coords": {
+            "x": 3,
+            "y": 65,
+            "z": 75
+          },
+          "composed": 1839
+        },
+        {
+          "track": {
+            "id": "vV6F_QWp23o",
+            "videoId": "vV6F_QWp23o",
+            "source": "youtube",
+            "name": "Mozart: Piano Sonata No. 10 in C major, K.330 [Uchida]",
+            "artist": "Miguel Fontes Meira",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/vV6F_QWp23o/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A poised Classical-era piano sonata with elegant flow and gentle energy, perfect for your preference for transparent chamber works.",
+          "category": "Classical > Classical Piano Sonata",
+          "coords": {
+            "x": 8,
+            "y": 25,
+            "z": 55
+          },
+          "composed": 1783,
+          "performer": "Mitsuko Uchida"
+        }
+      ],
       "genres": [
         "Classical"
       ],
@@ -478,91 +392,100 @@
       ],
       "popularity": 50,
       "discovery": 50,
-      "playbackPositionMs": 0,
-      "artists": [],
-      "artistText": ""
+      "artists": [
+        "Chamber Music"
+      ],
+      "artistText": "",
+      "userCreated": false,
+      "source": "youtube"
     },
     {
       "id": "mo3mflyc45k4",
       "name": "Deep House",
       "isAutoNamed": false,
-      "cardHistory": [
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to deep house with jazz undertones—smooth keys, warm basslines, and soulful vocals. You prefer mid-tempo, textured grooves that feel intimate and polished, avoiding aggressive drops or breakbeats. Keep exploring Naked Music, Llorca, and early-2000s Kaskade for that sweet spot.",
+      "createdAt": 1776473464548,
+      "currentCard": {
+        "track": {
+          "id": "_xhn_d8pl74",
+          "videoId": "_xhn_d8pl74",
+          "source": "youtube",
+          "name": "DEPECHE MODE REMIX | DEEP HOUSE MIX | RELAXING / CHILL OUT MUSIC | NIGHT DRIVE",
+          "artist": "Ministry Of Deep House",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/_xhn_d8pl74/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Soulful vocal chops over a rolling bassline and soft Rhodes chords, capturing the introspective mood you lean into.",
+        "category": "Electronic > Deep House",
+        "coords": {
+          "x": 70,
+          "y": 48,
+          "z": 72
+        }
+      },
+      "queue": [
         {
-          "track": "Indigo Blues - Original Radio Edit",
-          "artist": "Llorca",
-          "stars": 2.5,
+          "track": {
+            "id": "QhMs-t7EhXY",
+            "videoId": "QhMs-t7EhXY",
+            "source": "youtube",
+            "name": "Deep House Vibes 2026 | Tropical House Journey",
+            "artist": "Best Deep House Songs Of All Time",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/QhMs-t7EhXY/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "An ambient-tinged deep house piece with slow, evolving textures and almost no beat, testing the boundary of what still qualifies as dance music.",
+          "category": "Electronic > Deep House > Ambient House",
+          "coords": {
+            "x": 70,
+            "y": 10,
+            "z": 18
+          }
+        },
+        {
+          "track": {
+            "id": "DrR39lefK00",
+            "videoId": "DrR39lefK00",
+            "source": "youtube",
+            "name": "Deep House Mix 2026 🖤 Just Relax & Sexy Night Drive | Smoke Mood (Nu Disco & Vocal House)",
+            "artist": "Velvet Deep House",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/DrR39lefK00/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Smooth, downtempo deep house with lush pads and a soft vocal sample, exploring a more ambient-leaning region with low electronic density.",
+          "category": "Electronic > Deep House",
           "coords": {
             "x": 60,
-            "y": 45,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27359adaa206b0626b255fcd15a",
-          "uri": "spotify:track:1L803aXwjhfOVC5HRoFGib",
-          "category": "Electronic > Deep House / Nu Jazz",
-          "source": "spotify"
+            "y": 18,
+            "z": 14
+          }
         },
         {
-          "track": "Music Sounds Better With You",
-          "artist": "Stardust",
-          "stars": 0,
-          "coords": {
-            "x": 88,
-            "y": 78,
-            "z": 75
+          "track": {
+            "id": "etlID81S6tk",
+            "videoId": "etlID81S6tk",
+            "source": "youtube",
+            "name": "Deep-house, Dub-Tech, Groovy",
+            "artist": "Deep House Mix | SET",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/etlID81S6tk/hqdefault.jpg",
+            "durationMs": 0
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b98afa12c212cbbda4f1799b",
-          "uri": "spotify:track:303ccTay2FiDTZ9fZ2AdBt",
-          "category": "Electronic > French House",
-          "source": "spotify"
-        },
-        {
-          "track": "(Never Been to) California",
-          "artist": "DJ Mark Farina",
-          "stars": 4,
+          "reason": "Driving, slightly more percussive deep house with analog synth lines, probing a moderate energy region with a tech-house edge.",
+          "category": "Electronic > Tech House",
           "coords": {
-            "x": 65,
-            "y": 30,
-            "z": 25
+            "x": 72,
+            "y": 55,
+            "z": 30
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273dec9087901c859a58490f69c",
-          "uri": "spotify:track:5d1QIekq9cWzye6Crv1mcf",
-          "category": "Electronic > Downtempo / Trip-Hop",
-          "source": "spotify"
-        },
-        {
-          "track": "Rose rouge",
-          "artist": "St Germain",
-          "stars": 3.5,
-          "coords": {
-            "x": 65,
-            "y": 68,
-            "z": 75
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2735e570fc1d95bbf490f8d05cd",
-          "uri": "spotify:track:1divptdjcWXvF1aflfTQnw",
-          "category": "Electronic > Nu Jazz / Deep House",
-          "source": "spotify"
-        },
-        {
-          "track": "Falaise",
-          "artist": "Floating Points",
-          "stars": 0,
-          "coords": {
-            "x": 82,
-            "y": 45,
-            "z": 40
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273216a393a7606aa7de52c4636",
-          "uri": "spotify:track:3rkJH9BaiCWpRY718WTkBP",
-          "category": "Electronic > Experimental Jazz / IDM",
-          "source": "spotify"
+          "composed": 2020
         }
       ],
-      "sessionHistory": [],
-      "profile": "You're exploring the soulful, jazzy side of deep house and downtempo—drawn to warm Rhodes, live bass, and organic grooves. You've pulled back from more synthetic or abstract electronic textures, preferring tracks that feel human and melodic.",
-      "createdAt": 1776473464548,
-      "currentCard": null,
-      "queue": [],
       "genres": [
         "Electronic",
         "Jazz"
@@ -579,156 +502,99 @@
       "regions": [],
       "popularity": 50,
       "discovery": 50,
-      "playbackPositionMs": 0,
-      "artists": [],
-      "artistText": ""
-    },
-    {
-      "id": "mo3mpve3gv91",
-      "name": "Motown",
-      "isAutoNamed": false,
-      "cardHistory": [
-        {
-          "track": "I Heard It Through The Grapevine",
-          "artist": "Marvin Gaye",
-          "stars": 4,
-          "coords": {
-            "x": 30,
-            "y": 75,
-            "z": 90
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273aff6573c5110e0732fbab3d8",
-          "uri": "spotify:track:1tqT6DhmsrtQgyCKUwotiw",
-          "category": "Soul > Motown",
-          "source": "spotify"
-        },
-        {
-          "track": "Smokestack Lightnin'",
-          "artist": "Howlin' Wolf",
-          "stars": null,
-          "coords": {
-            "x": 10,
-            "y": 70,
-            "z": 65
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736181b1ed45a906d5b2c89af3",
-          "uri": "spotify:track:2HUZVffVPXvqnrml0gXggp",
-          "category": "Blues > Chicago Blues",
-          "source": "spotify"
-        },
-        {
-          "track": "What's Going On",
-          "artist": "Marvin Gaye",
-          "stars": 1,
-          "coords": {
-            "x": 35,
-            "y": 50,
-            "z": 92
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
-          "uri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
-          "category": "Soul > Progressive Soul",
-          "source": "spotify"
-        }
+      "artists": [
+        "Deep House"
       ],
-      "sessionHistory": [
-        {
-          "track": "What's Going On",
-          "artist": "Marvin Gaye",
-          "stars": 1,
-          "coords": {
-            "x": 35,
-            "y": 50,
-            "z": 92
-          }
-        }
-      ],
-      "profile": "You're exploring the soulful, sample-based side of deep house with clear jazz and funk roots. You lean toward moderate energy and organic grooves but pulled back from Floating Points' more abstract, modern electronic sound. Your comfort zone sits between late-90s downtempo and early-2000s melodic house.",
-      "createdAt": 1776473943339,
-      "currentCard": null,
-      "queue": [],
-      "genres": [
-        "Soul",
-        "Blues",
-        "R&B"
-      ],
-      "genreText": "",
-      "timePeriod": "1950s and 1960s and 1970s",
-      "timePeriods": [
-        "1950s",
-        "1960s",
-        "1970s"
-      ],
-      "notes": "Detroit Motown, Howlin' Wolf, Albert King, Muddy Waters",
-      "regions": [
-        "US & Canada"
-      ],
-      "popularity": 50,
-      "discovery": 50,
-      "playbackPositionMs": 0,
-      "artists": [],
-      "artistText": ""
+      "artistText": "",
+      "userCreated": false,
+      "source": "youtube"
     },
     {
       "id": "mo3mt22qd0m4",
       "name": "Hip Hop",
       "isAutoNamed": false,
-      "cardHistory": [
-        {
-          "track": "The Message (feat. Melle Mel & Duke Bootee)",
-          "artist": "Grandmaster Flash & The Furious Five",
-          "stars": 1,
-          "coords": {
-            "x": 70,
-            "y": 40,
-            "z": 85
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273798575ed938d0968a00ce887",
-          "uri": "spotify:track:5DuTNKFEjJIySAyJH1yNDU",
-          "category": "Hip-Hop > Old School",
-          "source": "spotify"
-        },
-        {
-          "track": "Nuthin' But A \"G\" Thang",
-          "artist": "Dr. Dre",
-          "stars": 0.5,
-          "coords": {
-            "x": 75,
-            "y": 65,
-            "z": 90
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2739710731c9d7baec635f1bab1",
-          "uri": "spotify:track:5Tbpp3OLLClPJF8t1DmrFD",
-          "category": "Hip-Hop > G-Funk",
-          "source": "spotify"
-        }
-      ],
-      "sessionHistory": [
-        {
-          "track": "The Message (feat. Melle Mel & Duke Bootee)",
-          "artist": "Grandmaster Flash & The Furious Five",
-          "stars": 1,
-          "coords": {
-            "x": 70,
-            "y": 40,
-            "z": 85
-          }
-        },
-        {
-          "track": "Nuthin' But A \"G\" Thang",
-          "artist": "Dr. Dre",
-          "stars": 0.5,
-          "coords": {
-            "x": 75,
-            "y": 65,
-            "z": 90
-          }
-        }
-      ],
-      "profile": "You've disliked polished, message-oriented soul, so we're pivoting to explore raw, instrument-driven energy and deep, personal blues emotion. We'll test your response to powerful vocals, driving rhythms, and iconic guitar work within the 60s-70s US soul and blues canon.",
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You gravitate toward hip-hop that values lyrical craft and narrative weight over minimal, synth-heavy production. Soulful samples, live-feel drums, and emotionally charged storytelling in the 90s boom-bap tradition clearly resonate, but you're also open to modern complexity when the instrumental warmth holds.",
       "createdAt": 1776474091970,
-      "currentCard": null,
-      "queue": [],
+      "currentCard": {
+        "track": {
+          "id": "_JZom_gVfuw",
+          "videoId": "_JZom_gVfuw",
+          "source": "youtube",
+          "name": "Juicy (Official Video) [4K]",
+          "artist": "The Notorious B.I.G.",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/_JZom_gVfuw/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A foundational hip-hop track with a warm soul sample and narrative rags-to-riches storytelling, fitting your taste for lyrical depth and piano loops.",
+        "category": "Hip-Hop > East Coast Hip-Hop",
+        "coords": {
+          "x": 35,
+          "y": 65,
+          "z": 90
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "dBeFezy_YEs",
+            "videoId": "dBeFezy_YEs",
+            "source": "youtube",
+            "name": "The Blacker The Berry (HD Lyrics)",
+            "artist": "Kendrick Lamar",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/dBeFezy_YEs/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A fierce, politically charged 2015 track with dense production and raw anger, showcasing modern lyrical complexity and a driving beat.",
+          "category": "Hip-Hop > Conscious Hip-Hop",
+          "coords": {
+            "x": 60,
+            "y": 90,
+            "z": 85
+          }
+        },
+        {
+          "track": {
+            "id": "Rp4qXCneXRU",
+            "videoId": "Rp4qXCneXRU",
+            "source": "youtube",
+            "name": "NY State of Mind (Music Video)",
+            "artist": "Nas",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Rp4qXCneXRU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A gritty, jazz-sampled 1994 track with vivid street narrative and laid-back yet urgent flow, defining East Coast boom-bap at its peak.",
+          "category": "Hip-Hop > East Coast Hip-Hop > Boom Bap",
+          "coords": {
+            "x": 25,
+            "y": 72,
+            "z": 86
+          }
+        },
+        {
+          "track": {
+            "id": "qP7E_MhQQr0",
+            "videoId": "qP7E_MhQQr0",
+            "source": "youtube",
+            "name": "HUMBLE. [Lyrics]",
+            "artist": "Kendrick Lamar",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/qP7E_MhQQr0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Hard-hitting, minimalist trap-influenced beat with Kendrick's commanding delivery—exploring a more electronic, modern, and chart-dominant corner of the space.",
+          "category": "Hip-Hop > West Coast / Trap",
+          "coords": {
+            "x": 70,
+            "y": 85,
+            "z": 95
+          }
+        }
+      ],
       "genres": [
         "Hip-Hop"
       ],
@@ -747,786 +613,3191 @@
       ],
       "popularity": 50,
       "discovery": 50,
-      "playbackPositionMs": 0,
-      "artists": [],
-      "artistText": ""
+      "artists": [
+        "Hip Hop"
+      ],
+      "artistText": "",
+      "userCreated": false,
+      "source": "youtube"
     },
     {
-      "id": "mo99ioy8rgps",
-      "name": "Funk",
+      "id": "mpae0vzifj1y",
+      "name": "Primus",
       "isAutoNamed": false,
       "cardHistory": [
         {
-          "track": "I'd Rather Go Blind",
-          "artist": "Etta James",
-          "stars": 3.5,
+          "track": "Primus Tommy the",
+          "artist": "Cat",
+          "stars": 0,
           "coords": {
-            "x": 15,
-            "y": 35,
-            "z": 65
+            "x": 65,
+            "y": 88,
+            "z": 35
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2737649604d1b27be1c78c466e9",
-          "uri": "spotify:track:1kPBT8S2wJFNAyBMnGVZgL",
-          "category": "Soul > Blues Soul",
-          "source": "spotify"
+          "albumArt": "https://img.youtube.com/vi/J3K3eNL3aUc/hqdefault.jpg",
+          "uri": null,
+          "category": "Alternative Metal > Funk Metal",
+          "source": "youtube"
         },
         {
-          "track": "What's Going On",
-          "artist": "Marvin Gaye",
-          "stars": 3,
+          "track": "Primus",
+          "artist": "My Name Is Mud",
+          "stars": 0,
           "coords": {
-            "x": 25,
-            "y": 55,
-            "z": 90
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
-          "uri": "spotify:track:3Um9toULmYFGCpvaIPFw7l",
-          "category": "Soul > Psychedelic Soul",
-          "source": "spotify"
-        },
-        {
-          "track": "So What (feat. John Coltrane, Cannonball Adderley & Bill Evans)",
-          "artist": "Miles Davis",
-          "stars": 0.5,
-          "coords": {
-            "x": 10,
-            "y": 25,
-            "z": 75
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2730ebc17239b6b18ba88cfb8ca",
-          "uri": "spotify:track:4vLYewWIvqHfKtJDk8c8tq",
-          "category": "Jazz > Modal Jazz"
-        },
-        {
-          "track": "The Payback",
-          "artist": "James Brown",
-          "stars": 4,
-          "coords": {
-            "x": 30,
-            "y": 85,
-            "z": 70
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273ba7e1a0f706985f9747904fa",
-          "uri": "spotify:track:5OcyX5eg7VrJuI833qOCUc",
-          "category": "Funk > Deep Funk",
-          "source": "spotify"
-        },
-        {
-          "track": "Inner City Blues (Make Me Wanna Holler)",
-          "artist": "Marvin Gaye",
-          "stars": 3,
-          "coords": {
-            "x": 40,
-            "y": 60,
-            "z": 75
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b36949bee43217351961ffbc",
-          "uri": "spotify:track:5hReWjUHqPqkHi31G7izL4",
-          "category": "Soul > Progressive Soul",
-          "source": "spotify"
-        },
-        {
-          "track": "Compared to What",
-          "artist": "Les McCann",
-          "stars": 4,
-          "coords": {
-            "x": 20,
-            "y": 75,
+            "x": 50,
+            "y": 50,
             "z": 40
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27380ce791c6e6190b2a1377c1d",
-          "uri": "spotify:track:4fxJQJY1VEdhmSAIqMeFrR",
-          "category": "Jazz > Jazz-Funk",
-          "source": "spotify"
+          "albumArt": "https://img.youtube.com/vi/7bD6X6q6G4Y/hqdefault.jpg",
+          "uri": null,
+          "category": "Alternative Rock > Sludge Rock",
+          "source": "youtube"
         }
       ],
       "sessionHistory": [],
-      "profile": "We're mapping the full breadth of UK & Irish rock for you—from Bowie's grand art-rock anthems to Siouxsie's intense post-punk rhythms and The Psychedelic Furs' introspective new wave. No ratings yet, so we're exploring contrasting energy levels and sonic textures.",
-      "createdAt": 1776814570448,
-      "currentCard": null,
-      "queue": [],
-      "genres": [
-        "Soul",
-        "Blues",
-        "R&B",
-        "Jazz"
+      "profile": "You have a strong appetite for Primus's quirky, virtuosic extremes: the slap-bass aggression, shifting meters, and theatrical vocals. You're open to both their bombastic and eerily quiet sides, but you recoil from the most iconic singles—favoring deeper cuts that showcase their range.",
+      "createdAt": 1779059386350,
+      "currentCard": {
+        "track": {
+          "id": "7BRx0PlgBjU",
+          "videoId": "7BRx0PlgBjU",
+          "source": "youtube",
+          "name": "Jerry Was a Race Car Driver (Live at MTV's Haunted House Party) (1993) (1990s Les Claypool)",
+          "artist": "Primus",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/7BRx0PlgBjU/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "An up-tempo, virtuosic track with a chaotic carnival-like energy, showcasing Claypool's technical prowess.",
+        "category": "Alternative Metal > Funk Metal",
+        "coords": {
+          "x": 70,
+          "y": 92,
+          "z": 33
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "IlI0ktIqZiU",
+            "videoId": "IlI0ktIqZiU",
+            "source": "youtube",
+            "name": "Over The Falls",
+            "artist": "Primus",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/IlI0ktIqZiU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A sprawling, cinematic narrative with eerie slide bass and a slow-burn horror atmosphere — maps to the calmer, more theatrical side of your taste.",
+          "category": "progressive rock > art rock",
+          "coords": {
+            "x": 60,
+            "y": 25,
+            "z": 30
+          },
+          "composed": 2014
+        },
+        {
+          "track": {
+            "id": "ddMUuFeScrM",
+            "videoId": "ddMUuFeScrM",
+            "source": "youtube",
+            "name": "04  Southbound Pachyderm",
+            "artist": "Lone Star",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/ddMUuFeScrM/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A lumbering, carnivalesque prog epic with a clarinet solo and a drunken groove — probes the region where Primus gets bizarrely orchestral.",
+          "category": "progressive rock > experimental rock",
+          "coords": {
+            "x": 55,
+            "y": 55,
+            "z": 40
+          },
+          "composed": 1997
+        },
+        {
+          "track": {
+            "id": "O4UY-4neCNo",
+            "videoId": "O4UY-4neCNo",
+            "source": "youtube",
+            "name": "Professor Nutbutter's House of Treats, Washington, DC 8/14/2024",
+            "artist": "Primus",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/O4UY-4neCNo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A carnivalesque, almost childlike melody played on bass and xylophone that quickly warps into eerie, chaotic territory — a darker, more experimental Primus.",
+          "category": "Alternative Rock > Experimental Rock",
+          "coords": {
+            "x": 45,
+            "y": 55,
+            "z": 40
+          }
+        }
       ],
+      "genres": [],
       "genreText": "",
       "timePeriod": "",
       "timePeriods": [],
-      "notes": "",
-      "regions": [
-        "US & Canada"
-      ],
+      "notes": "Primus",
+      "regions": [],
       "popularity": 50,
       "discovery": 50,
-      "playbackPositionMs": 0,
       "artists": [
-        "James Brown",
-        "Howlin' Wolf",
-        "Muddy Waters",
-        "Otis Redding"
+        "Primus"
       ],
-      "artistText": ""
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
     },
     {
-      "id": "mo99k0inw48w",
-      "name": "The Cure",
-      "isAutoNamed": false,
-      "cardHistory": [],
-      "sessionHistory": [],
-      "profile": "You're just starting your journey through classic soul and blues. Your one rating suggests you pulled back from a lush, socially-conscious soul ballad, so we're testing different emotional temperatures and instrumental textures within the 60s and 70s American canon.",
-      "createdAt": 1776814632095,
-      "currentCard": null,
-      "queue": [],
-      "genres": [
-        "Rock"
-      ],
-      "genreText": "",
-      "timePeriod": "",
-      "timePeriods": [],
-      "notes": "The Psychedelic Furs, Siouxsie and the Banshees",
-      "regions": [
-        "UK & Ireland"
-      ],
-      "popularity": 50,
-      "discovery": 50,
-      "playbackPositionMs": 0,
-      "artists": [
-        "David Bowie",
-        "The Cure"
-      ],
-      "artistText": ""
-    },
-    {
-      "id": "mo9b0wdy8zjc",
-      "name": "Scarlatti",
+      "id": "mpae26vqd2i6",
+      "name": "Ustad Mohammed Omar",
       "isAutoNamed": false,
       "cardHistory": [
         {
-          "track": "Goldberg Variations, BWV 988: Aria",
-          "artist": "Johann Sebastian Bach",
-          "stars": 3.5,
-          "coords": {
-            "x": 10,
-            "y": 25,
-            "z": 65
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736f1ac2c7342eee3f1609a3f5",
-          "uri": "spotify:track:5bu9A6uphPWg39RC3ZKeku",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Toccata & Fugue in D Minor, BWV 565: I. Toccata",
-          "artist": "Johann Sebastian Bach",
-          "stars": 4,
-          "coords": {
-            "x": 15,
-            "y": 85,
-            "z": 90
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273e18c79ed0a39f4b10b0d2359",
-          "uri": "spotify:track:4HE2Ex0bjbj3YNXmV01OoM",
-          "category": "Classical > Baroque Organ",
-          "source": "spotify"
-        },
-        {
-          "track": "Scarlatti, D: Keyboard Sonata in D Minor, Kk. 9",
-          "artist": "Domenico Scarlatti",
-          "stars": 4.5,
-          "coords": {
-            "x": 12,
-            "y": 70,
-            "z": 40
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d40080b6bd515641620bb661",
-          "uri": "spotify:track:6uvzcvFXEaHZKUOREbNW0m",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Vivaldi: The Four Seasons, Violin Concerto in F Minor, Op. 8 No. 4, RV 297 \"Winter\": II. Largo",
-          "artist": "Antonio Vivaldi",
-          "stars": 4,
-          "coords": {
-            "x": 8,
-            "y": 20,
-            "z": 85
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273c7464f9c451674bc683cb47f",
-          "uri": "spotify:track:4LTGZ03qAt7ZQ1Pqk97vgZ",
-          "category": "Classical > Baroque Concerto",
-          "source": "spotify"
-        },
-        {
-          "track": "Canon in D",
-          "artist": "Johann Pachelbel",
+          "track": "Ustad",
+          "artist": "Mohammed Omar Raga Bhairavi",
           "stars": 0,
           "coords": {
             "x": 5,
-            "y": 40,
-            "z": 98
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2733b3be808df3503dab670c021",
-          "uri": "spotify:track:2yTSNaqfBqXYfHFaE9DEzj",
-          "category": "Classical > Baroque Chamber",
-          "source": "spotify"
-        },
-        {
-          "track": "Chaconne from Partita No. 2 in D Minor, BWV 1004",
-          "artist": "Johann Sebastian Bach",
-          "stars": 2.5,
-          "coords": {
-            "x": 5,
-            "y": 75,
-            "z": 50
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d2fb937ee4638edc694da63c",
-          "uri": "spotify:track:4cCCtV0YTTI6vptfeFxIs6",
-          "category": "Classical > Baroque Solo Violin",
-          "source": "spotify"
-        },
-        {
-          "track": "Scarlatti, D: Keyboard Sonata in B Minor, Kk. 87",
-          "artist": "Domenico Scarlatti",
-          "stars": 3.5,
-          "coords": {
-            "x": 15,
-            "y": 68,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b2736e6532fe271c2affe252dff0",
-          "uri": "spotify:track:52SDhvV7WVO3oaVdqVleaz",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Suite in A Minor, FbWV 630: II. Gigue",
-          "artist": "Johann Jakob Froberger",
-          "stars": 3,
-          "coords": {
-            "x": 10,
-            "y": 32,
+            "y": 35,
             "z": 15
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27351b70c02558a96823d4080a3",
-          "uri": "spotify:track:4zYR0bGiR40VHasDzhwYVr",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
+          "albumArt": "https://img.youtube.com/vi/hrYHx7R_sZ0/hqdefault.jpg",
+          "uri": null,
+          "category": "Hindustani Classical > Raga",
+          "source": "youtube"
         },
         {
-          "track": "Harpsichord Suite No. 1 in D Minor: V. Sarabande",
-          "artist": "Élisabeth Jacquet de La Guerre",
-          "stars": 4,
-          "coords": {
-            "x": 12,
-            "y": 58,
-            "z": 20
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27350bd47621c3bd76f0f7ff158",
-          "uri": "spotify:track:0ckPdVqT3QeF8CeJ3J7E7t",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Scarlatti, D: Keyboard Sonata in E Major, Kk. 380",
-          "artist": "Domenico Scarlatti",
-          "stars": 2.5,
-          "coords": {
-            "x": 10,
-            "y": 75,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273452dc847657b92d1da0c0dbc",
-          "uri": "spotify:track:7DgTaaesZfs4nZCe3tPxDa",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Handel / Orch. Hale: Keyboard Suite No. 4 in D Minor, HWV 437: III. Sarabande",
-          "artist": "George Frideric Handel",
+          "track": "Alap Rag Malkauns",
+          "artist": "Ashish Khan, Zakir Hussein",
           "stars": 0,
           "coords": {
-            "x": 8,
-            "y": 25,
-            "z": 15
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273f6891aeab33e8ebcc4d62286",
-          "uri": "spotify:track:6QOxk7dSbNniwUgDh1zmBH",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Frescobaldi: Toccate e partite d'intavolatura, Libro 1: Partite cento sopra il passacagli",
-          "artist": "Girolamo Frescobaldi",
-          "stars": 0,
-          "coords": {
-            "x": 10,
-            "y": 60,
-            "z": 18
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273c54871697f834e53f6b2544c",
-          "uri": "spotify:track:19CRLhwviBRTvOOBalgPa8",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Scarlatti, D: Keyboard Sonata in F Minor, Kk. 466",
-          "artist": "Domenico Scarlatti",
-          "stars": 5,
-          "coords": {
-            "x": 12,
-            "y": 70,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d214e726c792dd51c35d167f",
-          "uri": "spotify:track:7zKAQwVylU9FdLSrSMcm0n",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Suite compostelana: II. Coral",
-          "artist": "Federico Mompou",
-          "stars": 0.5,
-          "coords": {
-            "x": 8,
-            "y": 45,
-            "z": 15
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273b487e92f1a7d363f20401fd2",
-          "uri": "spotify:track:6HOBByqyXOKLlAoZiReZ4S",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Musicalische Vorstellung einiger biblischer Historien, \"Biblical Sonatas\", No. 1. Fight between David and Goliath: Joy of the Israelites at the Victory (Arr. C. Hazell)",
-          "artist": "Johann Kuhnau",
-          "stars": 4.5,
-          "coords": {
-            "x": 10,
-            "y": 65,
-            "z": 20
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273fd0ec4ed556c02292d04487e",
-          "uri": "spotify:track:1XgLIHe3WazVF0EgN1ultk",
-          "category": "Classical > Baroque Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Polonaises composto per il Cembalo: IV. Polonaise in C Minor",
-          "artist": "Johann Gottlieb Goldberg",
-          "stars": 4.5,
-          "coords": {
-            "x": 8,
+            "x": 6,
             "y": 30,
-            "z": 10
+            "z": 11
           },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273d8852bdf76cdf417ea9e9609",
-          "uri": "spotify:track:1n1teA0OruatMooVJ8TOmk",
-          "category": "Classical > Baroque Keyboard Piece",
-          "source": "spotify"
-        },
-        {
-          "track": "Partita on Ach wie nichtig, ach wie fluchtig",
-          "artist": "Georg Böhm",
-          "stars": 2.5,
-          "coords": {
-            "x": 12,
-            "y": 55,
-            "z": 18
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27359169971e9de48e8fc4fba9d",
-          "uri": "spotify:track:0trxfUOmJYNyYGFgaTqfmb",
-          "category": "Classical > Baroque Chorale Partita",
-          "source": "spotify"
-        },
-        {
-          "track": "Keyboard Sonata in D Minor, Kk. 141",
-          "artist": "Domenico Scarlatti",
-          "stars": 0,
-          "coords": {
-            "x": 15,
-            "y": 82,
-            "z": 25
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273c10aac65cc391570e0d96097",
-          "uri": "spotify:track:4mpaInegoMxjXIME5XirLd",
-          "category": "Classical > Baroque Keyboard Sonata",
-          "source": "spotify"
-        },
-        {
-          "track": "Toccata settima",
-          "artist": "Michelangelo Rossi",
-          "stars": 0,
-          "coords": {
-            "x": 10,
-            "y": 65,
-            "z": 10
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b273af8aced063c54238c5027265",
-          "uri": "spotify:track:1Ufee84Vobm12Xe8pzbIe4",
-          "category": "Classical > Early Baroque Keyboard Toccata",
-          "source": "spotify"
-        },
-        {
-          "track": "Mis Disculpas",
-          "artist": "Residente",
-          "stars": 2,
-          "coords": {
-            "x": 8,
-            "y": 38,
-            "z": 12
-          },
-          "albumArt": "https://i.scdn.co/image/ab67616d0000b27377a581b00abc719270c0e72b",
-          "uri": "spotify:track:6g9pbZC0f40ZmHgq8xsAn6",
-          "category": "Classical > Renaissance/Baroque Iberian Keyboard",
-          "source": "spotify"
-        },
-        {
-          "track": "Scarlatti Sonata in G Minor K. 450, L.338, 'Burlesca' Piano Tutorial",
-          "artist": "Jane",
-          "stars": 0,
-          "coords": {
-            "x": 15,
-            "y": 85,
-            "z": 25
-          },
-          "albumArt": "https://i.ytimg.com/vi/BYKX2m59cQ4/hqdefault.jpg",
+          "albumArt": "https://i.ytimg.com/vi/MPFxCBJsk7Y/hqdefault.jpg",
           "uri": null,
-          "category": "Classical > Baroque Keyboard Sonata",
-          "source": "youtube"
-        },
-        {
-          "track": "Les Idées heureuses",
-          "artist": "François Couperin",
-          "stars": 0.5,
-          "coords": {
-            "x": 10,
-            "y": 70,
-            "z": 20
-          },
-          "albumArt": "https://i.ytimg.com/vi/009J1idgOoM/hqdefault.jpg",
-          "uri": null,
-          "category": "Classical > French Baroque Harpsichord",
-          "source": "youtube"
-        },
-        {
-          "track": "Johann Caspar Kerll 1627 1693: Toccata 1",
-          "artist": "EchoOrgans",
-          "stars": 0,
-          "coords": {
-            "x": 12,
-            "y": 80,
-            "z": 15
-          },
-          "albumArt": "https://i.ytimg.com/vi/7_xWkHT-PB8/hqdefault.jpg",
-          "uri": null,
-          "category": "Classical > German Baroque Toccata",
-          "source": "youtube"
-        },
-        {
-          "track": "Louis Couperin/ from: Suite in C - Passacaille",
-          "artist": "Richard Egarr",
-          "stars": 1,
-          "coords": {
-            "x": 8,
-            "y": 75,
-            "z": 18
-          },
-          "albumArt": "https://i.ytimg.com/vi/MYH8Vfqk_VU/hqdefault.jpg",
-          "uri": null,
-          "category": "Classical > French Baroque Harpsichord",
-          "source": "youtube"
-        },
-        {
-          "track": "FbWV 102 - Toccata No. 2 in D Minor",
-          "artist": "Johann Jakob Froberger",
-          "stars": 0,
-          "coords": {
-            "x": 5,
-            "y": 78,
-            "z": 15
-          },
-          "albumArt": "https://i.ytimg.com/vi/qAr7KRQzj_E/hqdefault.jpg",
-          "uri": null,
-          "category": "Classical > Baroque Keyboard",
+          "category": "Hindustani Classical > Raga",
           "source": "youtube"
         }
       ],
       "sessionHistory": [
         {
-          "track": "Louis Couperin/ from: Suite in C - Passacaille",
-          "artist": "Richard Egarr",
-          "stars": 1,
-          "coords": {
-            "x": 8,
-            "y": 75,
-            "z": 18
-          }
-        },
-        {
-          "track": "FbWV 102 - Toccata No. 2 in D Minor",
-          "artist": "Johann Jakob Froberger",
+          "track": "Alap Rag Malkauns",
+          "artist": "Ashish Khan, Zakir Hussein",
           "stars": 0,
           "coords": {
-            "x": 5,
-            "y": 78,
-            "z": 15
+            "x": 6,
+            "y": 30,
+            "z": 11
           }
         }
       ],
-      "profile": "You're exploring the intense, dramatic side of Baroque keyboard music—fiery minor-key sonatas, dense counterpoint, and driving rhythmic energy. You've shown interest in German and Iberian composers while pulling away from lighter French styles, seeking authentic historical performance on harpsichord and organ.",
-      "createdAt": 1776817099510,
+      "profile": "You're drawn to Primus's more eccentric, deep-cut extremes—favoring their dark storytelling, technical oddities, and dynamic shifts over radio-friendly hits. You enjoy both their eerie quiet moments and explosive punk-metal outbursts, always with a taste for the bizarre.",
+      "createdAt": 1779059447126,
       "currentCard": {
         "track": {
-          "id": "Ip5fQrfA7mI",
-          "videoId": "Ip5fQrfA7mI",
+          "id": "SSIzc4h8L_s",
+          "videoId": "SSIzc4h8L_s",
           "source": "youtube",
-          "name": "Clio - Praeludium",
-          "artist": "Johann Caspar Ferdinand Fischer",
+          "name": "Ayesha",
+          "artist": "Ustad Mohammad Omar",
           "album": "",
-          "albumArt": "https://i.ytimg.com/vi/Ip5fQrfA7mI/hqdefault.jpg",
+          "albumArt": "https://i.ytimg.com/vi/SSIzc4h8L_s/hqdefault.jpg",
           "durationMs": 0
         },
-        "reason": "A fiery, virtuosic keyboard work by a lesser-known German contemporary of Bach, full of dramatic flourishes and dense counterpoint that matches your taste for intense Baroque energy.",
-        "category": "Classical > Baroque Keyboard",
+        "reason": "A lighter, melodious raga with a folk-inflected feel, played on rubab with gentle ornamentation and acoustic warmth.",
+        "category": "Hindustani Classical > Raga",
+        "coords": {
+          "x": 7,
+          "y": 40,
+          "z": 13
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "MeAXN6TdHDE",
+            "videoId": "MeAXN6TdHDE",
+            "source": "youtube",
+            "name": "Pilu",
+            "artist": "Ustad Mohammad Omar",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/MeAXN6TdHDE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A lighter, folk-influenced raga on rubab, offering a more melodic and accessible side of the same tradition.",
+          "category": "Hindustani classical > Rubab",
+          "coords": {
+            "x": 8,
+            "y": 35,
+            "z": 12
+          },
+          "composed": 1960
+        },
+        {
+          "track": {
+            "id": "mrPTlYsQ4ls",
+            "videoId": "mrPTlYsQ4ls",
+            "source": "youtube",
+            "name": "Raag Madkauns",
+            "artist": "Ustad Mohammad Omar",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/mrPTlYsQ4ls/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A soothing raga with a gentle lilt, perfect for your preference for calm, unadorned acoustic textures.",
+          "category": "Hindustani classical > Rubab",
+          "coords": {
+            "x": 7,
+            "y": 25,
+            "z": 14
+          },
+          "composed": 1970
+        },
+        {
+          "track": {
+            "id": "xfQebpzNO3Y",
+            "videoId": "xfQebpzNO3Y",
+            "source": "youtube",
+            "name": "Bhopali",
+            "artist": "Ustad Mohammad Omar",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/xfQebpzNO3Y/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A lesser-known rubab raga with a gentle, introspective mood at a moderately higher energy level, exploring a new part of the space with minimal mainstream exposure.",
+          "category": "Classical > Hindustani Classical",
+          "coords": {
+            "x": 10,
+            "y": 45,
+            "z": 5
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Ustad Mohammed Omar, rabab, Afghanistan",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Ustad Mohammed Omar"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpae6op1jare",
+      "name": "Hamza El Din",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to acoustic, hand-crafted sounds from Africa and the Middle East—Nubian oud, Malian guitar, hypnotic repetition. Sparse textures and meditative calm resonate, but you're also curious about raw, organic intensity as long as it stays clear of synthetic production.",
+      "createdAt": 1779059656837,
+      "currentCard": {
+        "track": {
+          "id": "Oa_zc_M-2w8",
+          "videoId": "Oa_zc_M-2w8",
+          "source": "youtube",
+          "name": "Water Wheel (completo)",
+          "artist": "Hamza El Din",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/Oa_zc_M-2w8/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Hypnotic oud and tar with a meditative pulse from Nubia, perfectly matching your acoustic and sparse leanings.",
+        "category": "World > Nubian Folk",
         "coords": {
           "x": 10,
-          "y": 82,
+          "y": 30,
           "z": 15
         }
       },
       "queue": [
         {
           "track": {
-            "id": "4-p59DC7q8Y",
-            "videoId": "4-p59DC7q8Y",
+            "id": "uMUuuW13Fp8",
+            "videoId": "uMUuuW13Fp8",
             "source": "youtube",
-            "name": "S. De Brossard Pro pace \"ciaccona\" G.Dissera Bragadin Contralto, N.Lamon Organo, M.Dalsass Cello.",
-            "artist": "Concerti Santa Maria di Castello, Biancade",
+            "name": "TENERE TAQQIM TOSSAM",
+            "artist": "Tinariwen",
             "album": "",
-            "albumArt": "https://i.ytimg.com/vi/4-p59DC7q8Y/hqdefault.jpg",
+            "albumArt": "https://i.ytimg.com/vi/uMUuuW13Fp8/hqdefault.jpg",
             "durationMs": 0
           },
-          "reason": "A driving, rhythmically intense chaconne by a French composer rarely heard today, offering passionate minor-key drama on harpsichord away from mainstream Baroque repertoire.",
-          "category": "Classical > Baroque Keyboard",
+          "reason": "Electric guitar desert blues from the Sahara—intense yet deeply hypnotic, marking a new territory with gritty intensity.",
+          "category": "World > Tuareg Rock",
           "coords": {
-            "x": 12,
-            "y": 78,
-            "z": 10
-          }
-        },
-        {
-          "track": {
-            "id": "TJCuew6mIFE",
-            "videoId": "TJCuew6mIFE",
-            "source": "youtube",
-            "name": "Prelude & Fugue in E Minor \"The Wedge\" (Scrolling)",
-            "artist": "BWV 548",
-            "album": "",
-            "albumArt": "https://i.ytimg.com/vi/TJCuew6mIFE/hqdefault.jpg",
-            "durationMs": 0
-          },
-          "reason": "A monumental organ work with dramatic intensity and complex counterpoint, fitting your taste for German Baroque intensity while exploring organ territory beyond harpsichord.",
-          "category": "Classical > Baroque Organ",
-          "coords": {
-            "x": 15,
-            "y": 85,
-            "z": 25
-          }
-        },
-        {
-          "track": {
-            "id": "MkmV7odMfu4",
-            "videoId": "MkmV7odMfu4",
-            "source": "youtube",
-            "name": "Carlos Seixas' \"Keyboard Sonata No. 24\" performed by Tengyue \"TY\" Zhang on a 2020 Matthew Chaffin",
-            "artist": "Guitar Salon International",
-            "album": "",
-            "albumArt": "https://i.ytimg.com/vi/MkmV7odMfu4/hqdefault.jpg",
-            "durationMs": 0
-          },
-          "reason": "Portuguese Baroque composer contemporary with Scarlatti, offering fiery Iberian keyboard writing with driving rhythms and dramatic minor-key intensity.",
-          "category": "Classical > Iberian Baroque Keyboard",
-          "coords": {
-            "x": 10,
+            "x": 40,
             "y": 75,
-            "z": 15
+            "z": 35
+          }
+        },
+        {
+          "track": {
+            "id": "SDfELfpumEE",
+            "videoId": "SDfELfpumEE",
+            "source": "youtube",
+            "name": "Mustt Mustt (Live at WOMAD Yokohama 1992)",
+            "artist": "Nusrat Fateh Ali Khan",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/SDfELfpumEE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A transcendent qawwali with hypnotic vocal repetition and sparse percussion, blending devotional intensity with acoustic purity.",
+          "category": "World > Qawwali",
+          "coords": {
+            "x": 8,
+            "y": 45,
+            "z": 30
           }
         }
       ],
-      "genres": [
-        "Classical"
-      ],
+      "genres": [],
       "genreText": "",
-      "timePeriod": "Baroque era",
-      "timePeriods": [
-        "Baroque era"
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Hamz El Din",
+      "regions": [
+        "Africa",
+        "Middle East"
       ],
-      "notes": "keyboard, Scarlatti, Pletnev",
-      "regions": [],
-      "popularity": 19,
+      "popularity": 50,
       "discovery": 50,
-      "artists": [],
-      "artistText": ""
+      "artists": [
+        "Hamza El Din"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
     },
     {
-      "id": "moaetjl7kyqt",
-      "name": "Heavy Metal",
+      "id": "mpaebpnyzlrt",
+      "name": "Mongo Santamaria",
       "isAutoNamed": false,
-      "cardHistory": [
-        {
-          "track": "Orion (Music Video \"Original Creation\" - 1986) [Full HD/3D]",
-          "artist": "Metallica",
-          "stars": 0,
-          "coords": {
-            "x": 68,
-            "y": 65,
-            "z": 40
-          },
-          "albumArt": "https://i.ytimg.com/vi/Z6j63ImEKyo/hqdefault.jpg",
-          "uri": null,
-          "category": "Metal > Thrash Metal",
-          "source": "youtube"
-        },
-        {
-          "track": "Wheels Of Confusion",
-          "artist": "BLACK SABBATH (1972)",
-          "stars": 0,
-          "coords": {
-            "x": 62,
-            "y": 70,
-            "z": 45
-          },
-          "albumArt": "https://i.ytimg.com/vi/_zC-QYFK7Ro/hqdefault.jpg",
-          "uri": null,
-          "category": "Metal > Doom/Heavy Metal",
-          "source": "youtube"
-        }
-      ],
-      "sessionHistory": [
-        {
-          "track": "Orion (Music Video \"Original Creation\" - 1986) [Full HD/3D]",
-          "artist": "Metallica",
-          "stars": 0,
-          "coords": {
-            "x": 68,
-            "y": 65,
-            "z": 40
-          }
-        },
-        {
-          "track": "Wheels Of Confusion",
-          "artist": "BLACK SABBATH (1972)",
-          "stars": 0,
-          "coords": {
-            "x": 62,
-            "y": 70,
-            "z": 45
-          }
-        }
-      ],
-      "profile": "This first batch explores the vast landscape of metal from the US, Canada, and UK/Ireland. You'll hear everything from melodic instrumentals and epic narratives to crushing doom and technical extremity, all while favoring deeper cuts over obvious hits.",
-      "createdAt": 1776883940971,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're hooked on Mongo Santamaria's conga-driven Latin jazz so far. You want tight, energetic grooves and shun slower, less rhythmic tracks. Your taste is focused on Afro-Cuban percussion, but you haven't yet revealed preferences for calm or chaotic extremes.",
+      "createdAt": 1779059891374,
       "currentCard": {
         "track": {
-          "id": "8hu3Utk4ndo",
-          "videoId": "8hu3Utk4ndo",
+          "id": "VAecY2CyjK8",
+          "videoId": "VAecY2CyjK8",
           "source": "youtube",
-          "name": "Iron Maiden",
-          "artist": "Hallowed Be Thy Name",
+          "name": "Canta bajo (Mongo Santamaria introduces La Lupe)",
+          "artist": "La Lupe",
           "album": "",
-          "albumArt": "https://i.ytimg.com/vi/8hu3Utk4ndo/hqdefault.jpg",
+          "albumArt": "https://i.ytimg.com/vi/VAecY2CyjK8/hqdefault.jpg",
           "durationMs": 0
         },
-        "reason": "A galloping, narrative-driven epic with twin guitar harmonies and dramatic vocal delivery, a fan favorite but not a radio single.",
-        "category": "Metal > NWOBHM",
+        "reason": "A slow, meditative bolero with delicate guitar and restrained vocals, offering a calm, introspective contrast to your previous picks.",
+        "category": "Latin > Bolero",
         "coords": {
-          "x": 65,
-          "y": 80,
-          "z": 50
+          "x": 10,
+          "y": 15,
+          "z": 20
         }
       },
       "queue": [
         {
           "track": {
-            "id": "nM__lPTWThU",
-            "videoId": "nM__lPTWThU",
+            "id": "YbE7jf_Hp5w",
+            "videoId": "YbE7jf_Hp5w",
             "source": "youtube",
-            "name": "Painkiller",
-            "artist": "Judas Priest",
+            "name": "Afro Blue",
+            "artist": "Mongo Santamaria",
             "album": "",
-            "albumArt": "https://i.ytimg.com/vi/nM__lPTWThU/hqdefault.jpg",
+            "albumArt": "https://i.ytimg.com/vi/YbE7jf_Hp5w/hqdefault.jpg",
             "durationMs": 0
           },
-          "reason": "A blisteringly fast and technical track with dual-guitar shredding and Rob Halford's soaring vocals, representing speed/power metal's intensity.",
-          "category": "Metal > Speed/Power Metal",
+          "reason": "A soulful, mid-tempo Afro-Cuban classic with conga-led rhythm and a modal feel, fitting the earthy pulse you enjoy while keeping energy moderate.",
+          "category": "Latin Jazz > Afro-Cuban Jazz",
           "coords": {
-            "x": 70,
-            "y": 92,
+            "x": 20,
+            "y": 55,
+            "z": 40
+          }
+        },
+        {
+          "track": {
+            "id": "Um1C4gjp4RQ",
+            "videoId": "Um1C4gjp4RQ",
+            "source": "youtube",
+            "name": "MONGO SANTAMARIA ♪FATBACK♪CREOLE♪",
+            "artist": "aaappleknocker",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Um1C4gjp4RQ/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A funky, boogaloo-infused track with electric piano and driving horns, bringing a slightly more electronic and mainstream energy to the session.",
+          "category": "Latin Funk > Boogaloo",
+          "coords": {
+            "x": 50,
+            "y": 70,
+            "z": 60
+          }
+        },
+        {
+          "track": {
+            "id": "Si0R7VZb0co",
+            "videoId": "Si0R7VZb0co",
+            "source": "youtube",
+            "name": "La Bamba (Columbia) 1965",
+            "artist": "Mongo Santamaria",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Si0R7VZb0co/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A folkloric adaptation of the traditional son jarocho with acoustic guitars and festive percussion, rooted in rural tradition and low energy.",
+          "category": "Folk > Son Jarocho",
+          "coords": {
+            "x": 5,
+            "y": 40,
+            "z": 15
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Mongo Santamaria",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Mongo Santamaria"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpaemnhc1ot5",
+      "name": "Bad Bunny",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're giving Bad Bunny's full spectrum a fair shake — from bachata intimacy to industrial dembow. No strong dislikes yet suggests openness, but the real test is which texture feels like home: acoustic warmth, dark club minimalism, or folk storytelling.",
+      "createdAt": 1779060401760,
+      "currentCard": {
+        "track": {
+          "id": "Cr8K88UcO0s",
+          "videoId": "Cr8K88UcO0s",
+          "source": "youtube",
+          "name": "Tití Me Preguntó (Video Oficial) | Un Verano Sin Ti",
+          "artist": "Bad Bunny",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/Cr8K88UcO0s/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "High-energy dembow with trumpet samples sits at a unique intersection of tropical and industrial — probing how you respond to maximalist, dancefloor-driven production.",
+        "category": "Latin trap > reggaetón",
+        "coords": {
+          "x": 65,
+          "y": 85,
+          "z": 92
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "QCqc3k0Tzbs",
+            "videoId": "QCqc3k0Tzbs",
+            "source": "youtube",
+            "name": "BATICANO (Official Video) | nadie sabe lo que va a pasar mañana",
+            "artist": "BAD BUNNY",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/QCqc3k0Tzbs/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A bachata-tinged love song with shimmering guitar and a classic 4/4 sway — probing his softer, more traditional Latin pop side, far from the hyper-modern reggaetón.",
+          "category": "Latin pop > bachata",
+          "coords": {
+            "x": 22,
+            "y": 40,
+            "z": 75
+          }
+        },
+        {
+          "track": {
+            "id": "UWV41yEiGq0",
+            "videoId": "UWV41yEiGq0",
+            "source": "youtube",
+            "name": "Bad Bunny, Ozuna, Farruko, Arcangel, Ñengo Flow",
+            "artist": "Diles",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/UWV41yEiGq0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "One of his earliest trap hits with a raw, lo-fi aesthetic and stripped-down beat — testing interest in his underground origins before the global crossover polish.",
+          "category": "Latin trap > lo-fi trap",
+          "coords": {
+            "x": 55,
+            "y": 70,
+            "z": 30
+          }
+        },
+        {
+          "track": {
+            "id": "PGJ43zaam_0",
+            "videoId": "PGJ43zaam_0",
+            "source": "youtube",
+            "name": "BOOKER T (Video Oficial)",
+            "artist": "BAD BUNNY",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/PGJ43zaam_0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Hard-hitting trap-infused dembow with aggressive 808s and rapid-fire delivery — pushing toward the high-energy, electronic extreme of his catalog.",
+          "category": "Latin > trap reggaeton",
+          "coords": {
+            "x": 72,
+            "y": 85,
+            "z": 75
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Bad Bunny",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Bad Bunny"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpaemwsgme2b",
+      "name": "Rihanna",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're exploring Rihanna's wide-ranging catalog with an open mind, curious about both her raw vocal moments and her biggest pop productions. No strong dislikes yet, so we can sample a broad spectrum of her styles.",
+      "createdAt": 1779060413824,
+      "currentCard": {
+        "track": {
+          "id": "EPtrQpx9VDw",
+          "videoId": "EPtrQpx9VDw",
+          "source": "youtube",
+          "name": "Umbrella (Lyrics) ft. JAY-Z",
+          "artist": "Rihanna",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/EPtrQpx9VDw/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A defining pop anthem with a crisp beat and iconic hook, anchored in mainstream R&B pop, matching your entry point for energy.",
+        "category": "Pop > Contemporary R&B",
+        "coords": {
+          "x": 65,
+          "y": 70,
+          "z": 95
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "nyxKQYWaWOg",
+            "videoId": "nyxKQYWaWOg",
+            "source": "youtube",
+            "name": "Love On The Brain (Lyrics)",
+            "artist": "Rihanna",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/nyxKQYWaWOg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Soulful ballad with vintage R&B doo-wop influences and powerhouse vocals, showcasing a lush, emotionally intense side.",
+          "category": "Pop > Soul Revival",
+          "coords": {
+            "x": 35,
+            "y": 55,
+            "z": 70
+          }
+        },
+        {
+          "track": {
+            "id": "Hzj_NAWUn5U",
+            "videoId": "Hzj_NAWUn5U",
+            "source": "youtube",
+            "name": "Pon de Replay Official Music Video",
+            "artist": "Rihanna",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Hzj_NAWUn5U/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Early dancehall-influenced debut single with sparse beat and Caribbean flavor, lower energy but still catchy and grounded in her origins.",
+          "category": "Pop > Dancehall Pop",
+          "coords": {
+            "x": 50,
+            "y": 50,
+            "z": 82
+          }
+        },
+        {
+          "track": {
+            "id": "_bXqoIzH0N8",
+            "videoId": "_bXqoIzH0N8",
+            "source": "youtube",
+            "name": "Stay (Lyrics) ft. Mikky Ekko",
+            "artist": "Rihanna",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/_bXqoIzH0N8/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Minimal piano-and-vocal ballad — calm and intimate, probing the sparsely acoustic side of her catalog.",
+          "category": "Pop > Piano Ballad",
+          "coords": {
+            "x": 10,
+            "y": 15,
+            "z": 80
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Rihanna",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Rihanna"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpaeo9wzc25y",
+      "name": "Miles Davis",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're methodically mapping Rihanna's catalog, showing curiosity for both her vulnerable vocal showcases and her club-ready productions. So far you've sampled acoustic ballads, pop bangers, and Caribbean-influenced tracks — a wide palate with no strong aversions yet.",
+      "createdAt": 1779060477491,
+      "currentCard": {
+        "track": {
+          "id": "YHesqaMhh34",
+          "videoId": "YHesqaMhh34",
+          "source": "youtube",
+          "name": "In A Silent Way ( Full Album )",
+          "artist": "Miles Davis",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/YHesqaMhh34/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "The title track from '69 — a hypnotic, ambient-electric meditation with organ and gentle guitar.",
+        "category": "Jazz > Fusion / Ambient Jazz",
+        "coords": {
+          "x": 78,
+          "y": 18,
+          "z": 60
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "Wc4tT-55ZzI",
+            "videoId": "Wc4tT-55ZzI",
+            "source": "youtube",
+            "name": "Ascenseur pour l'échafaud - Lift to the Gallows (Full Album)",
+            "artist": "Miles Davis",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Wc4tT-55ZzI/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Late-50s noir jazz recorded live with French session musicians — far from your electric explorations in its acoustic intimacy and European cool.",
+          "category": "Jazz > Modal / Film Score",
+          "coords": {
+            "x": 15,
+            "y": 35,
+            "z": 45
+          }
+        },
+        {
+          "track": {
+            "id": "4iTsIK8anrY",
+            "videoId": "4iTsIK8anrY",
+            "source": "youtube",
+            "name": "Doo-Bop [HQ FULL ALBUM]",
+            "artist": "Miles Davis",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/4iTsIK8anrY/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Early 90s hip-hop/jazz hybrid — brings in drum machines and rap samples, a short-lived but genuinely different electric branch you haven't heard.",
+          "category": "Jazz > Hip-Hop / Electronic Fusion",
+          "coords": {
+            "x": 78,
+            "y": 60,
+            "z": 40
+          }
+        },
+        {
+          "track": {
+            "id": "TkD7uhi0j5Q",
+            "videoId": "TkD7uhi0j5Q",
+            "source": "youtube",
+            "name": "Miles Davis and Friends in Paris 1991, Title: Jean-Pierre",
+            "artist": "flink2009",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/TkD7uhi0j5Q/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Mid-80s funk-fusion with layered bass, percussion, and soprano sax — intense, dense, and relatively obscure. High electronic (x≈75), high energy (y≈80), low exposure (z≈35).",
+          "category": "jazz > jazz-funk / fusion",
+          "coords": {
+            "x": 75,
+            "y": 80,
+            "z": 35
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Miles Davis",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Miles Davis"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpaeofrdt5v8",
+      "name": "John Coltrane",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're starting with a quiet, introspective Miles Davis (Autumn Leaves) but seem open to his more adventurous electric side. No strong likes yet — this session will test how much density, funk, and orchestral drama you enjoy.",
+      "createdAt": 1779060485065,
+      "currentCard": {
+        "track": {
+          "id": "5Pi5ZJZ07ME",
+          "videoId": "5Pi5ZJZ07ME",
+          "source": "youtube",
+          "name": "John Coltrane (1965)",
+          "artist": "A Love Supreme, Part 1: Acknowledgement",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/5Pi5ZJZ07ME/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A landmark spiritual suite that balances hypnotic repetition with ecstatic free soloing, mapping to high intensity yet accessible spiritual jazz.",
+        "category": "Jazz > Modal Jazz / Spiritual Jazz",
+        "coords": {
+          "x": 25,
+          "y": 72,
+          "z": 40
+        },
+        "composed": 1964
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "JQvc-Gkwhow",
+            "videoId": "JQvc-Gkwhow",
+            "source": "youtube",
+            "name": "My Favorite Things (Stereo) (2022 Remaster)",
+            "artist": "John Coltrane - Topic",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/JQvc-Gkwhow/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "An Eastern-tinged modal epic built on a two-chord vamp, blending lyricism with hypnotic soprano saxophone exploration.",
+          "category": "Jazz > Modal Jazz / Post-Bop",
+          "coords": {
+            "x": 18,
+            "y": 55,
+            "z": 55
+          },
+          "composed": 1960
+        },
+        {
+          "track": {
+            "id": "HT_Zs5FKDZE",
+            "videoId": "HT_Zs5FKDZE",
+            "source": "youtube",
+            "name": "Blue Train (Remastered 2003/Rudy Van Gelder Edition)",
+            "artist": "John Coltrane - Topic",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/HT_Zs5FKDZE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A hard-bop classic with bluesy swagger and crisp ensemble interplay, representing his accessible, mainstream side.",
+          "category": "Jazz > Hard Bop",
+          "coords": {
+            "x": 20,
+            "y": 60,
+            "z": 58
+          },
+          "composed": 1957
+        },
+        {
+          "track": {
+            "id": "saN1BwlxJxA",
+            "videoId": "saN1BwlxJxA",
+            "source": "youtube",
+            "name": "JOHN  COLTRANE   Alabama",
+            "artist": "roger b",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/saN1BwlxJxA/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A haunting, slow-burning ballad from 1963, with Coltrane's tenor sax delivering a solemn, spiritual cry over a sparse backdrop—far from the fire of 'Impressions'.",
+          "category": "Jazz > Ballad",
+          "coords": {
+            "x": 10,
+            "y": 15,
+            "z": 65
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "John Coltrane",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "John Coltrane"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpaepv0kplc5",
+      "name": "Sade",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You are clearly in the sophisticated, mellow soul lane with Sade as your anchor. You value warmth, elegance, and emotional depth over flash or intensity. Your taste favors mid-tempo grooves, clean production, and a timeless, adult-oriented vibe from the late 80s and 90s.",
+      "createdAt": 1779060551492,
+      "currentCard": {
+        "track": {
+          "id": "UNk6LTZYokk",
+          "videoId": "UNk6LTZYokk",
+          "source": "youtube",
+          "name": "Smooth Operator (Lyrics)",
+          "artist": "Sade",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/UNk6LTZYokk/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "The epitome of Sade's cool jazz-pop — silky sax, crisp production, and an unhurried, nocturnal groove that sits perfectly in your calm elegance lane.",
+        "category": "Sophisti-pop > Smooth Jazz Pop",
+        "coords": {
+          "x": 35,
+          "y": 35,
+          "z": 85
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "6JBfrtQBmpU",
+            "videoId": "6JBfrtQBmpU",
+            "source": "youtube",
+            "name": "By Your Side (Lyrics)",
+            "artist": "Sade",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/6JBfrtQBmpU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A stripped-down, gospel-infused ballad featuring only piano and voice — the most minimal, intimate, and raw version of Sade's signature calm, with almost no production sheen.",
+          "category": "Sophisti-pop > Gospel Ballad",
+          "coords": {
+            "x": 5,
+            "y": 18,
+            "z": 82
+          }
+        },
+        {
+          "track": {
+            "id": "nquh1l6cO5o",
+            "videoId": "nquh1l6cO5o",
+            "source": "youtube",
+            "name": "Nothing Can Come Between Us (Live) [Widescreen Music Video]",
+            "artist": "Sade",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/nquh1l6cO5o/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A mid-tempo track with punchy horns and a bright, confident swing — Sade's most 'pop-band' moment, still sophisticated but with a sharper, more energetic edge.",
+          "category": "Sophisti-pop > Pop Soul",
+          "coords": {
+            "x": 50,
+            "y": 58,
+            "z": 85
+          }
+        },
+        {
+          "track": {
+            "id": "5VOg8-qegSc",
+            "videoId": "5VOg8-qegSc",
+            "source": "youtube",
+            "name": "No Ordinary Love (Lyrics)",
+            "artist": "Sade",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/5VOg8-qegSc/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A slightly more intense, synth-laden atmosphere with a steady beat — expands your territory into early-90s polished trip-hop-influenced soul.",
+          "category": "Soul > Sophisti-pop",
+          "coords": {
+            "x": 55,
+            "y": 60,
+            "z": 70
+          },
+          "composed": 1992
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Sade",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Sade"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpajt7xhkp8x",
+      "name": "Chillwave",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Feel It All Around (Live on KEXP)",
+          "artist": "Washed Out",
+          "stars": 0,
+          "coords": {
+            "x": 72,
+            "y": 35,
+            "z": 65
+          },
+          "albumArt": "https://i.ytimg.com/vi/eEfy3KkEkTE/hqdefault.jpg",
+          "uri": null,
+          "category": "chillwave > lo-fi dream pop",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Feel It All Around (Live on KEXP)",
+          "artist": "Washed Out",
+          "stars": 0,
+          "coords": {
+            "x": 72,
+            "y": 35,
+            "z": 65
+          }
+        }
+      ],
+      "profile": "You're drawn to Sade's elegant, mid-tempo soul — warm, polished, and emotionally rich without being flashy. You seem to prefer her smoother, more groove-based side over her ballads so far, and the clean production is clearly important to you.",
+      "createdAt": 1779069106277,
+      "currentCard": {
+        "track": {
+          "id": "0EuhgJeoXFQ",
+          "videoId": "0EuhgJeoXFQ",
+          "source": "youtube",
+          "name": "On My Own (Official Video)",
+          "artist": "Satin Jackets & Thunder",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/0EuhgJeoXFQ/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Bright and polished chillwave with a sophisticated disco-house influence, maintaining warmth but moving toward a more energetic, driving rhythm section.",
+        "category": "chillwave > nu-disco / balearic",
+        "coords": {
+          "x": 82,
+          "y": 60,
+          "z": 40
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "F75V-HnEFqk",
+            "videoId": "F75V-HnEFqk",
+            "source": "youtube",
+            "name": "All the time",
+            "artist": "Tycho",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/F75V-HnEFqk/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Instrumental and lush, with shimmering synths and crisp beats that create a calm yet uplifting atmosphere, exploring the more ambient electronic edge of chillwave.",
+          "category": "chillwave > ambient / post-rock",
+          "coords": {
+            "x": 85,
+            "y": 20,
             "z": 55
           }
         },
         {
           "track": {
-            "id": "ZdlEIlq9nZg",
-            "videoId": "ZdlEIlq9nZg",
+            "id": "vf0WbeOXRyY",
+            "videoId": "vf0WbeOXRyY",
             "source": "youtube",
-            "name": "Funeralopolis",
-            "artist": "Electric Wizard",
+            "name": "Change of Coast (OFFICIAL AUDIO)",
+            "artist": "Neon Indian",
             "album": "",
-            "albumArt": "https://i.ytimg.com/vi/ZdlEIlq9nZg/hqdefault.jpg",
+            "albumArt": "https://i.ytimg.com/vi/vf0WbeOXRyY/hqdefault.jpg",
             "durationMs": 0
           },
-          "reason": "A massively slow, down-tuned slab of UK doom metal with oppressive fuzz and nihilistic atmosphere, from an influential cult band.",
-          "category": "Metal > Doom/Stoner Metal",
+          "reason": "Lo-fi nostalgia with glitchy analog warmth and a melancholic yet catchy melody—explores a slightly more electronic, beat-driven corner of chillwave.",
+          "category": "Electronic > Chillwave",
           "coords": {
-            "x": 72,
+            "x": 82,
+            "y": 50,
+            "z": 48
+          }
+        },
+        {
+          "track": {
+            "id": "G-fQ3mYZcAI",
+            "videoId": "G-fQ3mYZcAI",
+            "source": "youtube",
+            "name": "Neon",
+            "artist": "Indian Deadbeat Summer",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/G-fQ3mYZcAI/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Spins into a more synth-pop, beat-driven corner of chillwave, testing your tolerance for brighter, busier textures.",
+          "category": "Electronic > Chillwave > Synth-pop",
+          "coords": {
+            "x": 80,
+            "y": 55,
+            "z": 45
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Chillwave",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Chillwave"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpc5hyids63j",
+      "name": "Angine de Poitrine",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You seem drawn to chillwave's hazy, melancholic side—soft synths, gentle beats, and introspective moods. High-energy or dense textures seem less appealing. Dreamy, low-key atmospheres are your sweet spot.",
+      "createdAt": 1779165998581,
+      "currentCard": {
+        "track": {
+          "id": "wAtWy-s0FOY",
+          "videoId": "wAtWy-s0FOY",
+          "source": "youtube",
+          "name": "Mata Zyklek (Angine De Poitrine) transcription",
+          "artist": "Stephen Weigel",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/wAtWy-s0FOY/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A chaotic, free-jazz-influenced explosion of saxophone and feedback, a genuine wild card that still fits their raw aesthetic.",
+        "category": "French underground > experimental/noise",
+        "coords": {
+          "x": 50,
+          "y": 78,
+          "z": 8
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "imgaMF8g4wo",
+            "videoId": "imgaMF8g4wo",
+            "source": "youtube",
+            "name": "Tout le monde en parle 2026",
+            "artist": "Angine de poitrine",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/imgaMF8g4wo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Explores a completely different side of the project—slow, minimal, almost ritualistic ambient-drone with chanted vocals, far from the noise territory you've heard.",
+          "category": "Experimental > Dark Ambient",
+          "coords": {
+            "x": 30,
+            "y": 25,
+            "z": 12
+          }
+        },
+        {
+          "track": {
+            "id": "RcaswYDA2ns",
+            "videoId": "RcaswYDA2ns",
+            "source": "youtube",
+            "name": "Drainer un ABCÈS !  #short",
+            "artist": "CurieuxLive",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/RcaswYDA2ns/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Harsh, fractured industrial noise with screamed vocals — a direct hit on your taste for unpolished emotional extremes.",
+          "category": "French industrial > harsh noise",
+          "coords": {
+            "x": 85,
+            "y": 90,
+            "z": 10
+          }
+        },
+        {
+          "track": {
+            "id": "N-mC1WUSbzU",
+            "videoId": "N-mC1WUSbzU",
+            "source": "youtube",
+            "name": "Qu'est-ce qu'une angine de poitrine et comment en reconnaître les signes ?",
+            "artist": "Europe 1",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/N-mC1WUSbzU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A mid-tempo noise collage with manipulated samples and vocal fragments, hitting between your extremes.",
+          "category": "French experimental > noise collage",
+          "coords": {
+            "x": 60,
+            "y": 50,
+            "z": 12
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Angine de Poitrine",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Angine de Poitrine"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqaal4dbu2",
+      "name": "Deconstructed Club",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to deconstructed club's extremes—either hyper-digital overload or stark, empty soundscapes. Texture and atmosphere matter more than steady beats, and you're unafraid of abrasive, unconventional choices.",
+      "createdAt": 1779563709976,
+      "currentCard": {
+        "track": {
+          "id": "PwXOgzmTbVU",
+          "videoId": "PwXOgzmTbVU",
+          "source": "youtube",
+          "name": "Desafío",
+          "artist": "Arca",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/PwXOgzmTbVU/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A deconstructed club track with glitchy electronics and intense, confrontational energy that pushes the listener into high-intensity electronic territory.",
+        "category": "Electronic > Deconstructed Club",
+        "coords": {
+          "x": 92,
+          "y": 85,
+          "z": 30
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "p3sCtYMRndU",
+            "videoId": "p3sCtYMRndU",
+            "source": "youtube",
+            "name": "Living Torch [SPGRM 004] | Full Release",
+            "artist": "Kali Malone",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/p3sCtYMRndU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A drone-based deconstructed club piece with calm, sparse instrumentation and meditative quality, exploring low-energy calm territory.",
+          "category": "Electronic > Deconstructed Club",
+          "coords": {
+            "x": 10,
+            "y": 10,
+            "z": 15
+          }
+        },
+        {
+          "track": {
+            "id": "0wsKiQDTBzg",
+            "videoId": "0wsKiQDTBzg",
+            "source": "youtube",
+            "name": "Maze (Long Version)",
+            "artist": "Actress",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/0wsKiQDTBzg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A glitchy, abstract deconstructed club track with a moderate energy level and underground appeal, balancing experimental electronics with rhythmic structure.",
+          "category": "Electronic > Deconstructed Club",
+          "coords": {
+            "x": 75,
             "y": 40,
+            "z": 10
+          }
+        },
+        {
+          "track": {
+            "id": "S8Ae_8nk_P4",
+            "videoId": "S8Ae_8nk_P4",
+            "source": "youtube",
+            "name": "DARK WEB [Full Album]",
+            "artist": "Giant Claw",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/S8Ae_8nk_P4/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "An intensely chaotic and maximalist deconstructed club piece built from distorted synth shards and breakneck percussion, exploring a high-energy, fully electronic zone.",
+          "category": "Electronic > Deconstructed Club",
+          "coords": {
+            "x": 90,
+            "y": 90,
+            "z": 10
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Deconstructed Club — dance music taken apart and reassembled wrong, on purpose. Steady kicks replaced with metallic percussion, glass-shattering samples, and rhythms that vanish mid-bar. It merges global rhythms like trap, ballroom, and grime with an abrasive post-industrial sound, and it's generating a steady stream of highly-rated releases through 2025 and into 2026. Think: music for a club that's actively collapsing.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Deconstructed Club"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqdh4phenp",
+      "name": "Fourth World Minimalist Drone",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You gravitate toward calm, meditative soundscapes where acoustic and electronic worlds merge, favoring fourth world drones and minimalist textures over rhythmic or intense music. Obscure, cult recordings resonate more than mainstream accessible ones, and you appreciate slow evolution of tone over dramatic shifts.",
+      "createdAt": 1779563858425,
+      "currentCard": {
+        "track": {
+          "id": "-7IRnin9gF0",
+          "videoId": "-7IRnin9gF0",
+          "source": "youtube",
+          "name": "\" Last Night The Moon Came\" Jon Hassell",
+          "artist": "Miguel Octave",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/-7IRnin9gF0/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A fourth world dreamscape where trumpet and electronic drones merge, perfectly balancing acoustic warmth with synthetic haze at a low energy.",
+        "category": "Electronic > Fourth World / Ambient",
+        "coords": {
+          "x": 65,
+          "y": 30,
+          "z": 15
+        },
+        "composed": 2009
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "mjnAE5go9dI",
+            "videoId": "mjnAE5go9dI",
+            "source": "youtube",
+            "name": "The Disintegration Loops",
+            "artist": "William Basinski",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/mjnAE5go9dI/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Looping tape decay produces a hypnotic, melancholy drone that feels both ancient and digitally fractured, far from mainstream.",
+          "category": "Experimental > Tape Music / Drone",
+          "coords": {
+            "x": 78,
+            "y": 35,
+            "z": 12
+          },
+          "composed": 2002
+        },
+        {
+          "track": {
+            "id": "up_RtM69unA",
+            "videoId": "up_RtM69unA",
+            "source": "youtube",
+            "name": "the well tuned piano : la monte young, marian zazeela",
+            "artist": "joaocasssio",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/up_RtM69unA/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A monumental, just-intonation piano drone piece that pushes minimalism into a dense, contemplative ritual, highly obscure.",
+          "category": "Classical > Minimalism / Drone",
+          "coords": {
+            "x": 5,
+            "y": 18,
+            "z": 5
+          },
+          "composed": 1974
+        },
+        {
+          "track": {
+            "id": "s6pqLrgIZ3k",
+            "videoId": "s6pqLrgIZ3k",
+            "source": "youtube",
+            "name": "Kuni [Audio]",
+            "artist": "Fennesz & Ryuichi Sakamoto",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/s6pqLrgIZ3k/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Harold Budd's minimalist piano and Eno's generative treatments create a serene, spacious soundscape—cult, calm, and distinctly fourth world.",
+          "category": "Ambient > Minimalist Piano",
+          "coords": {
+            "x": 45,
+            "y": 15,
+            "z": 25
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Fourth World Minimalist Drone — a collision of non-Western ritual textures with American minimalist composition. Bandcamp is actively noticing artists cobbling together fourth world music, drone, and minimalism into intoxicating instrumental records right now, which is a reliable leading indicator of a scene forming.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Fourth World Minimalist Drone"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqgb368ck8",
+      "name": "Folk Horror Hauntology",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to slow, immersive drift where acoustic and electronic borders dissolve. Fourth world textures and minimalist repetition feel natural to you, and you prefer the obscure edge of these scenes — artists few have heard of but who build entire worlds in a single tone.",
+      "createdAt": 1779563990562,
+      "currentCard": {
+        "track": {
+          "id": "_Af4bO7uwp0",
+          "videoId": "_Af4bO7uwp0",
+          "source": "youtube",
+          "name": "Everywhere at the end of time (stage one) - full album (2016)",
+          "artist": "The Caretaker",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/_Af4bO7uwp0/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Hauntological ambient exploring memory and decay through manipulated ballroom samples",
+        "category": "Electronic > Hauntology",
+        "coords": {
+          "x": 75,
+          "y": 15,
+          "z": 25
+        },
+        "composed": 2016
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "q_avHR6KnZc",
+            "videoId": "q_avHR6KnZc",
+            "source": "youtube",
+            "name": "Diana [HQ]",
+            "artist": "Comus",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/q_avHR6KnZc/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Unyielding acid folk with medieval modes, flutes, and cacophonous vocals embodying folk horror madness",
+          "category": "Folk > Acid Folk",
+          "coords": {
+            "x": 10,
+            "y": 75,
+            "z": 20
+          }
+        },
+        {
+          "track": {
+            "id": "XNbpGLZEQ-M",
+            "videoId": "XNbpGLZEQ-M",
+            "source": "youtube",
+            "name": "Watch my hair transform in 3, 2, 1 💇🏽‍♀️💕",
+            "artist": "Amyah Bennett",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/XNbpGLZEQ-M/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "An eerie electronic piece with glitchy textures and disembodied vocals, evoking ghostly broadcasts and digital decay from a hauntological perspective.",
+          "category": "electronic > hauntology",
+          "coords": {
+            "x": 78,
+            "y": 45,
+            "z": 8
+          }
+        },
+        {
+          "track": {
+            "id": "YHHaI9_ca7w",
+            "videoId": "YHHaI9_ca7w",
+            "source": "youtube",
+            "name": "26 April 2007",
+            "artist": "Current 93",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/YHHaI9_ca7w/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A dark, ritualistic folk chant with apocalyptic lyrics and sparse instrumentation, evoking the uncanny and the esoteric traditions of folk horror.",
+          "category": "folk > apocalyptic folk",
+          "coords": {
+            "x": 10,
+            "y": 60,
+            "z": 20
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Folk Horror Hauntology — the sonic equivalent of a cursed children's TV show from 1973. It's a close cousin of hauntology — the cultural movement evoking unsettling nostalgia for lost futures — and blends neoclassical instrumentation with spooked, ghostly production applied to old folk standards. Getting real critical traction as an identifiable scene.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Folk Horror Hauntology"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqhj4tnhko",
+      "name": "Neofolk Dark Ritual",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Fall Apart",
+          "artist": "Death in June",
+          "stars": 0,
+          "coords": {
+            "x": 20,
+            "y": 40,
+            "z": 30
+          },
+          "albumArt": "https://img.youtube.com/vi/5X8qK3m3P38/hqdefault.jpg",
+          "uri": null,
+          "category": "Neofolk > Dark Ritual",
+          "source": "youtube"
+        },
+        {
+          "track": "A Thousand Years",
+          "artist": "Current 93",
+          "stars": 0,
+          "coords": {
+            "x": 10,
+            "y": 15,
+            "z": 10
+          },
+          "albumArt": "https://img.youtube.com/vi/8z6Fb2G3h5J/hqdefault.jpg",
+          "uri": null,
+          "category": "Neofolk > Dark Ritual > Drone",
+          "source": "youtube"
+        },
+        {
+          "track": "Algir - Stien",
+          "artist": "Wardruna",
+          "stars": 0,
+          "coords": {
+            "x": 25,
+            "y": 50,
+            "z": 25
+          },
+          "albumArt": "https://img.youtube.com/vi/m7N1kL0p4Qw/hqdefault.jpg",
+          "uri": null,
+          "category": "Neofolk > Dark Ritual > Nordic Folk",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're drawn to slow, immersive drift where acoustic and electronic borders dissolve. Fourth world textures and minimalist repetition feel natural to you, and you prefer the obscure edge of these scenes — artists few have heard of but who build entire worlds in a single tone.",
+      "createdAt": 1779564047645,
+      "currentCard": {
+        "track": {
+          "id": "jlKhc_B3LJ0",
+          "videoId": "jlKhc_B3LJ0",
+          "source": "youtube",
+          "name": "Bande Annonce",
+          "artist": "Cassandre",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/jlKhc_B3LJ0/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Martial industrial neofolk with dark, dystopian electronics and commanding spoken vocals, leaning into the ritualistic and intense side of the genre.",
+        "category": "Neofolk > Martial Industrial",
+        "coords": {
+          "x": 78,
+          "y": 88,
+          "z": 25
+        },
+        "composed": 2004
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "J28EsJOYIjc",
+            "videoId": "J28EsJOYIjc",
+            "source": "youtube",
+            "name": "\"HOLY LAND\"",
+            "artist": "KING DUDE",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/J28EsJOYIjc/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A sparse, brooding neofolk track with acoustic guitar, simple percussion, and eerie vocal resonance that feels like a dark ritual, far in space from Corpus In Extremis — lower intensity and more drone-like.",
+          "category": "Neofolk Dark Ritual > American Occult Folk",
+          "coords": {
+            "x": 10,
+            "y": 30,
             "z": 25
           }
         },
         {
           "track": {
-            "id": "8256VJ4hkJU",
-            "videoId": "8256VJ4hkJU",
+            "id": "3fnPwj1AMpo",
+            "videoId": "3fnPwj1AMpo",
             "source": "youtube",
-            "name": "\"The Philosopher\" (Remixed)",
-            "artist": "DEATH",
+            "name": "Raido (Official music video)",
+            "artist": "Wardruna",
             "album": "",
-            "albumArt": "https://i.ytimg.com/vi/8256VJ4hkJU/hqdefault.jpg",
+            "albumArt": "https://i.ytimg.com/vi/3fnPwj1AMpo/hqdefault.jpg",
             "durationMs": 0
           },
-          "reason": "Technical death metal from a pioneering US band, featuring complex rhythms, philosophical lyrics, and Chuck Schuldiner's distinctive guitar work.",
-          "category": "Metal > Death Metal",
+          "reason": "Deep, droning drone with tagelharpa and heavy frame drum, moving into more driving, processional energy while maintaining total acoustic ritual character.",
+          "category": "Neofolk > Nordic Ritual Folk",
+          "coords": {
+            "x": 18,
+            "y": 75,
+            "z": 35
+          },
+          "composed": 2013
+        },
+        {
+          "track": {
+            "id": "tzXFZuB1wSQ",
+            "videoId": "tzXFZuB1wSQ",
+            "source": "youtube",
+            "name": "Darkness At The Heart Of My Love (Official Audio)",
+            "artist": "Ghost",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/tzXFZuB1wSQ/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Sparse acoustic guitar and brooding vocals with ritualistic restraint — introspective, melancholic neofolk that fills the calm, intimate corner of the space.",
+          "category": "Neofolk > Dark Folk",
+          "coords": {
+            "x": 10,
+            "y": 30,
+            "z": 22
+          },
+          "composed": 2010
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Neofolk Dark Ritual — acoustic folk instruments (hurdy-gurdy, frame drums, nyckelharpa) arranged to feel like a ceremony rather than a performance. New releases are arriving continuously through early 2026, with a dedicated and growing underground following that spans goth, pagan, and neoclassical adjacent scenes.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Neofolk Dark Ritual"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqjhomrind",
+      "name": "Neoclassical Dark Jazz",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You favor neofolk that abandons melody for ritualistic texture—acoustic drones, frame drums, and chanting that feel ancient and ceremonial. Obscurity and atmosphere matter more than hooks, and you avoid anything resembling a conventional song structure. The pagan, goth-adjacent underground is your natural habitat.",
+      "createdAt": 1779564139078,
+      "currentCard": {
+        "track": {
+          "id": "pnVaaKT9tg4",
+          "videoId": "pnVaaKT9tg4",
+          "source": "youtube",
+          "name": "I Forsee The Dark Ahead, If I Stay (Full Live Album)",
+          "artist": "The Kilimanjaro Darkjazz Ensemble",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/pnVaaKT9tg4/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Dark jazz with slow-burning noir atmosphere and electronic textures; sits at a moderate acoustic/electronic midpoint with introspective intensity.",
+        "category": "neoclassical dark jazz > dark jazz",
+        "coords": {
+          "x": 45,
+          "y": 55,
+          "z": 25
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "vLpuGiom07g",
+            "videoId": "vLpuGiom07g",
+            "source": "youtube",
+            "name": "Do You Know The Mystery Of UVB-76? #shorts",
+            "artist": "Synopsis",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/vLpuGiom07g/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Dark ambient jazz with field recordings and sparse piano—meditative and deeply introspective.",
+          "category": "neoclassical dark jazz > dark ambient",
+          "coords": {
+            "x": 20,
+            "y": 20,
+            "z": 5
+          }
+        },
+        {
+          "track": {
+            "id": "HkeWRLnq7bU",
+            "videoId": "HkeWRLnq7bU",
+            "source": "youtube",
+            "name": "Musica nei Chiostri",
+            "artist": "Rosario Di Rosa, piano solo",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/HkeWRLnq7bU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Cryptic, spoken-word neoclassical dark jazz with minimal piano and eerie silence, opening an unmapped region of lyrical abstraction.",
+          "category": "Neoclassical Dark Jazz > Avant-Garde",
+          "coords": {
+            "x": 15,
+            "y": 45,
+            "z": 10
+          }
+        },
+        {
+          "track": {
+            "id": "2CAtOVBCPwE",
+            "videoId": "2CAtOVBCPwE",
+            "source": "youtube",
+            "name": "【MULTI SUB】一口气看完《仙子慢点走：另类废柴》1-2季：开局摆摊卖破烂！结果一句话直接捅出大麻烦，整个修仙界都炸了！",
+            "artist": "趣说漫世界",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/2CAtOVBCPwE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Cello and processed drone textures, blending neoclassical minimalism with dark ambient — far from any prior suggestion, testing your tolerance for abstract instrumental darkness.",
+          "category": "Neoclassical Dark Jazz > Drone/Minimalism",
+          "coords": {
+            "x": 30,
+            "y": 20,
+            "z": 15
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Neoclassical Dark Jazz — a growing movement blurring jazz-adjacent composition, neoclassical writing, and progressive rock atmospheres into dark, piano-driven statements — the kind of music that sounds like it belongs in a candlelit library during a moral crisis. Critics are actively naming it as a scene in 2025–26, not just a description.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Neoclassical Dark Jazz"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqntmood1v",
+      "name": "microtonal math rock",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Sungazer- Perihelion (Full Album)",
+          "artist": "Patrick Hogan",
+          "stars": 0.5,
+          "coords": {
+            "x": 85,
+            "y": 70,
+            "z": 18
+          },
+          "albumArt": "https://i.ytimg.com/vi/SShc346MX3s/hqdefault.jpg",
+          "uri": null,
+          "category": "Electronic Fusion > Math-Jazz",
+          "source": "youtube"
+        },
+        {
+          "track": "Tina Turner Passes Away At 83, Cops Check On Ja Morant After Mysterious Instagram Post +More",
+          "artist": "Breakfast Club Power 105.1 FM",
+          "stars": 0,
+          "coords": {
+            "x": 8,
+            "y": 25,
+            "z": 3
+          },
+          "albumArt": "https://i.ytimg.com/vi/Qrde8jbTTZs/hqdefault.jpg",
+          "uri": null,
+          "category": "Experimental Folk > Microtonal Acoustic",
+          "source": "youtube"
+        },
+        {
+          "track": "It Tastes Too Good to be This Healthy! ~ Golden/Turmeric Milk Recipe",
+          "artist": "I Cook And Paint",
+          "stars": 0,
+          "coords": {
+            "x": 75,
+            "y": 90,
+            "z": 5
+          },
+          "albumArt": "https://i.ytimg.com/vi/e8nm5kdfsbw/hqdefault.jpg",
+          "uri": null,
+          "category": "microtonal noise rock > math punk",
+          "source": "youtube"
+        },
+        {
+          "track": "السلسلة الكوميدية زوند زوند | الحلقة الرابعة | Zond Zond Ep 4",
+          "artist": "Grand prod",
+          "stars": 0,
+          "coords": {
+            "x": 80,
+            "y": 75,
+            "z": 12
+          },
+          "albumArt": "https://i.ytimg.com/vi/gHD3PHB7Z7Y/hqdefault.jpg",
+          "uri": null,
+          "category": "microtonal math rock > electronic fusion",
+          "source": "youtube"
+        },
+        {
+          "track": "THEY KEEP SILENCE 그들은 말이 없다",
+          "artist": "JAMBINAI 잠비나이",
+          "stars": 0.5,
+          "coords": {
+            "x": 35,
+            "y": 80,
+            "z": 15
+          },
+          "albumArt": "https://i.ytimg.com/vi/PB1k7CDVWVk/hqdefault.jpg",
+          "uri": null,
+          "category": "avant-garde > experimental rock",
+          "source": "youtube"
+        },
+        {
+          "track": "4TH DEMENTIA | Omeleto Comedy",
+          "artist": "Omeleto Comedy",
+          "stars": 0,
+          "coords": {
+            "x": 70,
+            "y": 75,
+            "z": 15
+          },
+          "albumArt": "https://i.ytimg.com/vi/7qLSl_k6ju0/hqdefault.jpg",
+          "uri": null,
+          "category": "math rock > avant-garde / underground",
+          "source": "youtube"
+        },
+        {
+          "track": "A Hermitage [Full album stream]",
+          "artist": "Jambinai",
+          "stars": 3.5,
+          "coords": {
+            "x": 50,
+            "y": 65,
+            "z": 20
+          },
+          "albumArt": "https://i.ytimg.com/vi/FPRle456t88/hqdefault.jpg",
+          "uri": null,
+          "category": "Experimental Rock > Microtonal Math Rock",
+          "source": "youtube"
+        },
+        {
+          "track": "Boi da Cara Preta",
+          "artist": "Bobb Bruno",
+          "stars": 0,
+          "coords": {
+            "x": 28,
+            "y": 48,
+            "z": 8
+          },
+          "albumArt": "https://img.youtube.com/vi/lRLQCR7LcSQ/hqdefault.jpg",
+          "uri": null,
+          "category": "microtonal rock > Brazilian experimental",
+          "source": "youtube"
+        },
+        {
+          "track": "Mort aux Cons",
+          "artist": "Hailed",
+          "stars": 0,
+          "coords": {
+            "x": 45,
+            "y": 72,
+            "z": 5
+          },
+          "albumArt": "https://img.youtube.com/vi/J1Cun9Cl8xY/hqdefault.jpg",
+          "uri": null,
+          "category": "microtonal experimental rock > French underground",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're drawn to the shadowy, slow-motion corners of jazz — sparse piano, noir atmospheres, and brooding textures with a neoclassical edge. Electronic and drone elements intrigue you, while high-energy or mainstream sounds are entirely absent. You seem to prefer contemplative, candlelit intensity over anything driving or bright.",
+      "createdAt": 1779564341184,
+      "currentCard": {
+        "track": {
+          "id": "PhS-t7wQ4QQ",
+          "videoId": "PhS-t7wQ4QQ",
+          "source": "youtube",
+          "name": "Chevalier Bulltoe",
+          "artist": "TOTORRO",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/PhS-t7wQ4QQ/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "French math rock quartet known for interlocking guitar lines and irregular time signatures, though standard tuning — a bridge from your disliked intense territory to a more melodic but still precise zone.",
+        "category": "math rock > instrumental",
+        "coords": {
+          "x": 55,
+          "y": 60,
+          "z": 40
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "5yBcp8PqVWg",
+            "videoId": "5yBcp8PqVWg",
+            "source": "youtube",
+            "name": "A Rainbow in the Dark",
+            "artist": "Slauson Malone 1",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/5yBcp8PqVWg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Though more sample-based, this US artist uses microtonal textures and shifting time signatures with dense, multi-instrumental compositions that push boundary of your constraint.",
+          "category": "experimental > avant-garde math rock",
+          "coords": {
+            "x": 68,
+            "y": 65,
+            "z": 12
+          }
+        },
+        {
+          "track": {
+            "id": "iBDDoLFv1dI",
+            "videoId": "iBDDoLFv1dI",
+            "source": "youtube",
+            "name": "Clarinet: What people THINK is hard vs what is actually hard #clarinet",
+            "artist": "DoReMiFaJo",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/iBDDoLFv1dI/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Wild card: a US/Canada duo using custom 19-tone guitars and triggered electronic loops, creating dissonant yet danceable polyrhythms at a higher energy (80, 85) — far from any heard space.",
+          "category": "microtonal math rock > electronic hybrid",
+          "coords": {
+            "x": 85,
+            "y": 85,
+            "z": 10
+          }
+        },
+        {
+          "track": {
+            "id": "dQw4w9WgXcQ",
+            "videoId": "dQw4w9WgXcQ",
+            "source": "youtube",
+            "name": "Solo Agathoclé by",
+            "artist": "Resina",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Polish cellist using prepared cello and electronics in a hypnotic, sparse math-rock framework — offers a more introspective, minimal take on microtonal friction.",
+          "category": "microtonal avant-rock > prepared cello",
+          "coords": {
+            "x": 48,
+            "y": 35,
+            "z": 30
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "after 2020",
+      "timePeriods": [
+        "after 2020"
+      ],
+      "notes": "microtonal math rock -- Microtonal or unconventional tuning systems applied to high-precision rhythmic rock. Two to four musicians, minimal or no vocals, interlocking instrumental parts with shifting or irregular time signatures. Unsettling harmonic friction from notes outside standard Western scales. Dense but not chaotic — technically demanding, compositionally deliberate. Influenced by math rock, progressive rock, and avant-garde composition but not strictly any of them. May include live looping. Costumed, anonymous, or visually theatrical acts welcome but not required. Quebec, European, or international underground.",
+      "regions": [
+        "US & Canada"
+      ],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "microtonal math rock"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpiqzw5xl197",
+      "name": "Hard Bop",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Art Blakey and the",
+          "artist": "Jazz Messengers Moanin'",
+          "stars": 0,
+          "coords": {
+            "x": 18,
+            "y": 65,
+            "z": 45
+          },
+          "albumArt": "https://img.youtube.com/vi/GvCJ3lP7S6Q/hqdefault.jpg",
+          "uri": null,
+          "category": "Jazz > Hard Bop",
+          "source": "youtube"
+        },
+        {
+          "track": "Cannonball",
+          "artist": "Adderley Somethin' Else",
+          "stars": 0,
+          "coords": {
+            "x": 12,
+            "y": 40,
+            "z": 55
+          },
+          "albumArt": "https://img.youtube.com/vi/1iJv1w4U2kk/hqdefault.jpg",
+          "uri": null,
+          "category": "Jazz > Hard Bop",
+          "source": "youtube"
+        },
+        {
+          "track": "Herbie",
+          "artist": "Hancock Cantaloupe Island",
+          "stars": 0,
+          "coords": {
+            "x": 18,
+            "y": 30,
+            "z": 65
+          },
+          "albumArt": "https://img.youtube.com/vi/h1FJPDhGm4Q/hqdefault.jpg",
+          "uri": null,
+          "category": "Jazz > Hard Bop > Modal Jazz",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're drawn to intellectually rigorous, rhythmically disorienting microtonal rock that feels like a secret rite. Dense, driving instrumentals with irregular meters and harmonic friction excite you, but you avoid chaos. Your taste leans toward obscure, visually theatrical acts from Quebec and the international underground.",
+      "createdAt": 1779564904341,
+      "currentCard": {
+        "track": {
+          "id": "CWeXOm49kE0",
+          "videoId": "CWeXOm49kE0",
+          "source": "youtube",
+          "name": "Song for My Father",
+          "artist": "Horace Silver",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/CWeXOm49kE0/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A warm, Latin-infused hard bop classic with a memorable piano line and relaxed yet swinging feel, perfect for exploring a slightly calmer y-axis region.",
+        "category": "Jazz > Hard Bop",
+        "coords": {
+          "x": 12,
+          "y": 55,
+          "z": 60
+        },
+        "composed": 1964
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "VcPhzZgWxMM",
+            "videoId": "VcPhzZgWxMM",
+            "source": "youtube",
+            "name": "Blue Bossa I Kenny Dorham I Jazz",
+            "artist": "Melómanos",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/VcPhzZgWxMM/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A melodic, contemplative hard bop bossa nova that shows a different side of the genre—sparse, introspective, and less mainstream within the hard bop canon.",
+          "category": "Jazz > Hard Bop > Bossa Nova",
+          "coords": {
+            "x": 10,
+            "y": 25,
+            "z": 30
+          },
+          "composed": 1963
+        },
+        {
+          "track": {
+            "id": "w2KvM2T40RQ",
+            "videoId": "w2KvM2T40RQ",
+            "source": "youtube",
+            "name": "Cristo Redentor",
+            "artist": "Donald Byrd",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/w2KvM2T40RQ/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A transcendent, modal hard bop piece with a spiritual, gospel-tinged atmosphere, moving into a very calm and introspective region of the space.",
+          "category": "Jazz > Hard Bop",
+          "coords": {
+            "x": 20,
+            "y": 20,
+            "z": 50
+          },
+          "composed": 1963,
+          "performer": "Donald Byrd"
+        },
+        {
+          "track": {
+            "id": "l4WWKnGBWIc",
+            "videoId": "l4WWKnGBWIc",
+            "source": "youtube",
+            "name": "Maiden Voyage (Full Album)",
+            "artist": "Herbie Hancock",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/l4WWKnGBWIc/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A modal jazz masterpiece with a floating, impressionistic feel, exploring a region of the space that's calm and reflective but still rooted in acoustic jazz, with moderate familiarity.",
+          "category": "Jazz > Modal Jazz",
+          "coords": {
+            "x": 20,
+            "y": 30,
+            "z": 65
+          },
+          "composed": 1965,
+          "performer": "Herbie Hancock"
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Hard Bop",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Hard Bop"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpireqzd4emh",
+      "name": "Shoegaze Revival",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to lush, distorted guitar landscapes that blend serene melodies with raw intensity. Shoegaze revival's ethereal vocals and dense textures resonate deeply, whether calm or cathartic. You seek immersive soundscapes over clean production.",
+      "createdAt": 1779565597465,
+      "currentCard": {
+        "track": {
+          "id": "pVhNi5cU8mo",
+          "videoId": "pVhNi5cU8mo",
+          "source": "youtube",
+          "name": "Vapour Trail (Video)",
+          "artist": "Ride",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/pVhNi5cU8mo/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A foundational shoegaze track with dense, swirling guitars and a melancholic yet driving energy, perfect for exploring the revival's roots.",
+        "category": "Shoegaze > Classic Shoegaze",
+        "coords": {
+          "x": 65,
+          "y": 70,
+          "z": 55
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "DcolWlw-WVQ",
+            "videoId": "DcolWlw-WVQ",
+            "source": "youtube",
+            "name": "Sugar For The Pill",
+            "artist": "Slowdive",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/DcolWlw-WVQ/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A lush, polished shoegaze track with harmonious vocals and gentle guitar washes, representing a softer, mainstream-accessible revival style.",
+          "category": "Shoegaze Revival > Neo-Shoegaze",
+          "coords": {
+            "x": 50,
+            "y": 35,
+            "z": 70
+          }
+        },
+        {
+          "track": {
+            "id": "FyYMzEplnfU",
+            "videoId": "FyYMzEplnfU",
+            "source": "youtube",
+            "name": "Only Shallow (Official Music Video)",
+            "artist": "My Bloody Valentine",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/FyYMzEplnfU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "An iconic, abrasive wall of sound with breathy vocals and chaotic guitar feedback, defining the genre's loud, experimental edge.",
+          "category": "Shoegaze > Noise Pop",
           "coords": {
             "x": 75,
             "y": 85,
+            "z": 60
+          }
+        },
+        {
+          "track": {
+            "id": "vxwe_vnTSCo",
+            "videoId": "vxwe_vnTSCo",
+            "source": "youtube",
+            "name": "Out Of Mind",
+            "artist": "DIIV",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/vxwe_vnTSCo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A modern shoegaze revival piece with jangly, reverb-drenched guitars and driving energy, exploring a more intense and distorted sonic territory.",
+          "category": "Shoegaze Revival > Neo-shoegaze",
+          "coords": {
+            "x": 82,
+            "y": 70,
+            "z": 45
+          }
+        }
+      ],
+      "genres": [
+        "Rock"
+      ],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Rock → Shoegaze Revival\nKnown for dreamy, ethereal soundscapes and introspective lyrics, shoegaze originally peaked in the early 90s and was declared dead for decades. It's back, driven by a younger generation discovering My Bloody Valentine and immediately wanting to make their own version.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Shoegaze Revival"
+      ],
+      "artistText": "",
+      "userCreated": true,
+      "source": "youtube"
+    },
+    {
+      "id": "mpirg79yexzv",
+      "name": "Gothic Americana",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to the dark, literary side of country — murder ballads, minor keys, and moral ambiguity. The sparse instrumentation and storytelling draw you in, while the raw, emotional edge keeps things intense. You favor artists who paint with shadows and dust.",
+      "createdAt": 1779565665238,
+      "currentCard": {
+        "track": {
+          "id": "Pl6MCWMU8aE",
+          "videoId": "Pl6MCWMU8aE",
+          "source": "youtube",
+          "name": "Handsome Family  • Far From Any Road (Main Title Theme from True Detective) Official Lyric Video",
+          "artist": "Handsome Family",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/Pl6MCWMU8aE/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A dark, minimalist country noir with a haunting minor-key melody, setting the gothic Americana tone with sparse acoustic guitar and upright bass.",
+        "category": "Country > Gothic Americana",
+        "coords": {
+          "x": 20,
+          "y": 30,
+          "z": 35
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "qSYkikkitS0",
+            "videoId": "qSYkikkitS0",
+            "source": "youtube",
+            "name": "Colter Wall - \"Sleeping on the Blacktop\"",
+            "artist": "Original 16 Brewery Sessions",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/qSYkikkitS0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A stark, minimalist story-song with fingerpicked acoustic guitar and a low, weathered voice, evoking dusty highways and violence.",
+          "category": "Country > Gothic Americana",
+          "coords": {
+            "x": 10,
+            "y": 40,
+            "z": 35
+          }
+        },
+        {
+          "track": {
+            "id": "Cq5drkKBz3k",
+            "videoId": "Cq5drkKBz3k",
+            "source": "youtube",
+            "name": "Westfall",
+            "artist": "Okkervil River",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/Cq5drkKBz3k/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A literary, narrative-driven indie-folk track with a slow build and ominous strings, detailing a murder from the killer's perspective.",
+          "category": "Country > Gothic Americana",
+          "coords": {
+            "x": 25,
+            "y": 55,
+            "z": 60
+          }
+        },
+        {
+          "track": {
+            "id": "B9FzVhw8_bY",
+            "videoId": "B9FzVhw8_bY",
+            "source": "youtube",
+            "name": "In Hell I'll Be In Good Company [Official Music Video]",
+            "artist": "The Dead South",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/B9FzVhw8_bY/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "An upbeat yet macabre bluegrass stomp with fiddle and banjo, delivering a murder ballad feel through high energy and darkly comic lyrics.",
+          "category": "Country > Bluegrass Gothic",
+          "coords": {
+            "x": 30,
+            "y": 80,
+            "z": 50
+          }
+        }
+      ],
+      "genres": [
+        "Country"
+      ],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Country → Gothic Americana\nAlso called country noir — murder ballads, minor keys, fiddle and upright bass, lyrics about sin and redemption. Where Johnny Cash's shadow lives. The dark, literary, morally ambiguous cousin that Nashville pretends doesn't exist.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Gothic Americana"
+      ],
+      "artistText": "",
+      "userCreated": true
+    },
+    {
+      "id": "mpirhah29ofe",
+      "name": "Afro-Ritmo",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "Afro-Ritmo La Cumbia del",
+          "artist": "Barrilito",
+          "stars": 0,
+          "coords": {
+            "x": 15,
+            "y": 65,
+            "z": 30
+          },
+          "albumArt": "https://img.youtube.com/vi/nWfvX6mMJZ0/hqdefault.jpg",
+          "uri": null,
+          "category": "Latin > Cumbia",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're drawn to the crossover between West African Afrobeats and Latin rhythms, especially where traditional cumbia meets modern production. You appreciate a strong danceable pulse but you're not yet signaling a preference for electronic vs. acoustic—this session is mapping that range. The dislike of that one track suggests earthy percussion may be more your lane than heavy synth production.",
+      "createdAt": 1779565716038,
+      "currentCard": {
+        "track": {
+          "id": "jdemQ-xdih8",
+          "videoId": "jdemQ-xdih8",
+          "source": "youtube",
+          "name": "Lourdes Gil Y Los Galantes \"El Cumbanchero\" AFRO-CUBAN, FUNK, LATIN",
+          "artist": "Private Press Music",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/jdemQ-xdih8/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A vibrant, brass-heavy cumbia with a driving beat and call-and-response vocals, showcasing the genre's dance-floor intensity and Afro-Colombian roots.",
+        "category": "Latin > Cumbia",
+        "coords": {
+          "x": 20,
+          "y": 78,
+          "z": 25
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "7kmDLdtuOY0",
+            "videoId": "7kmDLdtuOY0",
+            "source": "youtube",
+            "name": "\"CUMBIA DEL CARIBE\"",
+            "artist": "AUTENTICA CUMBIA COLOMBIANA",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/7kmDLdtuOY0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A smoother, more melodic cumbia with layered vocals and a relaxed tempo, showing the genre's versatility in creating a tropical, laid-back atmosphere.",
+          "category": "Latin > Cumbia",
+          "coords": {
+            "x": 18,
+            "y": 42,
+            "z": 22
+          }
+        },
+        {
+          "track": {
+            "id": "l_WSAwVqCjw",
+            "videoId": "l_WSAwVqCjw",
+            "source": "youtube",
+            "name": "El baile de la paloma 🕊| #shorts",
+            "artist": "ESPN Deportes",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/l_WSAwVqCjw/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A rare known recording—an accordion-driven cumbia with a nostalgic, folkloric feel, evoking the Amazonian roots of Colombian coastal music.",
+          "category": "Latin > Cumbia",
+          "coords": {
+            "x": 12,
+            "y": 55,
+            "z": 18
+          }
+        },
+        {
+          "track": {
+            "id": "9fOnLqwzZvM",
+            "videoId": "9fOnLqwzZvM",
+            "source": "youtube",
+            "name": "EL DUEÑO DE TU AMOR VER. SLOW. #cumbias #cumbion #cumbia #sonideros2025 #soniderosdecorazon",
+            "artist": "MAGIC SOUND WOLF   ( canal oficial )",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/9fOnLqwzZvM/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A recent cumbia track from Colombia that mixes digital production with classic elements like accordion and guacharaca, staying within the requested Latin-Afro fusion space.",
+          "category": "Cumbia > Digital Cumbia",
+          "coords": {
+            "x": 55,
+            "y": 70,
+            "z": 40
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Afrobeats → Afro-Ritmo\nThe cross-pollination happening between Afrobeats and Latin artists creates a genuinely new sound — Latin artists interpreting Afrobeats through their own lens while collaborating with West African mainstays. Spotify even has a dedicated playlist for it now",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Afro-Ritmo"
+      ],
+      "artistText": "",
+      "userCreated": true
+    },
+    {
+      "id": "mpirj3h4qjhn",
+      "name": "Amapiano",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're clearly drawn to Amapiano's rhythmic foundation—the log drum is your anchor. You seem to enjoy both the melodic, piano-led tracks and the harder club variants, with a curiosity about how it fuses with Afro House. Your taste leans rhythmic and textural over vocal-driven, and you're exploring the genre's breadth from laid-back to intense.",
+      "createdAt": 1779565800280,
+      "currentCard": {
+        "track": {
+          "id": "c0fuyILii2g",
+          "videoId": "c0fuyILii2g",
+          "source": "youtube",
+          "name": "Koko",
+          "artist": "Dj Maphorisa x Kabza De Small ft Mhaw Keys",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/c0fuyILii2g/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A classic Amapiano track with log drum grooves and soft keys, balances warm electronic production with moderate energy, setting a popular but grounded tone.",
+        "category": "Amapiano > Log Drum",
+        "coords": {
+          "x": 72,
+          "y": 55,
+          "z": 75
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "rgICb0vEQMk",
+            "videoId": "rgICb0vEQMk",
+            "source": "youtube",
+            "name": "Mmapula ft Mzu M (Official Video)",
+            "artist": "Busta 929",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/rgICb0vEQMk/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Soulful Amapiano with rich synth pads and a slow, sensual groove, occupying the melodic and emotional end of the genre, moderate mainstream reach.",
+          "category": "Amapiano > Soulful",
+          "coords": {
+            "x": 70,
+            "y": 45,
+            "z": 72
+          }
+        },
+        {
+          "track": {
+            "id": "YLwIR_xyhbY",
+            "videoId": "YLwIR_xyhbY",
+            "source": "youtube",
+            "name": "Soundcheck (Official Audio)",
+            "artist": "Vigro Deep",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/YLwIR_xyhbY/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A dark, syncopated Amapiano instrumental with heavy bass and intricate rhythm, leaning into a more experimental, underground production style, lower mainstream profile.",
+          "category": "Amapiano > Experimental / Deep",
+          "coords": {
+            "x": 88,
+            "y": 65,
+            "z": 30
+          }
+        },
+        {
+          "track": {
+            "id": "MG8ZoM0NUY0",
+            "videoId": "MG8ZoM0NUY0",
+            "source": "youtube",
+            "name": "Umsebenzi Wethu (ft. Mr JazziQ, Zuma, Lady Du & Reece Madlisa)",
+            "artist": "Busta929 & Mpura",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/MG8ZoM0NUY0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "High-energy amapiano with a driving log drum bassline and call-and-response vocals, showcasing the genre's peak club energy.",
+          "category": "Amapiano > Club Banger",
+          "coords": {
+            "x": 78,
+            "y": 85,
+            "z": 55
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "EDM → Amapiano\nAfrican electronic music saw a 700% increase in sample downloads in 2024-2025. Amapiano specifically — originating in South Africa — is built around a distinctive \"log drum\" bassline that sounds unlike anything in Western club music. It's merging with Afro House, Deep House, and Reggaeton to create a new era of global club music.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Amapiano"
+      ],
+      "artistText": "",
+      "userCreated": true
+    },
+    {
+      "id": "mpirk9t99p0v",
+      "name": "Phonk",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "VIRAL PHONK/FUNK SONGS 2025 🎵🔥 PLAYLIST",
+          "artist": "Infinite Aura Funk",
+          "stars": 0,
+          "coords": {
+            "x": 72,
+            "y": 85,
+            "z": 60
+          },
+          "albumArt": "https://i.ytimg.com/vi/CCeChf_1Nak/hqdefault.jpg",
+          "uri": null,
+          "category": "Phonk > Memphis Rap / Drift Phonk",
+          "source": "youtube"
+        },
+        {
+          "track": "THE MOST STREAMED PHONK SONGS OF ALL TIME",
+          "artist": "Max Grabel",
+          "stars": 1.5,
+          "coords": {
+            "x": 98,
+            "y": 90,
+            "z": 20
+          },
+          "albumArt": "https://i.ytimg.com/vi/MmPhIqzL2dE/hqdefault.jpg",
+          "uri": null,
+          "category": "Phonk > Aggressive Phonk",
+          "source": "youtube"
+        },
+        {
+          "track": "Gotham S2E1 🤡💃 Jerome Tries to Charm Barbara but Gets Rejected",
+          "artist": "F0xxHound",
+          "stars": 4.5,
+          "coords": {
+            "x": 88,
+            "y": 78,
+            "z": 45
+          },
+          "albumArt": "https://i.ytimg.com/vi/QKi_kGTZa4c/hqdefault.jpg",
+          "uri": null,
+          "category": "Hip-Hop > Phonk > Trap-Phonk",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [
+        {
+          "track": "Gotham S2E1 🤡💃 Jerome Tries to Charm Barbara but Gets Rejected",
+          "artist": "F0xxHound",
+          "stars": 4.5,
+          "coords": {
+            "x": 88,
+            "y": 78,
+            "z": 45
+          }
+        }
+      ],
+      "profile": "You're sinking into phonk's darker, bass-heavy swamp, craving distorted beats and that hypnotic cowbell pulse. The intense, high-BPM tracks grab you most, but you're also open to slower, more atmospheric loops that still carry the Memphis-raw edge — just steer clear of the overplayed mainstream anthems.",
+      "createdAt": 1779565855149,
+      "currentCard": {
+        "track": {
+          "id": "m-EWIsKurhg",
+          "videoId": "m-EWIsKurhg",
+          "source": "youtube",
+          "name": "【Original Song】Distortion【Moona Hoshinova】",
+          "artist": "Moona Hoshinova hololive-ID",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/m-EWIsKurhg/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "An experimental piece where heavy bass distortion and rapid-fire vocal chops push the boundaries of phonk toward industrial and noise territory.",
+        "category": "Hip-Hop > Phonk > Experimental Phonk",
+        "coords": {
+          "x": 98,
+          "y": 85,
+          "z": 15
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "abcdefghijk",
+            "videoId": "abcdefghijk",
+            "source": "youtube",
+            "name": "Nightcore",
+            "artist": "Phonk Phonk",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/abcdefghijk/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "This track blends high-BPM energy with eerie synths and cowbells, offering a more aggressive drift variant that explores new intensity territory.",
+          "category": "Phonk > Nightcore Phonk",
+          "coords": {
+            "x": 78,
+            "y": 95,
+            "z": 30
+          }
+        },
+        {
+          "track": {
+            "id": "zyxwvutsrqp",
+            "videoId": "zyxwvutsrqp",
+            "source": "youtube",
+            "name": "Cowbell",
+            "artist": "Phonk Phonk",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/zyxwvutsrqp/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "This track focuses on the iconic cowbell and Memphis rap influences, with a steady groove and chopped vocals that align with phonk's roots.",
+          "category": "Phonk > Memphis Phonk",
+          "coords": {
+            "x": 72,
+            "y": 70,
+            "z": 25
+          }
+        },
+        {
+          "track": {
+            "id": "t6Kn9b-dtcI",
+            "videoId": "t6Kn9b-dtcI",
+            "source": "youtube",
+            "name": "This is What Quavo did at Takeoff's Funeral.🥺😭♥️😔",
+            "artist": "Baly Mthimunye",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/t6Kn9b-dtcI/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A classic Memphis-rap infused phonk track with lo-fi production, eerie samples, and a slower, more hypnotic vibe that explores the genre's atmospheric and underground side far from the mainstream intensity.",
+          "category": "Hip-Hop > Phonk",
+          "coords": {
+            "x": 72,
+            "y": 65,
             "z": 35
           }
         }
       ],
       "genres": [
-        "Metal"
+        "Hip-Hop"
       ],
       "genreText": "",
       "timePeriod": "",
       "timePeriods": [],
-      "notes": "",
-      "regions": [
-        "US & Canada",
-        "UK & Ireland"
-      ],
-      "popularity": 28,
+      "notes": "Hip-Hop → Phonk\nMixing old-school beats with new-school stories, phonk is dark, Memphis rap-influenced, chopped and screwed, with an eerie cowbell-heavy aesthetic. Enormous on TikTok and gym playlists simultaneously — a strange combination.",
+      "regions": [],
+      "popularity": 50,
       "discovery": 50,
       "artists": [
-        "Metallica",
-        "Black Sabbath",
-        "Iron Maiden"
+        "Phonk"
       ],
       "artistText": "",
+      "userCreated": true
+    },
+    {
+      "id": "mpirlobviyn3",
+      "name": "Hyperpop",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "money machine (Official Music Video)",
+          "artist": "100 gecs",
+          "stars": 0,
+          "coords": {
+            "x": 92,
+            "y": 85,
+            "z": 45
+          },
+          "albumArt": "https://i.ytimg.com/vi/z97qLNXeAMQ/hqdefault.jpg",
+          "uri": null,
+          "category": "Pop > Hyperpop",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're all-in on hyperpop's most unhinged side—maximalist, glitched, and aggressively processed. Distorted vocals and chaotic production are clearly your sweet spot, with no interest in restraint or mainstream polish.",
+      "createdAt": 1779565920619,
+      "currentCard": {
+        "track": {
+          "id": "mKztreA6e7Y",
+          "videoId": "mKztreA6e7Y",
+          "source": "youtube",
+          "name": "Hi (Official Video)",
+          "artist": "Hannah Diamond",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/mKztreA6e7Y/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A dreamy, pitch-shifted hyperpop ballad with glossy production and emotionally distant vocals, exploring the genre's softer side.",
+        "category": "Pop > Hyperpop",
+        "coords": {
+          "x": 80,
+          "y": 45,
+          "z": 25
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "5alfOXbhHF0",
+            "videoId": "5alfOXbhHF0",
+            "source": "youtube",
+            "name": "Beautiful Superstar (Official Video)",
+            "artist": "A. G. Cook",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/5alfOXbhHF0/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A sprawling, maximalist hyperpop track with unexpected tempo shifts and glitchy production, embodying the genre's absurdity.",
+          "category": "Pop > Hyperpop",
+          "coords": {
+            "x": 90,
+            "y": 60,
+            "z": 20
+          }
+        },
+        {
+          "track": {
+            "id": "5zLjafopa3E",
+            "videoId": "5zLjafopa3E",
+            "source": "youtube",
+            "name": "Immaterial (tradução)",
+            "artist": "SOPHIE",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/5zLjafopa3E/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Sophie's sleek synthpop-meets-EDM with a twist of surrealism — polished yet alien, a different texture of hyperpop.",
+          "category": "Electronic > Hyperpop",
+          "coords": {
+            "x": 90,
+            "y": 60,
+            "z": 65
+          }
+        },
+        {
+          "track": {
+            "id": "c4j9Z9bwBBU",
+            "videoId": "c4j9Z9bwBBU",
+            "source": "youtube",
+            "name": "I'd Rather Sleep",
+            "artist": "Kero Kero Bonito",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/c4j9Z9bwBBU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Kero Kero Bonito's jittery, video-game-inspired pop with detuned vocals and lo-fi charm — dreamier, less aggressive.",
+          "category": "Indie Pop > Hyperpop",
+          "coords": {
+            "x": 65,
+            "y": 35,
+            "z": 45
+          }
+        }
+      ],
+      "genres": [
+        "Pop"
+      ],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Pop → Hyperpop\nThe genre that sounds like pop if pop were designed by a malfunctioning robot. Distorted vocals, heavily processed synths, aggressive beats, and elements of electronic, pop-punk, and noise music — it challenges traditional genre conventions entirely. Think pop taken to a place of deliberate absurdity.",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Hyperpop"
+      ],
+      "artistText": "",
+      "userCreated": true
+    },
+    {
+      "id": "mpirnz3mcg8l",
+      "name": "Funk",
+      "isAutoNamed": false,
+      "cardHistory": [
+        {
+          "track": "James Brown Get Up (I Feel Like Being a)",
+          "artist": "Sex Machine",
+          "stars": 0,
+          "coords": {
+            "x": 45,
+            "y": 85,
+            "z": 80
+          },
+          "albumArt": "https://img.youtube.com/vi/3aU0S2C8x4Q/hqdefault.jpg",
+          "uri": null,
+          "category": "Funk > Classic Funk",
+          "source": "youtube"
+        },
+        {
+          "track": "Rick",
+          "artist": "James Super Freak",
+          "stars": 0,
+          "coords": {
+            "x": 50,
+            "y": 80,
+            "z": 78
+          },
+          "albumArt": "https://img.youtube.com/vi/Q9s5TJwKXGc/hqdefault.jpg",
+          "uri": null,
+          "category": "Funk > Funk Rock",
+          "source": "youtube"
+        },
+        {
+          "track": "James Brown It's a",
+          "artist": "Man's Man's Man's World",
+          "stars": 0,
+          "coords": {
+            "x": 30,
+            "y": 30,
+            "z": 75
+          },
+          "albumArt": "https://img.youtube.com/vi/a4l_yfn64vM/hqdefault.jpg",
+          "uri": null,
+          "category": "Funk > Soul",
+          "source": "youtube"
+        }
+      ],
+      "sessionHistory": [],
+      "profile": "You're gravitating toward funk's sultrier side — sparse, bass-forward arrangements with room to breathe, often laced with cinematic or romantic undertones. Dense brass or frantic percussion haven't clicked; instead, cool synth textures and soulful restraint seem to be your lane.",
+      "createdAt": 1779566027890,
+      "currentCard": {
+        "track": {
+          "id": "MbT_ask1Cco",
+          "videoId": "MbT_ask1Cco",
+          "source": "youtube",
+          "name": "Sly & The Family Stone ~ Family Affair 1971 Disco Purrfection Version",
+          "artist": "DJDiscoCat",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/MbT_ask1Cco/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "Hypnotic, laid-back funk with a slinky bass line and restrained vocal delivery, showing a cool, introspective side of the genre.",
+        "category": "Funk > Soul Funk",
+        "coords": {
+          "x": 35,
+          "y": 40,
+          "z": 75
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "8EdxM72EZ94",
+            "videoId": "8EdxM72EZ94",
+            "source": "youtube",
+            "name": "Sign O' The Times (Official Music Video)",
+            "artist": "Prince",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/8EdxM72EZ94/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Minimalist synth-driven funk with dark, cinematic lyrics and a spare drum machine beat — exploring a more electronic and somber side of Prince's range.",
+          "category": "Funk > Synth Funk / Art Pop",
+          "coords": {
+            "x": 65,
+            "y": 50,
+            "z": 85
+          }
+        },
+        {
+          "track": {
+            "id": "n0Ol4clsb2U",
+            "videoId": "n0Ol4clsb2U",
+            "source": "youtube",
+            "name": "Give It To Me Baby (Lyrics)",
+            "artist": "Rick James",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/n0Ol4clsb2U/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "High-energy, horn-driven funk with a punchy bass line and a mainstream pop-funk sheen, testing your tolerance for polished production after the raw James Brown tracks.",
+          "category": "Funk > Funk Rock / Boogie",
+          "coords": {
+            "x": 60,
+            "y": 85,
+            "z": 82
+          }
+        },
+        {
+          "track": {
+            "id": "5nrdZfBShDU",
+            "videoId": "5nrdZfBShDU",
+            "source": "youtube",
+            "name": "Ballad of Dorothy Parker",
+            "artist": "Prince",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/5nrdZfBShDU/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A shimmering, synth-laced funk track with a cool, calm energy that explores the minimalist synth textures you liked while staying ultra-smooth.",
+          "category": "Funk > Synth-Funk",
+          "coords": {
+            "x": 60,
+            "y": 35,
+            "z": 55
+          }
+        }
+      ],
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "notes": "Funk, James Brown",
+      "regions": [],
+      "popularity": 50,
+      "discovery": 50,
+      "artists": [
+        "Funk",
+        "James Brown",
+        "Sly and the Family Stone",
+        "Bootsy Collins",
+        "Prince",
+        "Rick James"
+      ],
+      "artistText": "",
+      "userCreated": true,
       "source": "youtube"
+    },
+    {
+      "id": "mpiyoi822ec0",
+      "name": "Movie Soundtrack",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're sampling cinematic music from vastly different corners—everything from lush orchestral fanfares and tense electronic soundscapes to quiet acoustic guitar and minimal piano. You seem open to both epic drama and intimate stillness, with no clear avoidance yet.",
+      "currentCard": {
+        "track": {
+          "id": "54hoKbTWon4",
+          "videoId": "54hoKbTWon4",
+          "source": "youtube",
+          "name": "John Williams & Wiener Philharmoniker – \"Main Title\" from \"Star Wars: A New Hope\"",
+          "artist": "Deutsche Grammophon - DG",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/54hoKbTWon4/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "This iconic orchestral film score is purely acoustic, moderately energetic, and hugely mainstream, making it a classic start.",
+        "category": "Film Score > Orchestral",
+        "coords": {
+          "x": 5,
+          "y": 70,
+          "z": 95
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "WjC3_MpL4qE",
+            "videoId": "WjC3_MpL4qE",
+            "source": "youtube",
+            "name": "The Ecstasy of",
+            "artist": "Gold Ennio Morricone",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/WjC3_MpL4qE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "This intense, acoustic orchestral work from The Good, the Bad and the Ugly is cultish but well-known, high-energy with traditional instruments.",
+          "category": "Film Score > Spaghetti Western",
+          "coords": {
+            "x": 12,
+            "y": 85,
+            "z": 50
+          }
+        },
+        {
+          "track": {
+            "id": "zq7Eki7q7mE",
+            "videoId": "zq7Eki7q7mE",
+            "source": "youtube",
+            "name": "Axel F",
+            "artist": "Harold Faltermeyer",
+            "album": "",
+            "albumArt": "https://img.youtube.com/vi/zq7Eki7q7mE/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "This fully electronic, upbeat synth track from Beverly Hills Cop is mainstream and high-energy, a pure 80s synth-pop sound.",
+          "category": "Film Score > Synth",
+          "coords": {
+            "x": 95,
+            "y": 85,
+            "z": 80
+          }
+        },
+        {
+          "track": {
+            "id": "HX4bxp13jQo",
+            "videoId": "HX4bxp13jQo",
+            "source": "youtube",
+            "name": "Rain ㅣ 재패니메이션 OST 콘서트",
+            "artist": "영화 언어의 정원(The Garden of Words)",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/HX4bxp13jQo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A delicate, minimal piano piece with subtle orchestral washes, exploring the calm acoustic side of cinematic music.",
+          "category": "Film Score > Contemporary Classical / Anime",
+          "coords": {
+            "x": 15,
+            "y": 20,
+            "z": 40
+          }
+        }
+      ],
+      "createdAt": 1779577809986,
+      "userCreated": true,
+      "notes": "Movie Soundtrack",
+      "source": "youtube",
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "regions": [],
+      "artists": [
+        "Movie Soundtrack"
+      ],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 50
+    },
+    {
+      "id": "mpiypq1c1565",
+      "name": "Lo-fi",
+      "isAutoNamed": false,
+      "cardHistory": [],
+      "sessionHistory": [],
+      "profile": "You're drawn to the warm, nostalgic embrace of lo-fi beats — the gentle crackle, soft piano loops, and relaxed tempos. You enjoy both classic chillhop and more experimental, melodic offshoots, favoring introspective moods over high energy.",
+      "currentCard": {
+        "track": {
+          "id": "-FlxM_0S2lA",
+          "videoId": "-FlxM_0S2lA",
+          "source": "youtube",
+          "name": "Best of lofi 2018 🎶 beats to chill/study to",
+          "artist": "Lofi Girl",
+          "album": "",
+          "albumArt": "https://i.ytimg.com/vi/-FlxM_0S2lA/hqdefault.jpg",
+          "durationMs": 0
+        },
+        "reason": "A quintessential lo-fi stream that sets the calm, nostalgic tone of the genre with its warm, vinyl-crackle beats.",
+        "category": "Lo-fi > Chillhop",
+        "coords": {
+          "x": 70,
+          "y": 15,
+          "z": 80
+        }
+      },
+      "queue": [
+        {
+          "track": {
+            "id": "0EuVPN-oQIg",
+            "videoId": "0EuVPN-oQIg",
+            "source": "youtube",
+            "name": "harbor [lp]",
+            "artist": "tomppabeats",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/0EuVPN-oQIg/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A simple, nostalgic lo-fi beat with gentle piano and vinyl noise, representing the ultra-minimalist, bedtime-vibes subgenre.",
+          "category": "Lo-fi > Chillhop",
+          "coords": {
+            "x": 72,
+            "y": 10,
+            "z": 25
+          }
+        },
+        {
+          "track": {
+            "id": "TcLLpZBWsck",
+            "videoId": "TcLLpZBWsck",
+            "source": "youtube",
+            "name": "Kirari (Official Video)",
+            "artist": "Fujii Kaze",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/TcLLpZBWsck/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "A lo-fi pop-jazz track with a bright, upbeat grove, using crisp samples and a modern mellow delivery, expanding lo-fi beyond just beats.",
+          "category": "Lo-fi > Pop / Jazz",
+          "coords": {
+            "x": 60,
+            "y": 50,
+            "z": 65
+          }
+        },
+        {
+          "track": {
+            "id": "0ATjPBtagFo",
+            "videoId": "0ATjPBtagFo",
+            "source": "youtube",
+            "name": "Year One [3 Hour Chiptune, Fakebit, Video Game Music, etc. Compilation]",
+            "artist": "Space Vixen",
+            "album": "",
+            "albumArt": "https://i.ytimg.com/vi/0ATjPBtagFo/hqdefault.jpg",
+            "durationMs": 0
+          },
+          "reason": "Lo-fi with 8-bit synth textures and a calm, rainy-day atmosphere — shifts toward retro electronic without leaving the genre.",
+          "category": "Lo-fi > Chiptune/Ambient",
+          "coords": {
+            "x": 85,
+            "y": 30,
+            "z": 15
+          }
+        }
+      ],
+      "createdAt": 1779577866768,
+      "userCreated": true,
+      "notes": "Lo-fi",
+      "source": "youtube",
+      "genres": [],
+      "genreText": "",
+      "timePeriod": "",
+      "timePeriods": [],
+      "regions": [],
+      "artists": [
+        "Lo-fi"
+      ],
+      "artistText": "",
+      "popularity": 50,
+      "discovery": 50
     }
   ]
 }

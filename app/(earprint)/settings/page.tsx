@@ -5,10 +5,11 @@ import { useRouter } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
 import {
   CHANNELS_EXPORT_VERSION,
+  fetchFactoryChannelSet,
+  makeEmptyAllChannel,
   parseChannelsImport,
   type Channel,
 } from '@/app/lib/channelsImportExport'
-import { getBundledFactoryChannelsForReset } from '@/app/lib/demoChannel'
 import { DEV_FACTORY_OVERRIDE_STORAGE_KEY, isNextDev } from '@/app/lib/devFactoryOverride'
 
 const SHOW_SERVER_FACTORY_UI = isNextDev()
@@ -23,26 +24,7 @@ const EARPRINT_ALL_CHANNEL_ID = 'earprint-all'
 
 /** After system reset the player keeps a single empty All channel (no factory load). */
 function systemResetChannelsJson(): string {
-  return JSON.stringify([
-    {
-      id: EARPRINT_ALL_CHANNEL_ID,
-      name: 'All',
-      isAutoNamed: false,
-      cardHistory: [],
-      sessionHistory: [],
-      profile: '',
-      createdAt: 0,
-      genres: [],
-      genreText: '',
-      timePeriod: '',
-      notes: '',
-      regions: [],
-      artists: [],
-      artistText: '',
-      popularity: 50,
-      discovery: 50,
-    },
-  ])
+  return JSON.stringify([makeEmptyAllChannel()])
 }
 
 type LLMProvider = 'anthropic' | 'openai' | 'deepseek' | 'gemini'
@@ -183,28 +165,10 @@ export default function SettingsPage() {
 
   const handleFactoryReset = async () => {
     try {
-      // Prefer the per-source file, then fall back to shared, then to the bundled built-in.
-      const r = await fetch(`/api/factory-defaults?source=${source}`, {
-        credentials: 'same-origin',
-        cache: 'no-store',
-      })
-      const d = r.ok ? await r.json() : null
-      if (d?.ok && Array.isArray(d.channels) && d.channels.length > 0) {
-        const tagged = (d.channels as Channel[]).map(c =>
-          c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const },
-        )
-        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
-        const aid = typeof d.activeChannelId === 'string' && d.activeChannelId ? d.activeChannelId : d.channels[0]?.id
-        if (aid) localStorage.setItem(ACTIVE_CHANNEL_KEY, aid)
-      } else {
-        const { channels, activeChannelId } = getBundledFactoryChannelsForReset()
-        if (!channels?.length) return
-        const tagged = (channels as Channel[]).map(c =>
-          c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: false as const },
-        )
-        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
-        localStorage.setItem(ACTIVE_CHANNEL_KEY, activeChannelId)
-      }
+      const loaded = await fetchFactoryChannelSet(source)
+      if (!loaded) return
+      localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(loaded.channels))
+      localStorage.setItem(ACTIVE_CHANNEL_KEY, loaded.activeChannelId)
       localStorage.removeItem(HISTORY_STORAGE_KEY)
       localStorage.removeItem('spotifyRateLimitUntil')
       localStorage.removeItem('youtubeRateLimitUntil')
@@ -442,12 +406,15 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Merge factory channels */}
+        {/* Replace with factory defaults */}
         <section className="flex flex-col gap-2">
           <div>
-            <h2 className="text-sm font-semibold">Merge factory channels</h2>
+            <h2 className="text-sm font-semibold">Replace with factory defaults</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              <strong className="text-zinc-600 font-medium">Adds</strong> the factory default channels (from the server when your host ships them, otherwise the built-in starter set) into your current channel list. Existing channels and history are kept.
+              <strong className="text-zinc-600 font-medium">Replaces</strong> your entire channel list with the factory
+              default set (~20 curated channels when shipped). Existing custom channels and their history are removed.
+              Use <strong className="text-zinc-600 font-medium">Remove all channels</strong> first if you only want All,
+              then merge from the Channels page.
             </p>
           </div>
           <div>
@@ -456,7 +423,7 @@ export default function SettingsPage() {
               onClick={() => setConfirm('factory-reset')}
               className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm hover:border-zinc-500 hover:text-black transition-colors"
             >
-              Merge factory channels
+              Replace with factory defaults
             </button>
           </div>
         </section>
@@ -609,9 +576,11 @@ export default function SettingsPage() {
             )}
             {confirm === 'factory-reset' && (
               <>
-                <h3 className="text-base font-semibold mb-2">Factory reset?</h3>
+                <h3 className="text-base font-semibold mb-2">Replace with factory defaults?</h3>
                 <p className="text-sm text-zinc-500 mb-6">
-                  Loads the <strong className="text-zinc-700">Factory default</strong> channels (server file when available, otherwise the built-in list). Ratings will be cleared. This <strong className="text-zinc-700">adds</strong> the default lineup; system reset is what <strong className="text-zinc-700">removes</strong> everything except All.
+                  Loads the <strong className="text-zinc-700">factory default</strong> channel list (server file when
+                  available, otherwise the built-in set). Your current custom channels are{' '}
+                  <strong className="text-zinc-700">removed</strong> and ratings are cleared.
                 </p>
                 <div className="flex justify-end gap-3">
                   <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>

@@ -123,6 +123,8 @@ const AUTOPLAY_TIMEOUT_MS = 3500
 
 interface Props {
   videoId: string
+  /** Resume here when returning to a channel mid-track; 0 = play from the beginning */
+  startAtMs?: number
   onEnded?: () => void
   onPlayerError?: (errorCode: number) => void
 }
@@ -136,19 +138,20 @@ export type YoutubePlayerHandle = {
   seek: (ms: number) => void
 }
 
-function buildEmbedSrc(videoId: string): string {
+function buildEmbedSrc(videoId: string, startSec = 0): string {
   // playsinline: required for inline playback on iOS / many mobile WebViews.
-  // start=0: force playback from the top.
+  // start: force playback from the top (or resume offset when switching channels).
   // origin: required for the IFrame API postMessage handshake.
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const start = Math.max(0, Math.floor(startSec))
   return (
     `https://www.youtube.com/embed/${encodeURIComponent(videoId)}` +
-    `?autoplay=1&playsinline=1&enablejsapi=1&start=0&origin=${encodeURIComponent(origin)}`
+    `?autoplay=1&playsinline=1&enablejsapi=1&start=${start}&origin=${encodeURIComponent(origin)}`
   )
 }
 
 const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePlayer(
-  { videoId, onEnded, onPlayerError },
+  { videoId, startAtMs = 0, onEnded, onPlayerError },
   ref
 ) {
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -177,6 +180,8 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
    * for each new track.
    */
   const didSeekToZeroOnPlayRef = useRef(false)
+  const startAtMsRef = useRef(startAtMs)
+  startAtMsRef.current = startAtMs
   const onEndedRef = useRef(onEnded)
   const onErrorRef = useRef(onPlayerError)
   onEndedRef.current = onEnded
@@ -185,7 +190,11 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
   const [blocked, setBlocked] = useState(false)
 
   const normalizedId = useMemo(() => extractYoutubeVideoIdLoose(videoId) ?? null, [videoId])
-  const embedSrc = useMemo(() => (normalizedId ? buildEmbedSrc(normalizedId) : ''), [normalizedId])
+  const startSec = Math.max(0, Math.floor(startAtMs / 1000))
+  const embedSrc = useMemo(
+    () => (normalizedId ? buildEmbedSrc(normalizedId, startSec) : ''),
+    [normalizedId, startSec],
+  )
 
   useEffect(() => {
     if (!normalizedId) return
@@ -260,12 +269,13 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
               ytPlayerRef.current = e.target
               try {
                 const s = e.target.getPlayerState()
-                // Belt-and-suspenders start-from-zero. `start=0` in the URL usually works,
-                // but we've seen signed-in viewers land at a saved offset anyway; seekTo(0)
-                // on the first onReady guarantees the user hears the intro. The component
-                // is keyed by track id, so onReady fires once per track → one seek only.
-                try { e.target.seekTo(0, true) } catch {}
-                console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current })
+                const resumeSec = Math.max(0, startAtMsRef.current / 1000)
+                // Belt-and-suspenders start position. `start=` in the URL usually works,
+                // but signed-in viewers sometimes land at YouTube's saved offset anyway.
+                try {
+                  e.target.seekTo(resumeSec > 0 ? resumeSec : 0, true)
+                } catch {}
+                console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current, resumeSec })
                 if (s === 1 || s === 3) setBlocked(false)
                 if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
                   pendingPlayRef.current = false
@@ -278,11 +288,10 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             onStateChange: e => {
               console.info('[yt] state', e.data)
               if (e.data === 1 || e.data === 3) setBlocked(false)
-              // Safety net: if playback starts at a non-trivial offset (YouTube's
-              // resume-watching feature sneaking past `start=0` and the onReady seek),
-              // snap back to the beginning on the first PLAYING transition. Runs at
-              // most once per mount because we clear the flag after firing.
-              if (e.data === 1 && !didSeekToZeroOnPlayRef.current) {
+              // Safety net for YouTube's resume-watching feature on fresh tracks only.
+              // Skip when the parent asked us to resume mid-track (channel switch-back).
+              const resumeSec = Math.max(0, startAtMsRef.current / 1000)
+              if (e.data === 1 && !didSeekToZeroOnPlayRef.current && resumeSec <= 0) {
                 didSeekToZeroOnPlayRef.current = true
                 const p = ytPlayerRef.current
                 try {
