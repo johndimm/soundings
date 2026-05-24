@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AppHeader from '@/app/components/AppHeader'
+import { ConfirmDialog } from '@/app/components/ConfirmDialog'
 import {
   CHANNELS_EXPORT_VERSION,
   fetchFactoryChannelSet,
@@ -271,7 +272,9 @@ export default function SettingsPage() {
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="text-sm font-semibold">AI Model</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">The LLM used to suggest songs across all channels.</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              The LLM used to suggest songs across all channels.
+            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             {LLM_OPTIONS.map(opt => (
@@ -296,7 +299,9 @@ export default function SettingsPage() {
         <section className="flex flex-col gap-3">
           <div>
             <h2 className="text-sm font-semibold">Global Instructions</h2>
-            <p className="text-xs text-zinc-500 mt-0.5">Extra guidance sent to the AI on every request, across all channels.</p>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Extra guidance sent to the AI on every request, across all channels.
+            </p>
           </div>
           <textarea
             value={globalNotes}
@@ -307,13 +312,12 @@ export default function SettingsPage() {
           />
         </section>
 
-        {/* Channels backup */}
+        {/* Data backup */}
         <section className="flex flex-col gap-3">
           <div>
-            <h2 className="text-sm font-semibold">Channels backup</h2>
+            <h2 className="text-sm font-semibold">Data backup</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
-              Download or restore your channel list and ratings from a JSON file. Import replaces everything in this
-              browser.
+              Download or restore your channel list from a JSON file. Import replaces all channels in this browser.
             </p>
           </div>
           <input
@@ -370,14 +374,14 @@ export default function SettingsPage() {
               }}
               className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm hover:border-zinc-500 hover:text-black transition-colors"
             >
-              Export channels
+              Export backup
             </button>
             <button
               type="button"
               onClick={() => importFileRef.current?.click()}
               className="px-4 py-2 rounded-lg border border-zinc-300 text-zinc-700 text-sm hover:border-zinc-500 hover:text-black transition-colors"
             >
-              Import channels
+              Import backup
             </button>
           </div>
           {importNotice && <p className="text-xs text-red-600">{importNotice}</p>}
@@ -406,10 +410,10 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* Replace with factory defaults */}
+        {/* Factory channels */}
         <section className="flex flex-col gap-2">
           <div>
-            <h2 className="text-sm font-semibold">Replace with factory defaults</h2>
+            <h2 className="text-sm font-semibold">Factory channels</h2>
             <p className="text-xs text-zinc-500 mt-0.5">
               <strong className="text-zinc-600 font-medium">Replaces</strong> your entire channel list with the factory
               default set (~20 curated channels when shipped). Existing custom channels and their history are removed.
@@ -427,6 +431,8 @@ export default function SettingsPage() {
             </button>
           </div>
         </section>
+
+        <p className="text-xs text-zinc-400">Settings save automatically.</p>
 
         {SHOW_SERVER_FACTORY_UI && (
           <section className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50/60 p-4">
@@ -499,127 +505,95 @@ export default function SettingsPage() {
       </div>
 
       {importDialog && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
-          role="presentation"
-          onClick={e => {
-            if (e.target === e.currentTarget) setImportDialog(null)
+        <ConfirmDialog
+          open
+          title="Import backup?"
+          tone="danger"
+          confirmLabel="Replace"
+          cancelLabel="Cancel"
+          onCancel={() => setImportDialog(null)}
+          onConfirm={() => {
+            const { channels: imported, activeChannelId: importedActiveId } = importDialog
+            const tagged = imported.map(c =>
+              c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: true as const },
+            )
+            const newActiveId =
+              importedActiveId && imported.some(c => c.id === importedActiveId)
+                ? importedActiveId
+                : imported[0].id
+            try {
+              localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
+              localStorage.setItem(ACTIVE_CHANNEL_KEY, newActiveId)
+            } catch {}
+            setImportDialog(null)
+            setImportNotice(null)
           }}
         >
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="bg-white border border-zinc-200 rounded-xl p-6 max-w-md w-full shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            <h2 className="text-base font-semibold text-black mb-2">Replace all channels?</h2>
-            <p className="text-sm text-zinc-500 mb-6">
-              Replace all {importDialog.previousCount} channel(s) with {importDialog.channels.length} imported
-              channel(s)? Your current channels will be overwritten.
-            </p>
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50"
-                onClick={() => setImportDialog(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 text-sm rounded-lg bg-amber-700 hover:bg-amber-600 text-white"
-                onClick={() => {
-                  const { channels: imported, activeChannelId: importedActiveId } = importDialog
-                  const tagged = imported.map(c =>
-                    c.id === EARPRINT_ALL_CHANNEL_ID ? c : { ...c, userCreated: true as const },
-                  )
-                  const newActiveId =
-                    importedActiveId && imported.some(c => c.id === importedActiveId)
-                      ? importedActiveId
-                      : imported[0].id
-                  try {
-                    localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(tagged))
-                    localStorage.setItem(ACTIVE_CHANNEL_KEY, newActiveId)
-                  } catch {}
-                  setImportDialog(null)
-                  setImportNotice(null)
-                }}
-              >
-                Replace channels
-              </button>
-            </div>
-          </div>
-        </div>
+          Replace all {importDialog.previousCount} channel(s) with {importDialog.channels.length}{' '}
+          imported channel(s)? Your current channels will be overwritten.
+        </ConfirmDialog>
       )}
 
-      {/* Confirm dialogs */}
-      {confirm && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4"
-          onClick={e => { if (e.target === e.currentTarget) setConfirm(null) }}
+      <ConfirmDialog
+        open={confirm === 'system-reset'}
+        title="Remove all channels?"
+        tone="danger"
+        confirmLabel="Delete all"
+        cancelLabel="Cancel"
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          handleSystemReset()
+          setConfirm(null)
+        }}
+      >
+        This deletes all of your channels and ratings. You will keep only the{' '}
+        <strong className="text-zinc-700">All</strong> channel. You cannot undo this.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm === 'factory-reset'}
+        title="Replace with factory defaults?"
+        confirmLabel="Reset to factory"
+        cancelLabel="Cancel"
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          void handleFactoryReset()
+          setConfirm(null)
+        }}
+      >
+        Loads the <strong className="text-zinc-700">factory default</strong> channel list (server file when
+        available, otherwise the built-in set). Your current custom channels are{' '}
+        <strong className="text-zinc-700">removed</strong> and ratings are cleared.
+      </ConfirmDialog>
+
+      {SHOW_SERVER_FACTORY_UI && (
+        <ConfirmDialog
+          open={confirm === 'save-server-factory'}
+          title="Save to server file?"
+          confirmLabel="Save"
+          cancelLabel="Cancel"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => void handleSaveServerFactoryFile()}
         >
-          <div
-            className="bg-white border border-zinc-200 rounded-xl p-6 max-w-sm w-full shadow-xl"
-            onClick={e => e.stopPropagation()}
-          >
-            {confirm === 'system-reset' && (
-              <>
-                <h3 className="text-base font-semibold mb-2">System reset?</h3>
-                <p className="text-sm text-zinc-500 mb-6">
-                  This deletes all of your channels and ratings. You will keep only the <strong className="text-zinc-700">All</strong> channel. You cannot undo this.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>
-                  <button onClick={handleSystemReset} className="px-4 py-2 text-sm rounded-lg bg-red-600 hover:bg-red-700 text-white">Delete all</button>
-                </div>
-              </>
-            )}
-            {confirm === 'factory-reset' && (
-              <>
-                <h3 className="text-base font-semibold mb-2">Replace with factory defaults?</h3>
-                <p className="text-sm text-zinc-500 mb-6">
-                  Loads the <strong className="text-zinc-700">factory default</strong> channel list (server file when
-                  available, otherwise the built-in set). Your current custom channels are{' '}
-                  <strong className="text-zinc-700">removed</strong> and ratings are cleared.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>
-                  <button onClick={() => void handleFactoryReset()} className="px-4 py-2 text-sm rounded-lg bg-black hover:bg-zinc-800 text-white">Reset to factory</button>
-                </div>
-              </>
-            )}
-            {SHOW_SERVER_FACTORY_UI && confirm === 'save-server-factory' && (
-              <>
-                <h3 className="text-base font-semibold mb-2">Save to server file?</h3>
-                <p className="text-sm text-zinc-500 mb-6">
-                  Writes <code className="text-zinc-700">data/factory-channels.json</code> on the machine running this
-                  Next.js server. New browsers and blank slates will load it after restart.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>
-                  <button onClick={() => void handleSaveServerFactoryFile()} className="px-4 py-2 text-sm rounded-lg bg-black hover:bg-zinc-800 text-white">Save</button>
-                </div>
-              </>
-            )}
-            {SHOW_SERVER_FACTORY_UI && confirm === 'save-source-factory' && (
-              <>
-                <h3 className="text-base font-semibold mb-2">
-                  Save {source === 'youtube' ? 'YouTube' : 'Spotify'} factory file?
-                </h3>
-                <p className="text-sm text-zinc-500 mb-6">
-                  Writes <code className="text-zinc-700">data/factory-channels.{source}.json</code> on the server using
-                  your current browser channels. Factory reset and blank slates load this file whenever the{' '}
-                  <strong className="text-zinc-700">{source === 'youtube' ? 'YouTube' : 'Spotify'}</strong> source is
-                  active.
-                </p>
-                <div className="flex justify-end gap-3">
-                  <button onClick={() => setConfirm(null)} className="px-4 py-2 text-sm rounded-lg border border-zinc-300 text-zinc-600 hover:bg-zinc-50">Cancel</button>
-                  <button onClick={() => void handleSaveSourceFactoryFile()} className="px-4 py-2 text-sm rounded-lg bg-black hover:bg-zinc-800 text-white">Save</button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+          Writes <code className="text-zinc-700">data/factory-channels.json</code> on the machine running this
+          Next.js server. New browsers and blank slates will load it after restart.
+        </ConfirmDialog>
+      )}
+
+      {SHOW_SERVER_FACTORY_UI && (
+        <ConfirmDialog
+          open={confirm === 'save-source-factory'}
+          title={`Save ${source === 'youtube' ? 'YouTube' : 'Spotify'} factory file?`}
+          confirmLabel="Save"
+          cancelLabel="Cancel"
+          onCancel={() => setConfirm(null)}
+          onConfirm={() => void handleSaveSourceFactoryFile()}
+        >
+          Writes <code className="text-zinc-700">data/factory-channels.{source}.json</code> on the server using
+          your current browser channels. Factory reset and blank slates load this file whenever the{' '}
+          <strong className="text-zinc-700">{source === 'youtube' ? 'YouTube' : 'Spotify'}</strong> source is
+          active.
+        </ConfirmDialog>
       )}
     </div>
   )
