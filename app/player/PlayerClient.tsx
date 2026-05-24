@@ -560,6 +560,16 @@ function computeRecordedListenStars(
   return Math.round(capped * 2) / 2
 }
 
+/** Stars saved when the user advanced past this track — restore on Prev/back navigation. */
+function recordedStarsForCard(card: CardState | null, history: HistoryEntry[]): number | null {
+  if (!card) return null
+  const entry = history.find(
+    e => e.track === card.track.name && e.artist === card.track.artist
+  )
+  if (entry?.stars != null && entry.stars > 0) return entry.stars
+  return null
+}
+
 /** Stable dedup key that works for both Spotify (uses uri) and YouTube (uses id). */
 function trackPlayKey(track: { uri?: string; id: string }): string {
   return track.uri ?? track.id
@@ -1899,8 +1909,6 @@ export default function PlayerClient({
         currentCardRef.current = card
         setPlayGeneration(g => g + 1)
         lastPlayedUriRef.current = null
-        currentStarsRef.current = null
-        setCurrentStars(null)
       }
     } finally {
       setCareerLoading(false)
@@ -1931,8 +1939,6 @@ export default function PlayerClient({
     setCurrentCard(prev)
     setPlayGeneration(g => g + 1)
     lastPlayedUriRef.current = null
-    setCurrentStars(null)
-    currentStarsRef.current = null
     suppressNavPushRef.current = false
   }, [careerGo, fadeOutCurrentPlayback, isGuideDemo])
 
@@ -3595,12 +3601,13 @@ export default function PlayerClient({
     playGeneration,
   ])
 
-  // Reset star rating when song changes
+  // Restore saved stars when returning to a rated track; clear for new/unrated tracks.
   useEffect(() => {
-    setCurrentStars(null)
-    currentStarsRef.current = null
     autoAdvanceRef.current = false
     expectedTrackEndAtRef.current = 0
+    const stars = recordedStarsForCard(currentCard, cardHistoryRef.current)
+    setCurrentStars(stars)
+    currentStarsRef.current = stars
   }, [currentCard?.track.uri ?? currentCard?.track.id])
 
   // Publish now-playing for Constellations graph auto-search
