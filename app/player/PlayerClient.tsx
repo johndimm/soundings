@@ -1860,6 +1860,9 @@ export default function PlayerClient({
     if (cur) {
       const userStars = currentStarsRef.current
       const stars = computeRecordedListenStars(userStars, durationRef.current, sliderRef.current)
+      const listenFrac = durationRef.current > 0
+        ? Math.min(1, Math.max(0, sliderRef.current) / durationRef.current)
+        : undefined
       const event: ListenEvent = { track: cur.track.name, artist: cur.track.artist, stars, coords: cur.coords }
       const historyEntry: HistoryEntry = {
         ...event,
@@ -1868,6 +1871,7 @@ export default function PlayerClient({
         category: cur.category,
         coords: cur.coords,
         source: cur.track.source as PlaybackSource | undefined,
+        listenFrac,
       }
       const base = cardHistoryRef.current
       const existingIdx = base.findIndex(e => e.track === cur.track.name && e.artist === cur.track.artist)
@@ -3044,6 +3048,30 @@ export default function PlayerClient({
     historyReady,
     snapshotCurrentChannel,
   ])
+
+  // ── Record every presented card in history (null stars until advanced) ────
+  useEffect(() => {
+    if (!currentCard || isGuideDemo || !historyReady) return
+    const base = cardHistoryRef.current
+    const existingIdx = base.findIndex(
+      e => e.track === currentCard.track.name && e.artist === currentCard.track.artist
+    )
+    if (existingIdx !== -1) return
+    const entry: HistoryEntry = {
+      track: currentCard.track.name,
+      artist: currentCard.track.artist,
+      albumArt: currentCard.track.albumArt,
+      uri: currentCard.track.uri ?? null,
+      source: currentCard.track.source as PlaybackSource | undefined,
+      category: currentCard.category,
+      coords: currentCard.coords,
+      stars: null,
+      listenFrac: 0,
+    }
+    const newHistory = dedupeHistory([...base, entry])
+    setCardHistory(newHistory)
+    cardHistoryRef.current = newHistory
+  }, [currentCard, isGuideDemo, historyReady, dedupeHistory])
 
   // ── Spotify SDK ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -5228,6 +5256,9 @@ export default function PlayerClient({
 
     const userStars = currentStarsRef.current
     const stars = computeRecordedListenStars(userStars, durationRef.current, sliderRef.current)
+    const listenFrac = durationRef.current > 0
+      ? Math.min(1, Math.max(0, sliderRef.current) / durationRef.current)
+      : undefined
     const event: ListenEvent = {
       track: cur.track.name,
       artist: cur.track.artist,
@@ -5241,6 +5272,7 @@ export default function PlayerClient({
       category: cur.category,
       coords: cur.coords,
       source: cur.track.source as PlaybackSource | undefined,
+      listenFrac,
     }
     const base = cardHistoryRef.current
     const existingIdx = base.findIndex(e => e.track === cur.track.name && e.artist === cur.track.artist)

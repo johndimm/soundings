@@ -461,10 +461,16 @@ export default function RatingsPage() {
                   </div>
                 </div>
                 {!isChannelView && (
-                  <span className="text-xs text-zinc-400 flex-shrink-0 hidden sm:block max-w-[80px] truncate" title={channelName}>
+                  <span className="text-xs text-zinc-400 flex-shrink-0 hidden sm:block w-[80px] truncate text-right" title={channelName}>
                     {channelName}
                   </span>
                 )}
+                <span
+                  className="text-xs text-zinc-400 flex-shrink-0 tabular-nums w-[30px] text-right"
+                  title="Percent of track listened to"
+                >
+                  {entry.listenFrac != null ? `${Math.round((entry.listenFrac as number) * 100)}%` : ''}
+                </span>
                 <div className="flex-shrink-0">
                   <StarRating
                     value={entry.stars ?? null}

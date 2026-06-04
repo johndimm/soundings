@@ -16,6 +16,8 @@ export interface HistoryEntry extends ListenEvent {
   category?: string
   /** Which source this track was played from. */
   source?: PlaybackSource
+  /** Fraction of the track that was played, 0–1. */
+  listenFrac?: number
   // coords is inherited from ListenEvent (coords?: {x,y})
 }
 

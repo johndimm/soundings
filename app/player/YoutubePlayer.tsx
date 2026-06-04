@@ -180,6 +180,14 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
    * for each new track.
    */
   const didSeekToZeroOnPlayRef = useRef(false)
+  /**
+   * Set true as soon as any path (IFrame API onStateChange, raw postMessage, or the
+   * getCurrentTime poll) confirms the video is playing or buffering. The autoplay
+   * timeout uses this to skip showing the overlay when the video already started —
+   * which happens when autoplay=1 succeeds but the IFrame API handshake is slow or
+   * never completes (the stub's getCurrentTime() returns 0 in that case).
+   */
+  const hasStartedPlayingRef = useRef(false)
   const startAtMsRef = useRef(startAtMs)
   startAtMsRef.current = startAtMs
   const onEndedRef = useRef(onEnded)
@@ -202,6 +210,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     setBlocked(false)
     pendingPlayRef.current = false
     errorFiredRef.current = false
+    hasStartedPlayingRef.current = false
 
     /**
      * Poll getCurrentTime as a ground-truth fallback. The YT IFrame API handshake
@@ -223,6 +232,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       }
       if (t > 0 && t !== lastPolledTime) {
         lastPolledTime = t
+        hasStartedPlayingRef.current = true
         setBlocked(prev => {
           if (prev) console.info('[yt] poll detected playback — clearing overlay', { t })
           return false
@@ -231,13 +241,17 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     }, 500)
 
     const autoplayTimer = setTimeout(() => {
-      // Final check via the poll's metric: if time is already advancing we shouldn't show
-      // the overlay at all.
+      // If any path already confirmed playback, skip the overlay entirely.
+      if (hasStartedPlayingRef.current) {
+        console.info('[yt] autoplay timeout — playback already confirmed, suppressing overlay')
+        return
+      }
+      // Secondary check: if the stub has a working getCurrentTime, use it too.
       const p = ytPlayerRef.current
       let t = 0
       try { t = typeof p?.getCurrentTime === 'function' ? p.getCurrentTime() : 0 } catch {}
       if (t > 0) {
-        console.info('[yt] autoplay timeout — but getCurrentTime > 0, suppressing overlay', { t })
+        console.info('[yt] autoplay timeout — getCurrentTime > 0, suppressing overlay', { t })
         return
       }
       console.info('[yt] autoplay timeout — showing tap-to-play overlay', {
@@ -276,7 +290,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
                   e.target.seekTo(resumeSec > 0 ? resumeSec : 0, true)
                 } catch {}
                 console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current, resumeSec })
-                if (s === 1 || s === 3) setBlocked(false)
+                if (s === 1 || s === 3) { hasStartedPlayingRef.current = true; setBlocked(false) }
                 if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
                   pendingPlayRef.current = false
                   e.target.playVideo()
@@ -287,7 +301,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             },
             onStateChange: e => {
               console.info('[yt] state', e.data)
-              if (e.data === 1 || e.data === 3) setBlocked(false)
+              if (e.data === 1 || e.data === 3) { hasStartedPlayingRef.current = true; setBlocked(false) }
               // Safety net for YouTube's resume-watching feature on fresh tracks only.
               // Skip when the parent asked us to resume mid-track (channel switch-back).
               const resumeSec = Math.max(0, startAtMsRef.current / 1000)
@@ -347,7 +361,10 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       if (!iframeRef.current || evt.source !== iframeRef.current.contentWindow) return
       try {
         const msg = JSON.parse(typeof evt.data === 'string' ? evt.data : JSON.stringify(evt.data))
-        if (msg?.event === 'onError') {
+        if (msg?.event === 'onStateChange') {
+          const state = Number(msg.info)
+          if (state === 1 || state === 3) { hasStartedPlayingRef.current = true; setBlocked(false) }
+        } else if (msg?.event === 'onError') {
           const code = Number(msg.info)
           console.info('[yt] postMessage onError', code)
           if (code === 5) {

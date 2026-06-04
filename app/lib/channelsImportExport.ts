@@ -28,6 +28,7 @@ export interface HistoryEntry {
   uri?: string | null
   source?: 'spotify' | 'youtube'
   stars?: number | null
+  listenFrac?: number
   [key: string]: unknown
 }
 
