@@ -1412,7 +1412,13 @@ export default function PlayerClient({
     const restoredCurrent = ch.currentCard ?? null
     const nextCurrent = restoredCurrent ?? restoredQueue.shift() ?? null
 
+    // If the track being restored is the one already playing, don't reset
+    // lastPlayedUriRef — that would cause the play effect to restart it from scratch.
+    const restoredKey = nextCurrent ? trackPlayKey(nextCurrent.track) : null
+    const alreadyPlaying = restoredKey !== null && restoredKey === lastPlayedUriRef.current
+
     if (
+      !alreadyPlaying &&
       nextCurrent &&
       ch.playbackTrackUri === trackPlayKey(nextCurrent.track) &&
       typeof ch.playbackPositionMs === 'number' &&
@@ -1425,7 +1431,7 @@ export default function PlayerClient({
     } else {
       pendingPlaybackPositionMsRef.current = undefined
     }
-    setYoutubeStartAtMs(pendingPlaybackPositionMsRef.current ?? 0)
+    if (!alreadyPlaying) setYoutubeStartAtMs(pendingPlaybackPositionMsRef.current ?? 0)
 
     navBackStackRef.current = []
     setNavBackDepth(0)
@@ -1435,7 +1441,7 @@ export default function PlayerClient({
     setSuggestionBuffer([]); suggestionBufferRef.current = []
     fetchingRef.current = false
     resolvingRef.current = false   // discard any in-flight resolve from the previous channel
-    lastPlayedUriRef.current = null
+    if (!alreadyPlaying) lastPlayedUriRef.current = null
     playedUrisRef.current = new Set()
     fetchGenRef.current++
 
