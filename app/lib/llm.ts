@@ -135,13 +135,14 @@ Respond with ONLY a JSON object:
 {"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
-YOUTUBE (youtube_url or youtube_video_id) — optional; strongly preferred when the listener uses YouTube playback:
-- You do NOT have live YouTube Data API access from this chat. Each song we must look up by search string costs heavy API quota; giving a direct link or 11-character video id avoids that.
-- When you know the exact YouTube video for the recording (same as "search"), include either:
+YOUTUBE (youtube_url or youtube_video_id) — optional; use only when you are certain:
+- The server validates every youtube_url / youtube_video_id before playback: oEmbed embeddability, videos.list status, and title relevance vs "search". Wrong, non-embeddable, or mismatched ids are rejected and we fall back to search (which costs API quota).
+- Include youtube_url or youtube_video_id ONLY when you know the exact video for this recording (must match "search" — same work, same performer). A wrong id plays the wrong piece.
+- When you know the exact video, include either:
   - "youtube_url": full https://www.youtube.com/watch?v=… or https://youtu.be/… or music.youtube.com/watch?v=…
   - OR "youtube_video_id": the 11-character id only.
-- Do NOT invent fake ids or URLs. If you only know title and artist, omit youtube fields — we will fall back to search.
-- The "search" field remains required for display and fallback lookup.
+- Do NOT invent or guess ids or URLs. If unsure, omit youtube fields — we resolve via "search".
+- The "search" field remains required and is the source of truth for validation and fallback lookup.
 
 SPOTIFY ID (spotify_id) — conservative but not silent:
 - You do NOT have live Spotify API access. Never invent random-looking 22-character strings; wrong IDs break playback.

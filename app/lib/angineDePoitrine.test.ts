@@ -8,7 +8,12 @@ import {
 } from '@/app/lib/artistHintsFromNotes'
 import { buildCombinedNotes } from '@/app/lib/djArtistFocus'
 import { spotifySearchQueriesForSong } from '@/app/lib/spotifyArtistSearch'
-import { buildYouTubeSearchAlternates, parseSearchHintForYouTube, youtubeTrackFromVideoId } from '@/app/lib/youtube'
+import {
+  buildYouTubeSearchAlternates,
+  parseSearchHintForYouTube,
+  scoreYouTubeResultRelevance,
+  youtubeTrackFromVideoId,
+} from '@/app/lib/youtube'
 
 /** Example act name used as a fixture — not special-cased in production code. */
 const ANGINE_DE_POITRINE = 'Angine de poitrine'
@@ -86,6 +91,18 @@ describe('Artist hints and DJ notes (no app-side genre vs act classification)', 
     })
     expect(alts).toContain(`${ANGINE_DE_POITRINE} - Le Baiser`)
     expect(alts).toContain(`${ANGINE_DE_POITRINE} Le Baiser`)
+  })
+
+  it('scoreYouTubeResultRelevance rejects Stravinsky video for Bartók query', () => {
+    const query = '1964/Bartok - Concerto for Orchestra - 1966 - (cond. von Karajan)'
+    const bad = scoreYouTubeResultRelevance(query, 'Stravinsky ~ The Rite Of Spring 1913', 'Berlin Philharmonic')
+    const good = scoreYouTubeResultRelevance(
+      query,
+      'Bartók - Concerto for Orchestra - Karajan',
+      'Berlin Philharmonic',
+    )
+    expect(bad).toBeLessThan(0)
+    expect(good).toBeGreaterThan(bad)
   })
 
   it('parseSearchHintForYouTube uses LLM search text for id-only resolve metadata', () => {

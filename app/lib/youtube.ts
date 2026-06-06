@@ -410,8 +410,9 @@ export async function resolveYouTubeSuggestion(
 
   const vid = youtubeVideoIdFromSuggestion(song)
   if (vid) {
-    const track = youtubeTrackFromVideoId(vid, searchHint)
+    const track = await validateAndResolveVideoId(vid, searchHint, 'LLM video id')
     if (track) return { status: 'ok', track }
+    console.info(`[youtube] LLM video id ${vid} failed validation — falling back to search`)
   }
 
   const queries: string[] = []
@@ -474,9 +475,9 @@ export function parseSearchHintForYouTube(searchHint: string): { name: string; a
 }
 
 /**
- * Build a playable track from a known video id without calling the Data API (0 quota).
- * Accepts an 11-character id, a full URL, or prose containing a YouTube link (see {@link extractYoutubeVideoIdLoose}).
- * Thumbnail uses YouTube's public i.ytimg.com pattern; title/artist come from the LLM search hint.
+ * Build a track from a video id + search hint without validation.
+ * Production resolve uses {@link validateAndResolveVideoId} (oEmbed + videos.list + relevance).
+ * This helper is for tests and resolve-test fixtures only.
  */
 export function youtubeTrackFromVideoId(videoId: string, searchHint: string): YouTubeTrack | null {
   const id = extractYoutubeVideoIdLoose(videoId.trim())
@@ -543,17 +544,191 @@ function envBool(name: string, defaultVal: boolean): boolean {
 }
 
 
+/** Minimum relevance score to trust an LLM-provided video id (at least one keyword hit). */
+export const MIN_YOUTUBE_RELEVANCE = 3
+
+/** Well-known classical composer surnames — penalize when present in video title but absent from query. */
+const CLASSICAL_COMPOSER_TOKENS = new Set([
+  'bach', 'handel', 'mozart', 'beethoven', 'brahms', 'mahler', 'wagner', 'verdi', 'puccini',
+  'debussy', 'ravel', 'stravinsky', 'prokofiev', 'shostakovich', 'rachmaninov', 'rachmaninoff',
+  'tchaikovsky', 'tschaikovsky', 'dvorak', 'dvorák', 'sibelius', 'bartok', 'bartók', 'haydn',
+  'schubert', 'schumann', 'liszt', 'chopin', 'vivaldi', 'monteverdi', 'purcell', 'elgar',
+  'britten', 'holst', 'satie', 'messiaen', 'boulez', 'stockhausen', 'ligeti', 'janacek',
+])
+
+export function normalizeForYouTubeMatch(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Tokens from the LLM/search query used to score YouTube result relevance. */
+export function extractYouTubeQueryKeywords(searchHint: string): string[] {
+  const n = normalizeForYouTubeMatch(searchHint)
+  const stop = new Set([
+    'cond', 'von', 'der', 'die', 'das', 'for', 'the', 'and', 'with', 'live', 'full', 'video',
+    'audio', 'official', 'remaster', 'remastered', 'recording', 'performance', 'complete',
+    'herbert', 'karajan', 'berlin', 'philharmonic', 'philharmonia', 'orchestra', 'orchestral',
+    'symphony', 'symphonic', 'conductor', 'conducted',
+  ])
+  const words = n.split(/\s+/).filter(w => w.length >= 4 && !stop.has(w))
+  const slashComposer = searchHint.match(/\/([A-Za-zÀ-ÿ][\w'’.-]*)/i)
+  if (slashComposer?.[1]) words.push(normalizeForYouTubeMatch(slashComposer[1]))
+  return [...new Set(words.filter(Boolean))]
+}
+
+/**
+ * Score how well a YouTube result matches the intended search (higher = better).
+ * Penalizes wrong-composer matches (e.g. Stravinsky video for a Bartók query).
+ */
+export function scoreYouTubeResultRelevance(
+  searchHint: string,
+  videoTitle: string,
+  channelTitle: string
+): number {
+  const keywords = extractYouTubeQueryKeywords(searchHint)
+  if (keywords.length === 0) return 0
+  const hay = normalizeForYouTubeMatch(`${videoTitle} ${channelTitle}`)
+  let score = 0
+  let matched = 0
+  for (const kw of keywords) {
+    if (hay.includes(kw)) {
+      score += 3
+      matched++
+    }
+  }
+  if (matched === 0) score -= 5
+  const titleNorm = normalizeForYouTubeMatch(videoTitle)
+  const querySet = new Set(keywords)
+  for (const composer of CLASSICAL_COMPOSER_TOKENS) {
+    if (titleNorm.includes(composer) && !querySet.has(composer)) score -= 12
+  }
+  return score
+}
+
+type OembedMetadata = {
+  embeddable: boolean
+  title: string
+  authorName: string
+}
+
 /**
  * oEmbed is more reliable than videos.list status.embeddable: YouTube returns 401 when
  * embedding is truly disabled, 200 when it works. No API key needed; runs server-side only.
  */
-async function isEmbeddableViaOembed(videoId: string): Promise<boolean> {
+async function fetchOembedMetadata(videoId: string): Promise<OembedMetadata | null> {
   try {
     const url = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}&format=json`
     const res = await fetch(url, { signal: AbortSignal.timeout(4000) })
-    return res.ok
+    if (!res.ok) return { embeddable: false, title: '', authorName: '' }
+    const data = (await res.json()) as { title?: string; author_name?: string }
+    return {
+      embeddable: true,
+      title: typeof data.title === 'string' ? decodeHtmlEntities(data.title) : '',
+      authorName: typeof data.author_name === 'string' ? decodeHtmlEntities(data.author_name) : '',
+    }
   } catch {
-    return true // network error: assume embeddable to avoid over-filtering
+    return null
+  }
+}
+
+async function isEmbeddableViaOembed(videoId: string, strict = false): Promise<boolean> {
+  const meta = await fetchOembedMetadata(videoId)
+  if (meta === null) return !strict
+  return meta.embeddable
+}
+
+/** videos.list status.embeddable for one or more ids (1 credit per call). */
+async function fetchVideosListEmbeddableMap(
+  videoIds: string[],
+  apiKey: string
+): Promise<Map<string, boolean | undefined>> {
+  const map = new Map<string, boolean | undefined>()
+  const uniq = [...new Set(videoIds)].filter(Boolean)
+  if (uniq.length === 0) return map
+  if (wouldExceedCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST)) {
+    console.warn('[youtube] skipping videos.list — local daily credits exhausted')
+    return map
+  }
+  const params = new URLSearchParams({
+    part: 'status',
+    id: uniq.slice(0, 50).join(','),
+    key: apiKey,
+  })
+  try {
+    chargeYouTubeCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST, 'videos.list')
+    const res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
+    if (res.ok) {
+      const data = (await res.json()) as {
+        items?: Array<{ id: string; status?: { embeddable?: boolean } }>
+      }
+      for (const it of data.items ?? []) {
+        map.set(it.id, it.status?.embeddable)
+      }
+    } else {
+      const text = await res.text().catch(() => '')
+      console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
+    }
+  } catch (err) {
+    console.warn('[youtube] videos.list network error', err)
+  }
+  return map
+}
+
+/**
+ * Full embeddability + relevance gate for a direct video id (LLM-provided or URL in query).
+ * Requires oEmbed OK, videos.list embeddable !== false when API key is set, and relevance match.
+ */
+async function validateAndResolveVideoId(
+  videoId: string,
+  searchHint: string,
+  label: string
+): Promise<YouTubeTrack | null> {
+  const oembed = await fetchOembedMetadata(videoId)
+  if (oembed === null) {
+    console.info(`[youtube] ${label} ${videoId} rejected — oEmbed unreachable`)
+    return null
+  }
+  if (!oembed.embeddable || !oembed.title) {
+    console.info(`[youtube] ${label} ${videoId} rejected — not embeddable via oEmbed`)
+    return null
+  }
+
+  const apiKey = getApiKey()
+  if (apiKey) {
+    const statusById = await fetchVideosListEmbeddableMap([videoId], apiKey)
+    if (statusById.get(videoId) === false) {
+      console.info(`[youtube] ${label} ${videoId} rejected — videos.list embeddable=false`)
+      return null
+    }
+  }
+
+  const relevance = scoreYouTubeResultRelevance(searchHint, oembed.title, oembed.authorName)
+  if (relevance < MIN_YOUTUBE_RELEVANCE) {
+    console.info(
+      `[youtube] ${label} ${videoId} rejected — relevance ${relevance} for "${searchHint.slice(0, 80)}" vs "${oembed.title.slice(0, 80)}"`
+    )
+    return null
+  }
+
+  return youtubeTrackFromOembed(videoId, oembed)
+}
+
+function youtubeTrackFromOembed(videoId: string, meta: { title: string; authorName: string }): YouTubeTrack {
+  const { name, artist } = parseNameArtist(meta.title, meta.authorName)
+  return {
+    id: videoId,
+    videoId,
+    source: 'youtube',
+    name: name || meta.title || 'Unknown track',
+    artist: artist || meta.authorName || 'Unknown',
+    album: '',
+    albumArt: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    durationMs: 0,
   }
 }
 
@@ -567,34 +742,7 @@ async function pickBestEmbeddableVideoId(
   apiKey: string
 ): Promise<string | null> {
   if (videoIds.length === 0) return null
-  const uniq = [...new Set(videoIds)].slice(0, 50)
-  const params = new URLSearchParams({
-    part: 'status',
-    id: uniq.join(','),
-    key: apiKey,
-  })
-  let statusById = new Map<string, boolean | undefined>()
-  try {
-    if (wouldExceedCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST)) {
-      console.warn('[youtube] skipping videos.list — local daily credits exhausted')
-      return null
-    }
-    chargeYouTubeCredits(YOUTUBE_CREDITS_PER_VIDEOS_LIST, 'videos.list')
-    const res = await fetch(`${YOUTUBE_API_BASE}/videos?${params}`)
-    if (res.ok) {
-      const data = (await res.json()) as {
-        items?: Array<{ id: string; status?: { embeddable?: boolean } }>
-      }
-      for (const it of data.items ?? []) {
-        statusById.set(it.id, it.status?.embeddable)
-      }
-    } else {
-      const text = await res.text().catch(() => '')
-      console.warn(`[youtube] videos.list HTTP ${res.status}`, text.slice(0, 120))
-    }
-  } catch (err) {
-    console.warn('[youtube] videos.list network error', err)
-  }
+  const statusById = await fetchVideosListEmbeddableMap(videoIds, apiKey)
 
   // Order: explicitly embeddable first, then unknown, skip explicitly false.
   const candidates = [
@@ -621,9 +769,15 @@ function isLikelyNonEmbeddableChannel(channelTitle: string): boolean {
 }
 
 function parseNameArtist(title: string, channelTitle: string): { name: string; artist: string } {
-  const dashIdx = title.indexOf(' - ')
-  if (dashIdx !== -1) {
-    return { artist: title.slice(0, dashIdx).trim(), name: title.slice(dashIdx + 3).trim() }
+  for (const sep of [' - ', ' — ', ' – ', ' ~ ']) {
+    const idx = title.indexOf(sep)
+    if (idx !== -1) {
+      return { artist: title.slice(0, idx).trim(), name: title.slice(idx + sep.length).trim() }
+    }
+  }
+  const tildeIdx = title.indexOf('~')
+  if (tildeIdx !== -1) {
+    return { artist: title.slice(0, tildeIdx).trim(), name: title.slice(tildeIdx + 1).trim() }
   }
   return { name: title, artist: channelTitle }
 }
@@ -649,15 +803,23 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
   const cacheKey = query.toLowerCase().trim()
   const cached = searchCache.get(cacheKey)
   if (cached) {
-    console.info(`[youtube] cache hit: "${query}"`)
-    return { status: 'ok', track: cached.track }
+    const relevance = scoreYouTubeResultRelevance(
+      query,
+      cached.track.name,
+      cached.track.artist
+    )
+    if (relevance >= -5) {
+      console.info(`[youtube] cache hit: "${query}" (relevance ${relevance})`)
+      return { status: 'ok', track: cached.track }
+    }
+    console.info(`[youtube] cache hit rejected (relevance ${relevance}) — re-searching: "${query}"`)
   }
 
   const qTrim = query.trim()
   const idFromQuery = extractYoutubeVideoIdLoose(qTrim)
   if (idFromQuery) {
     const hint = searchHintForResolvedQuery(qTrim, idFromQuery, metadataHint)
-    const track = youtubeTrackFromVideoId(idFromQuery, hint)
+    const track = await validateAndResolveVideoId(idFromQuery, hint, 'query video id')
     if (track) {
       const entry: YouTubeCacheEntry = { track, candidates: [] }
       searchCache.set(cacheKey, entry)
@@ -665,9 +827,10 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
       persistCache(searchCache)
       const how =
         idFromQuery === qTrim ? 'bare id' : extractYoutubeVideoId(qTrim) ? 'URL' : 'URL in text'
-      console.info(`[youtube] zero-quota resolve (no search.list): ${idFromQuery} (${how})`)
+      console.info(`[youtube] zero-quota resolve (validated): ${idFromQuery} (${how})`)
       return { status: 'ok', track }
     }
+    console.info(`[youtube] query video id ${idFromQuery} failed validation — falling back to search.list`)
   }
 
   const apiKey = getApiKey()
@@ -725,12 +888,39 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
   // If filtering removed everything, fall back to all items (better than no results).
   const filteredItems = allItems.length > 0 ? allItems : items
 
-  const orderedIds = filteredItems.map(i => i.id?.videoId).filter((id): id is string => Boolean(id))
+  const scoredItems = filteredItems
+    .map(i => {
+      const snippet = (i.snippet ?? {}) as Record<string, unknown>
+      const t = decodeHtmlEntities((snippet.title as string) ?? '')
+      const ch = decodeHtmlEntities((snippet.channelTitle as string) ?? '')
+      const videoId = i.id?.videoId
+      const relevance = scoreYouTubeResultRelevance(query, t, ch)
+      return { item: i, videoId, title: t, channelTitle: ch, relevance }
+    })
+    .filter((x): x is typeof x & { videoId: string } => Boolean(x.videoId))
+    .sort((a, b) => b.relevance - a.relevance)
+
+  if (scoredItems.length > 0) {
+    console.info(
+      `[youtube] relevance for "${query.slice(0, 60)}":`,
+      scoredItems.slice(0, 3).map(x => `${x.relevance}:${x.title.slice(0, 50)}`).join(' | ')
+    )
+  }
+
+  const viable = scoredItems.filter(x => x.relevance >= -5)
+  const pool = viable.length > 0 ? viable : scoredItems
+  if (pool.length === 0 || pool[0].relevance < 0) {
+    console.info(
+      `[youtube] no relevant match for "${query}" (best relevance ${pool[0]?.relevance ?? 'n/a'})`
+    )
+    return { status: 'not_found' }
+  }
+  const orderedIds = pool.map(x => x.videoId)
   const chosenId = await pickBestEmbeddableVideoId(orderedIds, apiKey)
   if (!chosenId) {
     return { status: 'not_found' }
   }
-  const item = filteredItems.find(i => i.id?.videoId === chosenId) ?? filteredItems[0]
+  const item = pool.find(x => x.videoId === chosenId)?.item ?? filteredItems.find(i => i.id?.videoId === chosenId) ?? filteredItems[0]
   const videoId: string = chosenId
 
   const snippet = (item.snippet ?? {}) as Record<string, unknown>
