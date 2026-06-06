@@ -1163,6 +1163,12 @@ export default function PlayerClient({
   /** When true, Spotify/YouTube may advance when the track reaches the end. Default off — user clicks Next. */
   const [autoNextAtEnd, setAutoNextAtEnd] = useState(false)
   const autoNextAtEndRef = useRef(false)
+  const [displayMode, setDisplayMode] = useState<'tracks' | 'covers'>(() => {
+    if (typeof window === 'undefined') return 'tracks'
+    try { return localStorage.getItem('earprint-display-mode') === 'covers' ? 'covers' : 'tracks' } catch { return 'tracks' }
+  })
+  const displayModeRef = useRef(displayMode)
+  displayModeRef.current = displayMode
 
   useEffect(() => {
     try {
@@ -3566,6 +3572,8 @@ export default function PlayerClient({
   useEffect(() => {
     if (isGuideDemo) return
     if (!currentCard) return
+    // In covers mode: don't start playback — user rates on art alone.
+    if (displayModeRef.current === 'covers') return
     const isYoutube = (currentCard.track.source as string) === 'youtube'
     // YouTube does not use the Spotify Web Playback SDK, so the deviceId gate must not block it.
     if (!isYoutube && !deviceId) return
@@ -5771,11 +5779,12 @@ export default function PlayerClient({
           ref={albumPanelRef}
           data-guide="album-panel"
           className="relative rounded-2xl overflow-hidden w-full aspect-[4/3] bg-zinc-900"
-          style={{ cursor: currentCard && (currentCard.track.source as string) !== 'youtube' ? 'pointer' : 'default' }}
-          onClick={currentCard && (currentCard.track.source as string) !== 'youtube' ? togglePlayback : undefined}
+          style={{ cursor: currentCard && ((currentCard.track.source as string) !== 'youtube' || displayMode === 'covers') ? 'pointer' : 'default' }}
+          onClick={currentCard && ((currentCard.track.source as string) !== 'youtube' || displayMode === 'covers') ? togglePlayback : undefined}
         >
-          {/* YouTube player */}
-          {currentCard && (currentCard.track.source as string) === 'youtube' && (
+          {/* YouTube player — only mounted in tracks mode; covers mode shows album art only */}
+          {currentCard && (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' && (
+            <div className="absolute inset-0 transition-opacity duration-300">
             <YoutubePlayer
               key={`${currentCard.track.id}-${playGeneration}`}
               ref={youtubePlayerRef}
@@ -5785,17 +5794,18 @@ export default function PlayerClient({
                 if (autoNextAtEndRef.current) advanceRef.current?.(true)
               }}
               onPlayerError={code => {
-                // Error 5 (HTML5/autoplay) is handled in YoutubePlayer itself (shows tap-to-play overlay).
-                // Other errors (2, 100, 101, 150) mean unembeddable — log only; filtering happens at search time.
                 console.warn('[player] YouTube unplayable error (not skipping):', code)
               }}
             />
+            </div>
           )}
 
-          {/* Album art background (Spotify only) */}
-          {currentCard?.track.albumArt && (currentCard.track.source as string) !== 'youtube' && (
+          {/* Album art background — Spotify always; YouTube in covers mode */}
+          {currentCard?.track.albumArt && (
+            (currentCard.track.source as string) !== 'youtube' || displayMode === 'covers'
+          ) && (
             <div
-              className="absolute inset-0"
+              className="absolute inset-0 transition-opacity duration-300"
               style={{
                 backgroundImage: `url(${currentCard.track.albumArt})`,
                 backgroundSize: 'auto 100%',
@@ -5913,20 +5923,21 @@ export default function PlayerClient({
           {currentCard && (
             <>
               {/*
-                YouTube iframe is z-[6]; these controls are z-10. Without pointer-events-none on the
-                bottom panel, the large pt-16 hit area blocks all clicks to the video (play, unmute).
+                In tracks mode the YouTube iframe is behind these controls; pointer-events-none
+                lets clicks pass through to the iframe's play/unmute controls.
+                In covers mode the iframe is off-screen, so pointer-events-none is not needed.
               */}
               {/* Bottom controls */}
               <div
                 data-guide="track-info"
                 className={`absolute bottom-0 left-0 right-0 px-3 sm:px-5 pb-3 sm:pb-5 pt-8 sm:pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
-                  (currentCard.track.source as string) === 'youtube' ? 'pointer-events-none' : ''
+                  (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-none' : ''
                 }`}
                 onClick={e => e.stopPropagation()}
               >
                 <div
                   className={
-                    (currentCard.track.source as string) === 'youtube' ? 'pointer-events-auto' : undefined
+                    (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-auto' : undefined
                   }
                 >
                 {/* Track info */}
@@ -6047,6 +6058,7 @@ export default function PlayerClient({
               </div>
             </>
           )}
+
 
           {careerMode && (() => {
             if (typeof document === 'undefined') return null
@@ -6173,6 +6185,30 @@ export default function PlayerClient({
             />
             </div>
             <div className="flex items-stretch gap-2">
+            {/* Covers / Tracks toggle */}
+            <div className="flex rounded-2xl overflow-hidden border border-zinc-700 shrink-0">
+              {(['covers', 'tracks'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => {
+                    setDisplayMode(mode)
+                    try { localStorage.setItem('earprint-display-mode', mode) } catch {}
+                    if (mode === 'tracks' && currentCardRef.current) {
+                      lastPlayedUriRef.current = null
+                      setPlayGeneration(g => g + 1)
+                    }
+                  }}
+                  className={`px-3 py-2 text-xs font-semibold capitalize transition-colors ${
+                    displayMode === mode
+                      ? 'bg-zinc-200 text-zinc-900'
+                      : 'bg-transparent text-zinc-500 hover:text-zinc-200'
+                  }`}
+                >
+                  {mode}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => void goToPreviousCard()}

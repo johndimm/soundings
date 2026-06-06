@@ -114,7 +114,7 @@ export default function RatingsPage() {
   const [page, setPage] = useState(1)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const [starFilter, setStarFilter] = useState<number | 'unrated' | null>(null)
-  const [sortBy, setSortBy] = useState<'date' | 'title' | 'stars' | 'channel'>('date')
+  const [sortBy, setSortBy] = useState<'date' | 'title' | 'stars' | 'listened' | 'channel'>('date')
   const [sortAsc, setSortAsc] = useState(false)
 
   useEffect(() => {
@@ -161,6 +161,7 @@ export default function RatingsPage() {
     let cmp = 0
     if (sortBy === 'title') cmp = (a.entry.track ?? '').localeCompare(b.entry.track ?? '')
     else if (sortBy === 'stars') cmp = (b.entry.stars ?? -1) - (a.entry.stars ?? -1)
+    else if (sortBy === 'listened') cmp = ((b.entry.listenFrac as number | undefined) ?? -1) - ((a.entry.listenFrac as number | undefined) ?? -1)
     else if (sortBy === 'channel') {
       // Primary: channel name alphabetical. Secondary: newest first within a channel,
       // so grouping stays sensible even when the user toggles ascending.
@@ -344,55 +345,39 @@ export default function RatingsPage() {
         </div>
 
         {/* Filters + sort */}
-        <div className="px-4 pb-2 flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="px-4 pb-2 space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             {([null, 'unrated', 1, 2, 3, 4, 5] as const).map(v => {
               const active = starFilter === v
               const label = v === null ? 'All' : v === 'unrated' ? 'Unrated' : '★'.repeat(v) + '+'
               return (
-                <button
-                  key={String(v)}
-                  onClick={() => setStarFilter(active ? null : v)}
+                <button key={String(v)} onClick={() => setStarFilter(active ? null : v)}
                   className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                    active
-                      ? 'bg-zinc-900 border-zinc-800 text-white'
-                      : 'border-zinc-300 text-zinc-500 hover:text-black hover:border-zinc-500'
+                    active ? 'bg-zinc-900 border-zinc-800 text-white' : 'border-zinc-300 text-zinc-500 hover:text-black hover:border-zinc-500'
                   }`}
-                >
-                  {label}
-                </button>
+                >{label}</button>
               )
             })}
           </div>
-          <div className="flex items-center gap-1 ml-auto">
-            <span className="text-xs text-zinc-400">Sort:</span>
-            {(['date', 'title', 'stars', 'channel'] as const)
-              // Channel sort is only meaningful when multiple channels are visible.
-              .filter(s => s !== 'channel' || !isChannelView)
-              .map(s => (
-                <button
-                  key={s}
-                  onClick={() => setSortBy(s)}
-                  className={`text-xs px-2 py-0.5 rounded transition-colors ${
-                    sortBy === s ? 'text-black font-medium' : 'text-zinc-400 hover:text-black'
-                  }`}
-                >
-                  {s === 'date'
-                    ? 'Date'
-                    : s === 'title'
-                      ? 'Title'
-                      : s === 'stars'
-                        ? 'Stars'
-                        : 'Channel'}
-                </button>
-              ))}
-            <button
-              onClick={() => setSortAsc(v => !v)}
-              className="text-xs px-1.5 py-0.5 rounded text-zinc-400 hover:text-black transition-colors"
-              title={sortAsc ? 'Ascending' : 'Descending'}
-            >
-              {sortAsc ? '↑' : '↓'}
-            </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mr-1">Sort</span>
+            {([
+              ['date',     'Time'],
+              ['title',    'Title'],
+              ['stars',    'Stars'],
+              ['listened', 'Listened'],
+              ['channel',  'Channel'],
+            ] as const).filter(([s]) => s !== 'channel' || !isChannelView).map(([s, label]) => (
+              <button key={s}
+                onClick={() => { if (sortBy === s) setSortAsc(v => !v); else { setSortBy(s); setSortAsc(s === 'title'); } }}
+                className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  sortBy === s ? 'bg-zinc-900 text-white' : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                }`}
+              >
+                {label}
+                {sortBy === s && <span className="text-xs opacity-80">{sortAsc ? '↑' : '↓'}</span>}
+              </button>
+            ))}
           </div>
         </div>
 

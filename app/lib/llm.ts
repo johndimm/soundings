@@ -51,6 +51,31 @@ export function getLLMModelApiId(provider: LLMProvider): string {
 // These two axes capture the most variance across broad musical styles
 // while remaining consistent enough for multiple LLM providers to use.
 
+/**
+ * Analyze listen history to identify disliked genres/styles (consistently low ratings).
+ * Returns a list of styles to avoid in recommendations.
+ */
+function identifyDislikedStyles(sessionHistory: ListenEvent[]): string[] {
+  if (!sessionHistory || sessionHistory.length < 5) return [];
+
+  // Group by genre (inferred from reason text if available)
+  const genreRatings = new Map<string, number[]>();
+
+  for (const event of sessionHistory) {
+    const rating = event.stars ?? 0;
+    // If we had genre info in the event, we'd use it. For now, we skip this analysis
+    // since soundings doesn't store genre explicitly. Could be enhanced by parsing reason.
+  }
+
+  // Return genres with consistently low ratings (avg ≤ 2.0)
+  const disliked = [...genreRatings.entries()]
+    .filter(([, ratings]) => ratings.length >= 2 && ratings.reduce((a, b) => a + b, 0) / ratings.length <= 2.0)
+    .map(([genre]) => genre)
+    .slice(0, 3);
+
+  return disliked;
+}
+
 const SYSTEM_PROMPT = `You are a DJ navigating a listener's taste across a high-dimensional music space.
 
 THE 3D MAP (for display — project your full musical knowledge onto these axes):
@@ -92,6 +117,7 @@ DISLIKE ESCALATION:
 - NEVER suggest a song with the same primary instruments + energy level as a recently disliked song.
 - A disliked song does NOT blacklist its artist — only its specific sonic territory.
 - If a disliked track is part of a multi-part series (title contains "Part N", "Vol. N", "Chapter N", "Episode N", or a similar numbered suffix), do NOT suggest any other part of that same series — treat the entire series as off-limits for this session.
+- **PATTERN AVOIDANCE**: If you notice a consistent pattern of dislikes (e.g., multiple low ratings from the same genre, region, or era), actively AVOID recommending from that pattern. Focus on orthogonal directions in the music space instead.
 
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints. This overrides the slot rules: even Slot 3 (wild card) must stay within the stated genre and era.
 
