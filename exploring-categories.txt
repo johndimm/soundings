@@ -1,0 +1,15 @@
+The goal is to present you with items (movies, tv shows, songs, pieces) that are new to you and that you will enjoy.  
+
+If we present only the most popular items, there is a strong chance you have already seen them, or you know about them and decided before not to see them.  We will probably not change your mind.
+
+The win will be to present an item you would not select from a list, based only on its title or other metadata, but it turns out you find it interesting because we show you the trailer or start playing the song.  The biggest win will be when it comes from a category that you have always ignored.  That shows that the app has deep insight into your taste.
+
+On first use, the app picks items from different categories.  Until you give a rating higher than 3 the app is 100% in this exploration mode.  As you provide positive feedback, we start to explore that category in more detail, but the exploration of new categories does not drop to 0.  We will still try new categories, just not as often.
+
+A rating of 1 or 2 causes us to reduce the likelihood of presenting more items from that category.  It never goes down to 0, but multiple low ratings can cause it to drop very close to 0.
+
+A high rating in a category will cause us to start exploring sub-categories, applying the same exploration logic within the category.  Eventually, we work down to the level of the artist.
+
+There is a hierarchy of categories.  Genres can be grouped together into super-categories.  For example, funk, soul, and motown can be grouped into a super-category.  Classical music is already a super-category with lots of structure below it: periods, instruments, and composers.
+
+On first use, we should explore first the super-categories.  Countries of origin can also be grouped: United States, the UK, Australia, and Canada belong togther.  South Asia, Near East, Africa, and South America are also super-categories.

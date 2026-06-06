@@ -229,6 +229,94 @@ export function buildUserPrompt(
   return prompt
 }
 
+/**
+ * Ask LLM to infer genre hierarchy from observed categories/genres.
+ * Identifies which are broad (super-genres like "Jazz", "Rock") vs specific (sub-genres like "bebop", "progressive rock").
+ */
+export async function inferGenreHierarchy(
+  observedGenres: string[],
+  provider: LLMProvider = DEFAULT_LLM_PROVIDER
+): Promise<{ superGenres: string[]; specifics: Record<string, string[]> }> {
+  if (observedGenres.length === 0) {
+    return { superGenres: [], specifics: {} }
+  }
+
+  const systemPrompt = `You analyze music genres and identify their hierarchy.
+Broad genres are "super-genres" (e.g., "Jazz", "Rock", "Classical", "Hip-hop").
+Specific genres are refinements of those (e.g., "bebop", "progressive rock", "Baroque").
+Identify which are broad and which are specific, and group specifics under their parent super-genre.`
+
+  const prompt = `Analyze these music genres and infer their hierarchy:
+${observedGenres.map(g => `- ${g}`).join('\n')}
+
+Reply ONLY with JSON:
+{
+  "superGenres": ["genre1", "genre2", ...],
+  "specifics": {
+    "superGenre1": ["specific1", "specific2", ...],
+    "superGenre2": ["specific3", ...]
+  }
+}`
+
+  try {
+    let raw: string
+    try {
+      raw = await (async () => {
+        switch (provider) {
+          case 'openai': {
+            const res = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+              body: JSON.stringify({
+                model: 'gpt-4-turbo',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: prompt }
+                ],
+                max_tokens: 300
+              })
+            })
+            const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+            return data.choices?.[0]?.message?.content ?? ''
+          }
+          case 'deepseek': {
+            const res = await fetch('https://api.deepseek.com/chat/completions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` },
+              body: JSON.stringify({
+                model: 'deepseek-chat',
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: prompt }
+                ],
+                max_tokens: 300
+              })
+            })
+            const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
+            return data.choices?.[0]?.message?.content ?? ''
+          }
+          default: return ''
+        }
+      })()
+    } catch (e) {
+      console.error('[inferGenreHierarchy] LLM call error:', e)
+      return ''
+    }
+
+    if (!raw) return { superGenres: observedGenres, specifics: {} }
+
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (match) {
+      return JSON.parse(match[0])
+    }
+  } catch (e) {
+    console.error('[inferGenreHierarchy] parse error:', e)
+  }
+
+  // Fallback: treat all as super-genres if inference fails
+  return { superGenres: observedGenres, specifics: {} }
+}
+
 async function askAnthropic(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
