@@ -117,7 +117,7 @@ DISLIKE ESCALATION:
 - NEVER suggest a song with the same primary instruments + energy level as a recently disliked song.
 - A disliked song does NOT blacklist its artist — only its specific sonic territory.
 - If a disliked track is part of a multi-part series (title contains "Part N", "Vol. N", "Chapter N", "Episode N", or a similar numbered suffix), do NOT suggest any other part of that same series — treat the entire series as off-limits for this session.
-- **PATTERN AVOIDANCE**: If you notice a consistent pattern of dislikes (e.g., multiple low ratings from the same genre, region, or era), actively AVOID recommending from that pattern. Focus on orthogonal directions in the music space instead.
+- **PATTERN DEPRIORITIZATION**: If you notice a consistent pattern of dislikes (multiple low ratings from same genre, region, or era), deprioritize that pattern in favor of orthogonal directions. It's okay to suggest one track from a disliked pattern occasionally if it genuinely fits exploration — just don't cluster them.
 
 If the user provides explicit constraints (genres, eras, styles), follow them strictly — all 3 slots must satisfy the constraints. This overrides the slot rules: even Slot 3 (wild card) must stay within the stated genre and era.
 
