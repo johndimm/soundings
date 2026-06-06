@@ -68,7 +68,7 @@ export default function SettingsPage() {
   const [globalNotes, setGlobalNotes] = useState('')
   const [mounted, setMounted] = useState(false)
   const [confirm, setConfirm] = useState<
-    'system-reset' | 'factory-reset' | 'save-server-factory' | 'save-source-factory' | null
+    'system-reset' | 'factory-reset' | 'save-server-factory' | 'save-source-factory' | 'clear-history' | null
   >(null)
   const [serverFactoryPresent, setServerFactoryPresent] = useState(false)
   const [serverFactorySavedAt, setServerFactorySavedAt] = useState<string | null>(null)
@@ -176,8 +176,15 @@ export default function SettingsPage() {
       localStorage.removeItem(LEGACY_FACTORY_CHANNELS_KEY)
     } catch {}
     router.push('/player')
+    router.push("/player")
   }
-
+  const handleClearHistory = () => {
+    try {
+      localStorage.removeItem(HISTORY_STORAGE_KEY)
+      sessionStorage.clear()
+    } catch {}
+    router.push('/player')
+  }
   /**
    * Save the current browser channel set as the factory file for the CURRENT playback source.
    * Workflow: pick the source in Settings, fill channels with that source's tracks, then save here.
@@ -389,6 +396,27 @@ export default function SettingsPage() {
 
         <hr className="border-zinc-200" />
 
+        {/* Clear history and taste profile */}
+        <section className="flex flex-col gap-2">
+          <div>
+            <h2 className="text-sm font-semibold">Clear history and taste profile</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              Removes all your ratings and play history, resetting the taste discovery system. Your channels
+              are <strong className="text-zinc-600 font-medium">not affected</strong> — they will stay, but
+              recommendations will restart from scratch.
+            </p>
+          </div>
+          <div>
+            <button
+              type="button"
+              onClick={() => setConfirm('clear-history')}
+              className="px-4 py-2 rounded-lg border border-amber-200 text-amber-700 text-sm hover:bg-amber-50 transition-colors"
+            >
+              Clear history and taste profile
+            </button>
+          </div>
+        </section>
+
         {/* Remove all channels */}
         <section className="flex flex-col gap-2">
           <div>
@@ -548,6 +576,22 @@ export default function SettingsPage() {
       >
         This deletes all of your channels and ratings. You will keep only the{' '}
         <strong className="text-zinc-700">All</strong> channel. You cannot undo this.
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={confirm === 'clear-history'}
+        title="Clear history and taste profile?"
+        tone="danger"
+        confirmLabel="Clear history"
+        cancelLabel="Cancel"
+        onCancel={() => setConfirm(null)}
+        onConfirm={() => {
+          handleClearHistory()
+          setConfirm(null)
+        }}
+      >
+        This removes all your ratings and play history. Your channels are kept. Recommendations will
+        restart from scratch as if this is your first time. You cannot undo this.
       </ConfirmDialog>
 
       <ConfirmDialog

@@ -300,7 +300,7 @@ Reply ONLY with JSON:
       })()
     } catch (e) {
       console.error('[inferGenreHierarchy] LLM call error:', e)
-      return ''
+      return { superGenres: observedGenres, specifics: {} }
     }
 
     if (!raw) return { superGenres: observedGenres, specifics: {} }

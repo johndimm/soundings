@@ -1067,6 +1067,7 @@ export default function PlayerClient({
   const [suggestionBuffer, setSuggestionBuffer] = useState<SongSuggestion[]>([])
   const [submittedUris, setSubmittedUris] = useState<Set<string>>(new Set())
   const [channels, setChannels] = useState<Channel[]>([])
+  const [mounted, setMounted] = useState(false)
   const [activeChannelId, setActiveChannelId] = useState<string>('')
   const [editingChannelId, setEditingChannelId] = useState<string | null>(null)
   const [editingChannelName, setEditingChannelName] = useState('')
@@ -2985,6 +2986,7 @@ export default function PlayerClient({
     }
 
     finalizeChannelHydration(chs, activeId, false)
+    setMounted(true)
   }, [dedupeHistory, isGuideDemo, youtubeOnly])
 
   // Persistent shell: returning from Channels / Settings must re-read localStorage (initial load only runs once).
@@ -5611,14 +5613,21 @@ export default function PlayerClient({
     channels.length > 0 &&
     !hasUserCreatedChannel(channels) &&
     !shouldHideStarterPillForFactoryOnlyList(channels)
+  const showChannelPanel = mounted && countCustomChannels(channels) > 0
 
   return (
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
       {/* Global nav header */}
       <AppHeader />
       <div className="flex flex-1 flex-col min-h-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-6">
-        <div className="mx-auto flex w-full max-w-[min(100%,90rem)] flex-1 flex-col gap-4 min-h-0 lg:grid lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:items-start lg:gap-x-4 lg:gap-y-0 xl:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)] xl:gap-x-5">
-          {channels.length > 0 && (
+        <div
+          className={`mx-auto flex w-full flex-1 flex-col gap-4 min-h-0 ${
+            showChannelPanel
+              ? 'max-w-[min(100%,90rem)] lg:grid lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)] lg:items-start lg:gap-x-4 lg:gap-y-0 xl:grid-cols-[minmax(13rem,20rem)_minmax(0,1fr)] xl:gap-x-5'
+              : 'max-w-[800px]'
+          }`}
+        >
+          {showChannelPanel && (
             <aside className="flex min-w-0 flex-col gap-2 sm:gap-3 lg:sticky lg:top-11 lg:z-10 lg:max-h-[calc(100dvh-3.5rem)] lg:self-start lg:pr-1">
               <p className="hidden text-[11px] font-semibold uppercase tracking-wide text-zinc-500 lg:block">
                 Channels
