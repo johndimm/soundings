@@ -188,6 +188,8 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
    * never completes (the stub's getCurrentTime() returns 0 in that case).
    */
   const hasStartedPlayingRef = useRef(false)
+  /** currentTime from raw iframe postMessage — works when YT.Player stub never connects. */
+  const iframeCurrentTimeRef = useRef(0)
   const startAtMsRef = useRef(startAtMs)
   startAtMsRef.current = startAtMs
   const onEndedRef = useRef(onEnded)
@@ -196,6 +198,15 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
   onErrorRef.current = onPlayerError
 
   const [blocked, setBlocked] = useState(false)
+
+  const confirmPlaybackStarted = (source: string, t?: number) => {
+    hasStartedPlayingRef.current = true
+    if (typeof t === 'number' && t > 0) iframeCurrentTimeRef.current = t
+    setBlocked(prev => {
+      if (prev) console.info('[yt] playback confirmed — clearing overlay', { source, t })
+      return false
+    })
+  }
 
   const normalizedId = useMemo(() => extractYoutubeVideoIdLoose(videoId) ?? null, [videoId])
   const startSec = Math.max(0, Math.floor(startAtMs / 1000))
@@ -206,22 +217,31 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
 
   useEffect(() => {
     if (!normalizedId) return
-    console.info('[yt] mount', { videoId, normalizedId, wrapperCreated: wrapperCreatedRef.current })
-    setBlocked(false)
-    pendingPlayRef.current = false
-    errorFiredRef.current = false
-    hasStartedPlayingRef.current = false
+    const strictModeRerun = wrapperCreatedRef.current
+    console.info('[yt] mount', { videoId, normalizedId, wrapperCreated: strictModeRerun })
+    if (!strictModeRerun) {
+      setBlocked(false)
+      pendingPlayRef.current = false
+      errorFiredRef.current = false
+      hasStartedPlayingRef.current = false
+      iframeCurrentTimeRef.current = 0
+    }
 
     /**
      * Poll getCurrentTime as a ground-truth fallback. The YT IFrame API handshake
      * (onReady/onStateChange) sometimes never completes — extension interference, origin
      * mismatch, unusually slow iframe handshake — even though the iframe's `autoplay=1`
-     * successfully started playback. Without this poll, the tap-to-play overlay gets stuck
-     * on top of a video that is actually playing (and audible), which looks exactly like
-     * "nothing plays" from the user's perspective.
+     * successfully started playback. Also poll iframe postMessage currentTime when the
+     * API stub is disconnected.
      */
     let lastPolledTime = 0
     const pollTimer = setInterval(() => {
+      const iframeT = iframeCurrentTimeRef.current
+      if (iframeT > 0 && iframeT !== lastPolledTime) {
+        lastPolledTime = iframeT
+        confirmPlaybackStarted('infoDelivery-poll', iframeT)
+        return
+      }
       const p = ytPlayerRef.current
       if (!p) return
       let t = 0
@@ -232,33 +252,33 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       }
       if (t > 0 && t !== lastPolledTime) {
         lastPolledTime = t
-        hasStartedPlayingRef.current = true
-        setBlocked(prev => {
-          if (prev) console.info('[yt] poll detected playback — clearing overlay', { t })
-          return false
-        })
+        confirmPlaybackStarted('api-poll', t)
       }
     }, 500)
 
-    const autoplayTimer = setTimeout(() => {
-      // If any path already confirmed playback, skip the overlay entirely.
-      if (hasStartedPlayingRef.current) {
-        console.info('[yt] autoplay timeout — playback already confirmed, suppressing overlay')
-        return
-      }
-      // Secondary check: if the stub has a working getCurrentTime, use it too.
-      const p = ytPlayerRef.current
-      let t = 0
-      try { t = typeof p?.getCurrentTime === 'function' ? p.getCurrentTime() : 0 } catch {}
-      if (t > 0) {
-        console.info('[yt] autoplay timeout — getCurrentTime > 0, suppressing overlay', { t })
-        return
-      }
-      console.info('[yt] autoplay timeout — showing tap-to-play overlay', {
-        hasPlayer: Boolean(ytPlayerRef.current),
-      })
-      setBlocked(true)
-    }, AUTOPLAY_TIMEOUT_MS)
+    let autoplayTimer: ReturnType<typeof setTimeout> | undefined
+    const scheduleAutoplayOverlay = () => {
+      autoplayTimer = setTimeout(() => {
+        if (hasStartedPlayingRef.current || iframeCurrentTimeRef.current > 0) {
+          console.info('[yt] autoplay timeout — playback already confirmed, suppressing overlay')
+          return
+        }
+        const p = ytPlayerRef.current
+        let t = 0
+        try { t = typeof p?.getCurrentTime === 'function' ? p.getCurrentTime() : 0 } catch {}
+        if (t > 0) {
+          console.info('[yt] autoplay timeout — getCurrentTime > 0, suppressing overlay', { t })
+          return
+        }
+        console.info('[yt] autoplay timeout — showing tap-to-play overlay', {
+          hasPlayer: Boolean(ytPlayerRef.current),
+        })
+        setBlocked(true)
+      }, AUTOPLAY_TIMEOUT_MS)
+    }
+    if (!(strictModeRerun && (hasStartedPlayingRef.current || iframeCurrentTimeRef.current > 0))) {
+      scheduleAutoplayOverlay()
+    }
 
     // Only create the YT.Player wrapper on the FIRST effect invocation (see comment on
     // `wrapperCreatedRef`). Strict Mode's second invocation only sets up fresh timers on
@@ -290,7 +310,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
                   e.target.seekTo(resumeSec > 0 ? resumeSec : 0, true)
                 } catch {}
                 console.info('[yt] onReady', { state: s, pending: pendingPlayRef.current, resumeSec })
-                if (s === 1 || s === 3) { hasStartedPlayingRef.current = true; setBlocked(false) }
+                if (s === 1 || s === 3) confirmPlaybackStarted('onReady', undefined)
                 if (pendingPlayRef.current || s === -1 || s === 2 || s === 5) {
                   pendingPlayRef.current = false
                   e.target.playVideo()
@@ -301,7 +321,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
             },
             onStateChange: e => {
               console.info('[yt] state', e.data)
-              if (e.data === 1 || e.data === 3) { hasStartedPlayingRef.current = true; setBlocked(false) }
+              if (e.data === 1 || e.data === 3) confirmPlaybackStarted('onStateChange', undefined)
               // Safety net for YouTube's resume-watching feature on fresh tracks only.
               // Skip when the parent asked us to resume mid-track (channel switch-back).
               const resumeSec = Math.max(0, startAtMsRef.current / 1000)
@@ -336,7 +356,7 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
     }
 
     return () => {
-      clearTimeout(autoplayTimer)
+      if (autoplayTimer) clearTimeout(autoplayTimer)
       clearInterval(pollTimer)
       // Intentionally NOT calling `ytPlayerRef.current?.destroy()` here and NOT nulling
       // `ytPlayerRef.current`. The wrapper is tied to the iframe's lifetime — when the
@@ -361,9 +381,13 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       if (!iframeRef.current || evt.source !== iframeRef.current.contentWindow) return
       try {
         const msg = JSON.parse(typeof evt.data === 'string' ? evt.data : JSON.stringify(evt.data))
-        if (msg?.event === 'onStateChange') {
+        if (msg?.event === 'infoDelivery') {
+          const info = msg.info as { currentTime?: number } | undefined
+          const t = typeof info?.currentTime === 'number' ? info.currentTime : 0
+          if (t > 0) confirmPlaybackStarted('infoDelivery', t)
+        } else if (msg?.event === 'onStateChange') {
           const state = Number(msg.info)
-          if (state === 1 || state === 3) { hasStartedPlayingRef.current = true; setBlocked(false) }
+          if (state === 1 || state === 3) confirmPlaybackStarted('postMessage-state', undefined)
         } else if (msg?.event === 'onError') {
           const code = Number(msg.info)
           console.info('[yt] postMessage onError', code)
@@ -396,9 +420,11 @@ const YoutubePlayer = forwardRef<YoutubePlayerHandle, Props>(function YoutubePla
       let state = -1
       try { state = typeof p.getPlayerState === 'function' ? p.getPlayerState() : -1 } catch {}
       // 1 = playing, 3 = buffering — playback is alive, nothing to do.
-      // 2 = paused, 0 = ended, 5 = cued, -1 = unstarted → show overlay so the next tap
-      //   goes through our handler and actually resumes.
       if (state === 1 || state === 3) return
+      // API disconnected but iframe is advancing — do not darken over a playing video.
+      if (state === -1 && (hasStartedPlayingRef.current || iframeCurrentTimeRef.current > 0)) return
+      // Only prompt when we know the player is paused, ended, or cued — not on unknown state.
+      if (state !== 2 && state !== 0 && state !== 5) return
       console.info('[yt] visibility return — player not playing, showing overlay', { state })
       setBlocked(true)
     }

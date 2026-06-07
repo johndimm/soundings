@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type MouseEvent, type RefObject } from 'react'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { parseShareId } from '@/app/lib/shareId'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
@@ -1054,6 +1054,7 @@ export default function PlayerClient({
   /** False until loadSettings runs — prevents persist effects from overwriting localStorage with empty defaults on first paint. */
   const [settingsHydrated, setSettingsHydrated] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const searchParams = useSearchParams()
   /** Dependency for share recipient: re-run on client navigations to a new `?share=`. */
   const shareQueryKey = searchParams.get('share') ?? ''
@@ -1708,9 +1709,9 @@ export default function PlayerClient({
 
   const openNewChannelFromTrack = useCallback((track: string, artist: string, album?: string) => {
     queueNewChannelFromTrack(track, artist, path => {
-      window.location.href = path
+      router.push(path)
     }, { album })
-  }, [])
+  }, [router])
 
   const createChannelWithNotes = useCallback(async (notes: string, channelName?: string) => {
     if (channelSwitchingRef.current) return
@@ -5131,6 +5132,7 @@ export default function PlayerClient({
   // ── Auto-fill: move DJ buffer → now playing / Up Next, or fetch more LLM suggestions ──
   useEffect(() => {
     if (isGuideDemo) return
+    if (careerMode) return
     if (!historyReady) {
       if (!djQueueLoggedHistoryWaitRef.current) {
         djQueueLoggedHistoryWaitRef.current = true
@@ -5248,6 +5250,7 @@ export default function PlayerClient({
 
     void run()
   }, [
+    careerMode,
     currentCard,
     queue.length,
     suggestionBuffer.length,
@@ -5846,9 +5849,6 @@ export default function PlayerClient({
             </div>
           )}
 
-          {/* Decorative gradient — must not block iframe pointer events (YouTube) */}
-          <div className="absolute inset-0 z-[5] bg-gradient-to-t from-black/80 via-transparent to-transparent pointer-events-none" />
-
           {/* Loading — connecting to Spotify, or actively fetching the next track; otherwise blank (e.g. new channel before DJ settings) */}
           {/* YouTube mode has no Spotify device to wait on, so we only show the spinner while a queue fetch is in flight. */}
           {!currentCard && !error && (source === 'youtube' ? loadingQueue : (!deviceId || loadingQueue)) && (
@@ -5936,18 +5936,22 @@ export default function PlayerClient({
                 lets clicks pass through to the iframe's play/unmute controls.
                 In covers mode the iframe is off-screen, so pointer-events-none is not needed.
               */}
-              {/* Bottom controls */}
+              {/* Bottom controls — solid scrim behind text; soft fade strip above (no text in fade zone) */}
               <div
                 data-guide="track-info"
-                className={`absolute bottom-0 left-0 right-0 px-3 sm:px-5 pb-3 sm:pb-5 pt-8 sm:pt-16 z-10 bg-gradient-to-t from-black via-black/90 to-transparent ${
+                className={`absolute bottom-0 left-0 right-0 z-10 ${
                   (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-none' : ''
                 }`}
                 onClick={e => e.stopPropagation()}
               >
                 <div
-                  className={
-                    (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-auto' : undefined
-                  }
+                  className="pointer-events-none h-10 sm:h-14 bg-gradient-to-t from-black/95 to-transparent"
+                  aria-hidden
+                />
+                <div
+                  className={`bg-black/95 px-3 sm:px-5 pb-3 sm:pb-5 backdrop-blur-sm ${
+                    (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-auto' : ''
+                  }`}
                 >
                 {/* Track info */}
                 <div className="flex items-center gap-2 min-w-0">
@@ -6007,11 +6011,14 @@ export default function PlayerClient({
                   })()}
                 </p>
                 {currentCard.performer && (
-                  <p className="text-zinc-400 text-xs truncate mt-0.5">
-                    <span className="text-zinc-600">perf. </span>{currentCard.performer}
+                  <p className="text-zinc-300 text-xs truncate mt-0.5">
+                    <span className="text-zinc-500">perf. </span>{currentCard.performer}
                   </p>
                 )}
-                <p className="text-zinc-400 text-xs italic mt-1 leading-relaxed" title={currentCard.reason}>
+                <p
+                  className="text-zinc-300 text-xs italic mt-1 leading-relaxed line-clamp-3"
+                  title={currentCard.reason}
+                >
                   {currentCard.reason}
                 </p>
 
