@@ -167,11 +167,6 @@ function deriveChannelName(history: HistoryEntry[], profile: string): string {
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([g]) => g)
   if (top.length >= 2) return `${top[0]} & ${top[1]}`
   if (top.length === 1) return top[0]
-  const keywords = profile.match(/\b(jazz|folk|electronic|rock|pop|classical|blues|soul|metal|indie|ambient|hip.hop|reggae|funk|latin|punk|experimental|acoustic|orchestral|country)\b/gi)
-  if (keywords?.length) {
-    const unique = [...new Set(keywords.map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()))].slice(0, 2)
-    return unique.join(' & ')
-  }
   return ''
 }
 

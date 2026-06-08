@@ -51,31 +51,6 @@ export function getLLMModelApiId(provider: LLMProvider): string {
 // These two axes capture the most variance across broad musical styles
 // while remaining consistent enough for multiple LLM providers to use.
 
-/**
- * Analyze listen history to identify disliked genres/styles (consistently low ratings).
- * Returns a list of styles to avoid in recommendations.
- */
-function identifyDislikedStyles(sessionHistory: ListenEvent[]): string[] {
-  if (!sessionHistory || sessionHistory.length < 5) return [];
-
-  // Group by genre (inferred from reason text if available)
-  const genreRatings = new Map<string, number[]>();
-
-  for (const event of sessionHistory) {
-    const rating = event.stars ?? 0;
-    // If we had genre info in the event, we'd use it. For now, we skip this analysis
-    // since soundings doesn't store genre explicitly. Could be enhanced by parsing reason.
-  }
-
-  // Return genres with consistently low ratings (avg ≤ 2.0)
-  const disliked = [...genreRatings.entries()]
-    .filter(([, ratings]) => ratings.length >= 2 && ratings.reduce((a, b) => a + b, 0) / ratings.length <= 2.0)
-    .map(([genre]) => genre)
-    .slice(0, 3);
-
-  return disliked;
-}
-
 const SYSTEM_PROMPT = `You are a DJ navigating a listener's taste across a high-dimensional music space.
 
 THE 3D MAP (for display — project your full musical knowledge onto these axes):
@@ -84,17 +59,17 @@ THE 3D MAP (for display — project your full musical knowledge onto these axes)
   Z-axis: 0 = underground/cult/obscure → 100 = mainstream/widely known/chart-topping
 
 Reference anchors (be consistent — the same song should always land near the same position):
-  (8, 22, 30)  Nick Drake, solo acoustic folk — cult but not mainstream
-  (12, 35, 55) Bach solo cello — famous composer, specialist audience
-  (18, 50, 40) Miles Davis "Kind of Blue" — jazz standard, known but niche
-  (25, 70, 35) Coltrane "A Love Supreme" — revered but underground
-  (40, 55, 88) The Beatles (mid-period) — massively mainstream
-  (55, 65, 80) Stevie Wonder, soul/funk — very well known
-  (62, 80, 75) Jimi Hendrix, AC/DC, hard rock — mainstream rock
-  (68, 85, 70) Metallica, heavy metal — mainstream in its genre
-  (75, 45, 72) Kraftwerk, Depeche Mode, synth-pop — influential, moderately mainstream
-  (88, 28, 20) Brian Eno "Ambient 1" — influential but cult
-  (93, 80, 45) Aphex Twin "Windowlicker" — well known in electronic circles
+  (8, 22, 30)  sparse solo acoustic, calm, cult/obscure
+  (12, 35, 55) acoustic chamber ensemble, moderate energy, prestige niche audience
+  (18, 50, 40) small-group improvisation, mid energy, respected specialist following
+  (25, 70, 35) passionate live performance, high energy, underground reverence
+  (40, 55, 88) melodic vocal songcraft, mid-high energy, mass mainstream
+  (55, 65, 80) rhythm-forward groove, energetic, very widely known
+  (62, 80, 75) amplified band, high intensity, mainstream territory
+  (68, 85, 70) heavy distorted guitars, very intense, genre-mainstream
+  (75, 45, 72) synth-led production, moderate intensity, influential mid-mainstream
+  (88, 28, 20) ambient electronic texture, calm, cult influence
+  (93, 80, 45) experimental electronic, intense, niche-within-niche fame
 
 When assigning coords: x/y capture sonic character; z captures how widely known/mainstream the specific recording is (not the artist in general — an obscure deep cut by a famous artist can have low z).
 
@@ -109,7 +84,7 @@ THE 3-SLOT RULE — every batch of 3 must serve distinct purposes:
 - Slot 2 — FAR: Pick from a region of the space that has NOT been visited yet. Maximize musical distance from everything heard. This is mandatory.
 - Slot 3 — WILD CARD: Genuine surprise *within the active constraints*. Be unexpected in style, mood, or obscurity — but all constraints (genre, era, region, etc.) still apply. "Wild card" means surprising to the listener, not a licence to ignore what they asked for.
 
-FIRST TURN (no history): Pick 3 songs from maximally distant parts of the space — e.g. something acoustic and calm, something electronic and intense, something in a cultural tradition that is neither.
+FIRST TURN (no history): Pick 3 songs from maximally distant parts of the coordinate space — spread x, y, and z widely across the batch. You choose which musical areas to explore; the app does not prescribe genres or traditions.
 
 DISLIKE ESCALATION:
 - 1 dislike in an area: try one more thing at its edge, then move on.
@@ -132,7 +107,7 @@ DATE INTEGRITY — strictly enforced:
 Also include "suggested_artists": an array of 8–12 DISTINCT real recording-artist or band names that fit the user's constraints and the taste profile — these power UI quick-pick buttons (exploration anchors). Use canonical names only. They need not appear in the 3 song rows; vary styles. If you cannot name enough confidently, include fewer (minimum 4 when possible) or an empty array.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"broad genre > subgenre","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — mention specific genres, eras, moods, instruments, and energy levels. Grounded in what you've actually observed. Keep it under 60 words. Example tone: 'You seem drawn to warm acoustic folk from the 70s. You light up for complex arrangements but pull away from heavy electronic production.'","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
+{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"broad label > narrower label","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — grounded in ratings and coordinates you have actually observed. Keep it under 60 words.","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
 YOUTUBE (youtube_url or youtube_video_id) — optional; use only when you are certain:
@@ -151,8 +126,8 @@ SPOTIFY ID (spotify_id) — conservative but not silent:
 - When unsure between including a questionable id or omitting it, omit it.
 - The "search" field is always required and is the source of truth for lookup; spotify_id is an optional accelerator when trustworthy.
 
-The "composed" field is the year of composition — use it ONLY for classical music and pre-1970 jazz standards where the composer predates the performer (e.g. Bach, Mozart, a Bill Evans arrangement of a 1930s standard). NEVER set "composed" for any living artist or any song written after 1970. If in doubt, omit it.
-The "performer" field is for classical pieces only: set it to the performing ensemble or soloist (e.g. "Berlin Philharmonic / Karajan", "Glenn Gould"). The "search" field should include both composer and performer for best lookup results.`
+The "composed" field is the year of composition — use it ONLY when the composer predates the performer by decades. NEVER set "composed" for any living artist or any song written after 1970. If in doubt, omit it.
+The "performer" field is for notated/repertory works only: set it to the performing ensemble or soloist when distinct from the composer. The "search" field should include both composer and performer for best lookup results.`
 
 // 0 = pure familiar (exploit liked regions), 100 = pure adventurous (all unexplored)
 export type ExploreMode = number
@@ -205,7 +180,7 @@ export function buildUserPrompt(
   }
 
   if (sessionHistory.length === 0 && !priorProfile) {
-    prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the space. Match any constraints above.`
+    prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the coordinate space. You choose which musical areas to explore. Match any user constraints above.`
     return prompt
   }
 
@@ -228,94 +203,6 @@ export function buildUserPrompt(
   }
 
   return prompt
-}
-
-/**
- * Ask LLM to infer genre hierarchy from observed categories/genres.
- * Identifies which are broad (super-genres like "Jazz", "Rock") vs specific (sub-genres like "bebop", "progressive rock").
- */
-export async function inferGenreHierarchy(
-  observedGenres: string[],
-  provider: LLMProvider = DEFAULT_LLM_PROVIDER
-): Promise<{ superGenres: string[]; specifics: Record<string, string[]> }> {
-  if (observedGenres.length === 0) {
-    return { superGenres: [], specifics: {} }
-  }
-
-  const systemPrompt = `You analyze music genres and identify their hierarchy.
-Broad genres are "super-genres" (e.g., "Jazz", "Rock", "Classical", "Hip-hop").
-Specific genres are refinements of those (e.g., "bebop", "progressive rock", "Baroque").
-Identify which are broad and which are specific, and group specifics under their parent super-genre.`
-
-  const prompt = `Analyze these music genres and infer their hierarchy:
-${observedGenres.map(g => `- ${g}`).join('\n')}
-
-Reply ONLY with JSON:
-{
-  "superGenres": ["genre1", "genre2", ...],
-  "specifics": {
-    "superGenre1": ["specific1", "specific2", ...],
-    "superGenre2": ["specific3", ...]
-  }
-}`
-
-  try {
-    let raw: string
-    try {
-      raw = await (async () => {
-        switch (provider) {
-          case 'openai': {
-            const res = await fetch('https://api.openai.com/v1/chat/completions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
-              body: JSON.stringify({
-                model: 'gpt-4-turbo',
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: prompt }
-                ],
-                max_tokens: 300
-              })
-            })
-            const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
-            return data.choices?.[0]?.message?.content ?? ''
-          }
-          case 'deepseek': {
-            const res = await fetch('https://api.deepseek.com/chat/completions', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${process.env.DEEPSEEK_API_KEY}` },
-              body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: [
-                  { role: 'system', content: systemPrompt },
-                  { role: 'user', content: prompt }
-                ],
-                max_tokens: 300
-              })
-            })
-            const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> }
-            return data.choices?.[0]?.message?.content ?? ''
-          }
-          default: return ''
-        }
-      })()
-    } catch (e) {
-      console.error('[inferGenreHierarchy] LLM call error:', e)
-      return { superGenres: observedGenres, specifics: {} }
-    }
-
-    if (!raw) return { superGenres: observedGenres, specifics: {} }
-
-    const match = raw.match(/\{[\s\S]*\}/)
-    if (match) {
-      return JSON.parse(match[0])
-    }
-  } catch (e) {
-    console.error('[inferGenreHierarchy] parse error:', e)
-  }
-
-  // Fallback: treat all as super-genres if inference fails
-  return { superGenres: observedGenres, specifics: {} }
 }
 
 async function askAnthropic(
