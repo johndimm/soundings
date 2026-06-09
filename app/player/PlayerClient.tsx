@@ -5649,6 +5649,183 @@ export default function PlayerClient({
     !shouldHideStarterPillForFactoryOnlyList(channels)
   const showChannelPanel = mounted && countCustomChannels(channels) > 0
 
+  const isYoutubeCard =
+    Boolean(currentCard && (currentCard.track.source as string) === 'youtube')
+
+  const renderAlbumTrackMeta = (layout: 'overlay' | 'stacked') => {
+    if (!currentCard) return null
+    const isYt = (currentCard.track.source as string) === 'youtube'
+    const ytTracks = isYt && displayMode === 'tracks'
+    const wrapperClass =
+      layout === 'overlay'
+        ? `absolute bottom-0 left-0 right-0 z-10 ${ytTracks ? 'pointer-events-none' : ''}`
+        : 'rounded-2xl border border-zinc-800 bg-zinc-900'
+    const innerPointerClass =
+      layout === 'overlay' && ytTracks ? 'pointer-events-auto' : ''
+
+    return (
+      <div
+        data-guide="track-info"
+        className={wrapperClass}
+        onClick={e => e.stopPropagation()}
+      >
+        {layout === 'overlay' && (
+          <div
+            className="pointer-events-none h-10 sm:h-14 bg-gradient-to-t from-black/95 to-transparent"
+            aria-hidden
+          />
+        )}
+        <div
+          className={`${layout === 'overlay' ? 'bg-black/95 backdrop-blur-sm' : 'bg-transparent'} px-3 sm:px-5 pb-3 sm:pb-5 ${innerPointerClass}`}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              type="button"
+              onClick={() =>
+                openNewChannelFromTrack(
+                  currentCard.track.name,
+                  currentCard.track.artist,
+                  currentCard.track.album,
+                )
+              }
+              title="Create a channel from this track"
+              className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors text-left flex-1 min-w-0"
+            >
+              {currentCard.track.name}
+            </button>
+            <a
+              href={
+                isYt
+                  ? `https://www.youtube.com/watch?v=${currentCard.track.id}`
+                  : `https://open.spotify.com/track/${currentCard.track.id}`
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              title={isYt ? 'Open on YouTube' : 'Open in Spotify'}
+              onClick={() => {
+                openedSpotifyRef.current = true
+              }}
+              className="flex-shrink-0 text-zinc-400 hover:text-green-400 text-sm px-1"
+              aria-label={isYt ? 'Open on YouTube' : 'Open in Spotify'}
+            >
+              ↗
+            </a>
+          </div>
+          <p
+            className={`truncate transition-all ${careerMode ? 'text-indigo-300 text-xl font-semibold mt-0.5' : 'text-zinc-300 text-sm'}`}
+          >
+            {currentCard.track.artists && currentCard.track.artists.length > 1
+              ? currentCard.track.artists.map((a, i) => (
+                  <span key={a}>
+                    {i > 0 && ', '}
+                    <button
+                      type="button"
+                      onClick={() => void enterCareerMode(a)}
+                      className={
+                        careerMode
+                          ? 'hover:text-indigo-100 transition-colors'
+                          : 'hover:text-indigo-300 transition-colors'
+                      }
+                      title={`Follow ${a}'s career`}
+                    >
+                      {a}
+                    </button>
+                  </span>
+                ))
+              : (
+                  <button
+                    type="button"
+                    onClick={() => void enterCareerMode(currentCard.track.artist)}
+                    className={
+                      careerMode
+                        ? 'hover:text-indigo-100 transition-colors'
+                        : 'hover:text-indigo-300 transition-colors'
+                    }
+                    title={`Follow ${currentCard.track.artist}'s career`}
+                  >
+                    {currentCard.track.artist}
+                  </button>
+                )}
+            {(() => {
+              const ry = currentCard.track.releaseYear
+              const year =
+                ry && ry > 1990 ? ry : (currentCard.composed ?? ry)
+              return year ? (
+                <span
+                  className={`ml-2 ${careerMode ? 'text-indigo-500 text-sm font-normal' : 'text-zinc-500'}`}
+                >
+                  {year}
+                </span>
+              ) : null
+            })()}
+          </p>
+          {currentCard.performer && (
+            <p className="text-zinc-300 text-xs truncate mt-0.5">
+              <span className="text-zinc-500">perf. </span>
+              {currentCard.performer}
+            </p>
+          )}
+          <p
+            className="text-zinc-300 text-xs italic mt-1 leading-relaxed line-clamp-3"
+            title={currentCard.reason}
+          >
+            {currentCard.reason}
+          </p>
+          <div className="flex items-center gap-2 mt-1 sm:mt-3">
+            <span className="text-zinc-400 text-xs w-8 text-right tabular-nums">
+              {formatMs(sliderPosition)}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={isYt ? youtubeDuration || 1 : duration || 1}
+              value={sliderPosition}
+              onMouseDown={() => {
+                isSeekingRef.current = true
+              }}
+              onTouchStart={() => {
+                isSeekingRef.current = true
+              }}
+              onChange={e => {
+                const v = Number(e.currentTarget.value)
+                setSliderPosition(v)
+                sliderRef.current = v
+              }}
+              onMouseUp={e => {
+                const v = Number(e.currentTarget.value)
+                isSeekingRef.current = false
+                if (isYt) {
+                  youtubePlayerRef.current?.seek(v)
+                } else if (duration > 0 && v >= duration - 1500) {
+                  if (autoNextAtEndRef.current) advanceWithFade()
+                  else playerRef.current?.seek(v)
+                } else {
+                  playerRef.current?.seek(v)
+                }
+              }}
+              onTouchEnd={e => {
+                const v = Number(e.currentTarget.value)
+                isSeekingRef.current = false
+                if (isYt) {
+                  youtubePlayerRef.current?.seek(v)
+                } else if (duration > 0 && v >= duration - 1500) {
+                  if (autoNextAtEndRef.current) advanceWithFade()
+                  else playerRef.current?.seek(v)
+                } else {
+                  playerRef.current?.seek(v)
+                }
+              }}
+              className={`flex-1 cursor-pointer ${isYt ? 'accent-red-400' : 'accent-[#1DB954]'}`}
+            />
+            <span className="text-zinc-400 text-xs w-8 tabular-nums">
+              {formatMs(isYt ? youtubeDuration : duration)}
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
       {/* Global nav header */}
@@ -5821,7 +5998,9 @@ export default function PlayerClient({
         <div
           ref={albumPanelRef}
           data-guide="album-panel"
-          className="relative rounded-2xl overflow-hidden w-full aspect-[4/3] bg-zinc-900"
+          className={`relative rounded-2xl overflow-hidden w-full bg-zinc-900 ${
+            isYoutubeCard ? 'aspect-video' : 'aspect-[4/3]'
+          }`}
           style={{ cursor: currentCard && ((currentCard.track.source as string) !== 'youtube' || displayMode === 'covers') ? 'pointer' : 'default' }}
           onClick={currentCard && ((currentCard.track.source as string) !== 'youtube' || displayMode === 'covers') ? togglePlayback : undefined}
         >
@@ -5851,7 +6030,8 @@ export default function PlayerClient({
               className="absolute inset-0 transition-opacity duration-300"
               style={{
                 backgroundImage: `url(${currentCard.track.albumArt})`,
-                backgroundSize: 'auto 100%',
+                backgroundSize:
+                  (currentCard.track.source as string) === 'youtube' ? 'cover' : 'auto 100%',
                 backgroundRepeat: 'no-repeat',
                 backgroundPosition: 'center',
                 animation:
@@ -5960,151 +6140,8 @@ export default function PlayerClient({
             </div>
           )}
 
-          {currentCard && (
-            <>
-              {/*
-                In tracks mode the YouTube iframe is behind these controls; pointer-events-none
-                lets clicks pass through to the iframe's play/unmute controls.
-                In covers mode the iframe is off-screen, so pointer-events-none is not needed.
-              */}
-              {/* Bottom controls — solid scrim behind text; soft fade strip above (no text in fade zone) */}
-              <div
-                data-guide="track-info"
-                className={`absolute bottom-0 left-0 right-0 z-10 ${
-                  (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-none' : ''
-                }`}
-                onClick={e => e.stopPropagation()}
-              >
-                <div
-                  className="pointer-events-none h-10 sm:h-14 bg-gradient-to-t from-black/95 to-transparent"
-                  aria-hidden
-                />
-                <div
-                  className={`bg-black/95 px-3 sm:px-5 pb-3 sm:pb-5 backdrop-blur-sm ${
-                    (currentCard.track.source as string) === 'youtube' && displayMode === 'tracks' ? 'pointer-events-auto' : ''
-                  }`}
-                >
-                {/* Track info */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <button
-                    type="button"
-                    onClick={() =>
-                      openNewChannelFromTrack(
-                        currentCard.track.name,
-                        currentCard.track.artist,
-                        currentCard.track.album,
-                      )
-                    }
-                    title="Create a channel from this track"
-                    className="text-white font-bold text-lg truncate leading-tight hover:text-green-400 transition-colors text-left flex-1 min-w-0"
-                  >
-                    {currentCard.track.name}
-                  </button>
-                  <a
-                    href={(currentCard.track.source as string) === 'youtube'
-                      ? `https://www.youtube.com/watch?v=${currentCard.track.id}`
-                      : `https://open.spotify.com/track/${currentCard.track.id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title={(currentCard.track.source as string) === 'youtube' ? 'Open on YouTube' : 'Open in Spotify'}
-                    onClick={() => { openedSpotifyRef.current = true }}
-                    className="flex-shrink-0 text-zinc-400 hover:text-green-400 text-sm px-1"
-                    aria-label={(currentCard.track.source as string) === 'youtube' ? 'Open on YouTube' : 'Open in Spotify'}
-                  >
-                    ↗
-                  </a>
-                </div>
-                <p className={`truncate transition-all ${careerMode ? 'text-indigo-300 text-xl font-semibold mt-0.5' : 'text-zinc-300 text-sm'}`}>
-                  {(currentCard.track.artists && currentCard.track.artists.length > 1)
-                    ? currentCard.track.artists.map((a, i) => (
-                        <span key={a}>
-                          {i > 0 && ', '}
-                          <button
-                            type="button"
-                            onClick={() => void enterCareerMode(a)}
-                            className={careerMode ? 'hover:text-indigo-100 transition-colors' : 'hover:text-indigo-300 transition-colors'}
-                            title={`Follow ${a}'s career`}
-                          >{a}</button>
-                        </span>
-                      ))
-                    : <button
-                        type="button"
-                        onClick={() => void enterCareerMode(currentCard.track.artist)}
-                        className={careerMode ? 'hover:text-indigo-100 transition-colors' : 'hover:text-indigo-300 transition-colors'}
-                        title={`Follow ${currentCard.track.artist}'s career`}
-                      >{currentCard.track.artist}</button>
-                  }
-                  {(() => {
-                    const ry = currentCard.track.releaseYear
-                    // Trust Spotify's release year for anything post-1990; only show composition year for classical / pre-1970 jazz standards.
-                    const year = (ry && ry > 1990) ? ry : (currentCard.composed ?? ry)
-                    return year ? <span className={`ml-2 ${careerMode ? 'text-indigo-500 text-sm font-normal' : 'text-zinc-500'}`}>{year}</span> : null
-                  })()}
-                </p>
-                {currentCard.performer && (
-                  <p className="text-zinc-300 text-xs truncate mt-0.5">
-                    <span className="text-zinc-500">perf. </span>{currentCard.performer}
-                  </p>
-                )}
-                <p
-                  className="text-zinc-300 text-xs italic mt-1 leading-relaxed line-clamp-3"
-                  title={currentCard.reason}
-                >
-                  {currentCard.reason}
-                </p>
-
-                {/* Play time slider */}
-                <div className="flex items-center gap-2 mt-1 sm:mt-3">
-                  <span className="text-zinc-400 text-xs w-8 text-right tabular-nums">
-                    {formatMs(sliderPosition)}
-                  </span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={(currentCard.track.source as string) === 'youtube' ? (youtubeDuration || 1) : (duration || 1)}
-                    value={sliderPosition}
-                    onMouseDown={() => { isSeekingRef.current = true }}
-                    onTouchStart={() => { isSeekingRef.current = true }}
-                    onChange={e => {
-                      const v = Number(e.currentTarget.value)
-                      setSliderPosition(v)
-                      sliderRef.current = v
-                    }}
-                    onMouseUp={e => {
-                      const v = Number(e.currentTarget.value)
-                      isSeekingRef.current = false
-                      if ((currentCard.track.source as string) === 'youtube') {
-                        youtubePlayerRef.current?.seek(v)
-                      } else if (duration > 0 && v >= duration - 1500) {
-                        if (autoNextAtEndRef.current) advanceWithFade()
-                        else playerRef.current?.seek(v)
-                      } else {
-                        playerRef.current?.seek(v)
-                      }
-                    }}
-                    onTouchEnd={e => {
-                      const v = Number(e.currentTarget.value)
-                      isSeekingRef.current = false
-                      if ((currentCard.track.source as string) === 'youtube') {
-                        youtubePlayerRef.current?.seek(v)
-                      } else if (duration > 0 && v >= duration - 1500) {
-                        if (autoNextAtEndRef.current) advanceWithFade()
-                        else playerRef.current?.seek(v)
-                      } else {
-                        playerRef.current?.seek(v)
-                      }
-                    }}
-                    className={`flex-1 cursor-pointer ${(currentCard.track.source as string) === 'youtube' ? 'accent-red-400' : 'accent-[#1DB954]'}`}
-                  />
-                  <span className="text-zinc-400 text-xs w-8 tabular-nums">
-                    {formatMs((currentCard.track.source as string) === 'youtube' ? youtubeDuration : duration)}
-                  </span>
-                </div>
-
-                </div>
-              </div>
-            </>
-          )}
+          {/* Spotify: metadata overlays album art. YouTube: metadata below panel so the video stays fully visible. */}
+          {currentCard && !isYoutubeCard && renderAlbumTrackMeta('overlay')}
 
 
           {careerMode && (() => {
@@ -6216,6 +6253,8 @@ export default function PlayerClient({
             )
           })()}
         </div>
+
+        {currentCard && isYoutubeCard && renderAlbumTrackMeta('stacked')}
 
         {/* Stars + Prev/Next below the panel */}
         {currentCard && (

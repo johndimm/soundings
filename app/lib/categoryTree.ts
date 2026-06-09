@@ -245,17 +245,41 @@ Also add 1–2 extra category_paths when they genuinely fit (era + genre + regio
 function dimensionWithMostUntriedSupers(
   tree: CategoryTree,
   tried: Set<string>,
+  excludeSupers?: Set<string>,
 ): CategoryDimension | null {
   let best: CategoryDimension | null = null
   let bestCount = -1
   for (const dim of tree.dimensions) {
-    const n = untriedSupersForDimension(dim, tried).length
+    const n = untriedSupersForDimension(dim, tried).filter(
+      (s) => !excludeSupers?.has(`${dim.id}:${s.id}`),
+    ).length
     if (n > bestCount) {
       bestCount = n
       best = dim
     }
   }
   return best
+}
+
+/** Supers with 2+ low ratings (≤2.5★) — exhausted for this session; do not cluster here. */
+function exhaustedDislikedSupers(dislikedSupers: Map<string, number[]>): string[] {
+  return [...dislikedSupers.entries()]
+    .filter(([, ratings]) => {
+      const lows = ratings.filter((r) => r <= 2.5)
+      if (lows.length < 2) return false
+      const avg = lows.reduce((a, b) => a + b, 0) / lows.length
+      return avg <= 2.5
+    })
+    .map(([k]) => k)
+}
+
+function buildDislikeAvoidanceSection(exhausted: string[]): string {
+  if (!exhausted.length) return ''
+  return `DEPRIORITIZE — consistent low ratings (★≤2.5) in these super-categories; do NOT cluster more picks here:
+${exhausted.map((s) => `- ${s}`).join('\n')}
+
+ANTI-RUT: Each song this batch MUST use category_paths from supers NOT listed above. Open fresh dimensions — never deepen a low-rated neighborhood (e.g. more Kraftwerk after low-rated electronic picks).
+`
 }
 
 function buildLeafNearMissSection(
@@ -266,7 +290,7 @@ function buildLeafNearMissSection(
   const leafRatings = new Map<string, number[]>()
   for (const entry of history) {
     const stars = entry.stars ?? 0
-    if (stars < 2 || stars > 4) continue
+    if (stars < 3.5 || stars > 4) continue
     for (const p of entry.categoryPaths ?? []) {
       if (!p.leaf) continue
       const k = p.leaf.toLowerCase()
@@ -278,7 +302,7 @@ function buildLeafNearMissSection(
   const hints: string[] = []
   for (const [leaf, ratings] of leafRatings) {
     const avg = ratings.reduce((a, b) => a + b, 0) / ratings.length
-    if (avg < 2 || avg > 3.5) continue
+    if (avg < 3.5) continue
     const supers = findSupersForLeaf(tree, leaf).filter((s) => !tried.has(`${s.dimension}:${s.super}`))
     if (!supers.length) continue
     hints.push(
@@ -301,6 +325,7 @@ export function buildMusicTreeExplorationSection(
   const tried = new Set(triedSuperKeys)
   const lovedSupers = new Map<string, number[]>()
   const weakSupers = new Map<string, number[]>()
+  const dislikedSupers = new Map<string, number[]>()
 
   for (const entry of history) {
     const stars = entry.stars ?? 0
@@ -310,16 +335,23 @@ export function buildMusicTreeExplorationSection(
       if (stars >= 4) {
         if (!lovedSupers.has(k)) lovedSupers.set(k, [])
         lovedSupers.get(k)!.push(stars)
-      } else if (stars >= 3) {
+      } else if (stars >= 3.5) {
         if (!weakSupers.has(k)) weakSupers.set(k, [])
         weakSupers.get(k)!.push(stars)
         if (p.leaf) {
           if (!weakSupers.has(leafK)) weakSupers.set(leafK, [])
           weakSupers.get(leafK)!.push(stars)
         }
+      } else if (stars > 0 && stars <= 2.5) {
+        if (!dislikedSupers.has(k)) dislikedSupers.set(k, [])
+        dislikedSupers.get(k)!.push(stars)
       }
     }
   }
+
+  const exhausted = exhaustedDislikedSupers(dislikedSupers)
+  const exhaustedSet = new Set(exhausted)
+  const dislikeSection = buildDislikeAvoidanceSection(exhausted)
 
   if (history.length === 0) {
     const plan = formatRoundOneSlotRequirements(buildRoundOneSlots(tree, batchCount, triedSuperKeys))
@@ -343,7 +375,7 @@ The "category" field should echo super > leaf for display.`
   if (topLoved.length > 0) {
     return `${treeBlock}
 
-20Q DRILL-DOWN — listener loves these super-categories: ${topLoved.join(', ')}.
+${dislikeSection}20Q DRILL-DOWN — listener loves these super-categories: ${topLoved.join(', ')}.
 Most picks should explore untried LEAVES within those supers.
 Include 1 sibling super (same dimension, different super) to confirm the branch.
 Tag every song with category_paths from the tree.`
@@ -362,23 +394,26 @@ Tag every song with category_paths from the tree.`
     const leafNearMiss = buildLeafNearMissSection(tree, history, tried)
     return `${treeBlock}
 
-20Q WARM-SIGNAL DRILL-DOWN — partial matches on: ${topWeak.join(', ')}.
-Double down on those branches — especially untried leaves within the same supers and cross-dimension combos (era + genre).
+${dislikeSection}20Q WARM-SIGNAL DRILL-DOWN — partial likes (★3.5+) on: ${topWeak.join(', ')}.
+Explore untried leaves within those supers only — do NOT return to exhausted low-rated areas.
 ${leafNearMiss}Tag every song with category_paths from the tree.`
   }
 
-  const focusDim = dimensionWithMostUntriedSupers(tree, tried)
+  const focusDim = dimensionWithMostUntriedSupers(tree, tried, exhaustedSet)
   const freshSupers = focusDim
-    ? untriedSupersForDimension(focusDim, tried).map((s) => `${focusDim.label} → ${s.label}`)
+    ? untriedSupersForDimension(focusDim, tried)
+        .filter((s) => !exhaustedSet.has(`${focusDim.id}:${s.id}`))
+        .map((s) => `${focusDim.label} → ${s.label}`)
     : []
   const leafNearMiss = buildLeafNearMissSection(tree, history, tried)
 
   return `${treeBlock}
 
-20Q EXPLORATION (${history.length} ratings): No strong loves yet. ${leafNearMiss}Rotate into less-sampled dimensions — prioritize: ${
-    freshSupers.length ? freshSupers.join('; ') : 'any fresh supers across all dimensions'
+${dislikeSection}20Q EXPLORATION (${history.length} ratings): No confirmed likes (nothing ★3.5+). Do NOT infer taste from low-rated picks or repeat the same super-category (no Kraftwerk-style ruts).
+${leafNearMiss}Mandatory: each song tags a DIFFERENT untried super from a DIFFERENT dimension when possible. Prioritize: ${
+    freshSupers.length ? freshSupers.join('; ') : 'any fresh supers outside deprioritized areas'
   }.
-Each batch should span multiple dimensions when possible. Tag every song with category_paths from the tree.`
+★3 is neutral — not a like. Spread wide until a ★3.5+ signal appears. Tag every song with category_paths from the tree.`
 }
 
 function normalizeLeafToken(leaf: string): string {

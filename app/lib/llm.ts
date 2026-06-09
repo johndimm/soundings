@@ -89,7 +89,7 @@ NAVIGATION RULES (ratings are ★0.5–★5 in half-star steps; skipped = no sig
 - (skipped): no taste signal — treat as unheard.
 
 THE 3-SLOT RULE — every batch of 3 must serve distinct purposes:
-- Slot 1 — NEARBY: If there are likes, pick something musically adjacent to a liked song (similar instruments, era, energy, or mood). If no likes yet, probe a different corner of the most-visited area.
+- Slot 1 — NEARBY: If there are likes (★3.5+), pick something musically adjacent to a liked song (similar instruments, era, energy, or mood). If no likes yet, pick from an UNTRIED super-category — never deepen the most-visited or low-rated area.
 - Slot 2 — FAR: Pick from a region of the space that has NOT been visited yet. Maximize musical distance from everything heard. This is mandatory.
 - Slot 3 — WILD CARD: Genuine surprise *within the active constraints*. Be unexpected in style, mood, or obscurity — but all constraints (genre, era, region, etc.) still apply. "Wild card" means surprising to the listener, not a licence to ignore what they asked for.
 
@@ -116,7 +116,7 @@ DATE INTEGRITY — strictly enforced:
 Also include "suggested_artists": an array of 8–12 DISTINCT real recording-artist or band names that fit the user's constraints and the taste profile — these power UI quick-pick buttons (exploration anchors). Use canonical names only. They need not appear in the 3 song rows; vary styles. If you cannot name enough confidently, include fewer (minimum 4 when possible) or an empty array.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"super label > leaf label","category_paths":[{"dimension":"region","super":"anglo_american","leaf":"classic rock"}],"composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","category_paths":[{"dimension":"region","super":"...","leaf":"..."}],"coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","category_paths":[{"dimension":"genre","super":"...","leaf":"..."}],"coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — grounded in ratings and coordinates you have actually observed. Keep it under 60 words.","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
+{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"super label > leaf label","category_paths":[{"dimension":"region","super":"anglo_american","leaf":"classic rock"}],"composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","category_paths":[{"dimension":"region","super":"...","leaf":"..."}],"coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","category_paths":[{"dimension":"genre","super":"...","leaf":"..."}],"coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — grounded in ratings and coordinates you have actually observed. Keep it under 60 words. If nothing rated ★3.5+, say they are still exploring — do NOT claim they love any genre or artist.","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
 
 When a SESSION CATEGORY TREE is provided in the user message, tag every song with category_paths from that tree (required). The "category" field echoes super > leaf for display.
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
@@ -146,7 +146,7 @@ export type ExploreMode = number
 function slotInstructions(mode: ExploreMode, hasLikes: boolean, numSongs: number): string {
   const extra = numSongs > 3 ? ` For songs beyond the first 3, continue the same distribution pattern — vary positions across the space.` : ''
   if (!hasLikes) {
-    return `No confirmed likes yet. All ${numSongs} slots should explore different unmapped regions — spread across the space.`
+    return `No confirmed likes yet (nothing ★3.5+). All ${numSongs} slots must explore different UNTRIED super-categories — maximize musical distance. Never cluster in an area that already got low ratings (★≤2.5).`
   }
   if (mode <= 20) {
     return `FAMILIAR MODE: All ${numSongs} slots should be near liked positions (within ~15 coordinate units). Deepen what already works — different songs but same musical neighborhood.`
@@ -227,7 +227,24 @@ export function buildUserPrompt(
   } else if (hasLikes) {
     prompt += `Apply slot rules where compatible with the 20Q tree instructions above — Slot 1 near liked super-categories, Slot 2 from fresh supers, Slot 3 a wild card within the tree.\n`
   } else {
-    prompt += `Continue 20Q exploration per the tree instructions above.\n`
+    const lowRatedSupers = new Map<string, number[]>()
+    for (const e of sessionHistory) {
+      const stars = e.stars ?? 0
+      if (stars <= 0 || stars > 2.5) continue
+      for (const p of e.categoryPaths ?? []) {
+        const k = `${p.dimension}/${p.super}`
+        if (!lowRatedSupers.has(k)) lowRatedSupers.set(k, [])
+        lowRatedSupers.get(k)!.push(stars)
+      }
+    }
+    const exhausted = [...lowRatedSupers.entries()]
+      .filter(([, rs]) => rs.length >= 2)
+      .map(([k]) => k)
+    prompt += `NO CONFIRMED LIKES (★3.5+): Do not infer taste from low-rated rows. ★3 is neutral, not a like. Each batch must open NEW tree supers — never stack 2+ picks in the same super-category until the listener rates ★3.5+.\n`
+    if (exhausted.length) {
+      prompt += `Exhausted low-rated areas (avoid clustering): ${exhausted.join(', ')}.\n`
+    }
+    prompt += `Continue 20Q exploration per the tree instructions above — prioritize dimensions and supers NOT yet tried.\n`
   }
 
   if (notes?.trim()) {
