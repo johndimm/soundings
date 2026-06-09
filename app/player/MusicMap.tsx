@@ -2,36 +2,20 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import type { HistoryEntry } from './SessionPanel'
+import { coordsSeedFromEntry, hashCoordsFromSeed } from '@/app/lib/categoryTree'
 
-const CATEGORY_FALLBACK: Record<string, { x: number; y: number; z: number }> = {
-  Classical: { x: 12, y: 35, z: 45 },
-  'Ambient/New Age': { x: 88, y: 18, z: 25 },
-  Jazz: { x: 20, y: 48, z: 35 },
-  'Folk/Country': { x: 15, y: 32, z: 50 },
-  'Soul/Blues': { x: 38, y: 58, z: 55 },
-  'World/Latin': { x: 30, y: 65, z: 30 },
-  Pop: { x: 62, y: 52, z: 85 },
-  'Hip-Hop/R&B': { x: 72, y: 62, z: 78 },
-  Rock: { x: 58, y: 72, z: 72 },
-  Electronic: { x: 90, y: 65, z: 40 },
-  'Punk/Indie': { x: 52, y: 78, z: 45 },
-  Metal: { x: 65, y: 88, z: 60 },
-}
-
-function categoryFallback(category: string | undefined): { x: number; y: number; z: number } | null {
-  if (!category) return null
-  for (const [key, val] of Object.entries(CATEGORY_FALLBACK)) {
-    if (category.startsWith(key) || category.toLowerCase().includes(key.toLowerCase())) return val
-  }
-  return null
+function categoryFallback(entry: HistoryEntry): { x: number; y: number; z: number } | null {
+  const seed = coordsSeedFromEntry(entry)
+  if (!seed || seed === 'unknown') return null
+  return hashCoordsFromSeed(seed)
 }
 
 function resolveCoords(entry: HistoryEntry): { x: number; y: number; z: number; estimated: boolean } {
   if (entry.coords) {
-    const z = entry.coords.z ?? categoryFallback(entry.category)?.z ?? 50
+    const z = entry.coords.z ?? categoryFallback(entry)?.z ?? 50
     return { x: entry.coords.x, y: entry.coords.y, z, estimated: false }
   }
-  const fb = categoryFallback(entry.category)
+  const fb = categoryFallback(entry)
   if (fb) return { ...fb, estimated: true }
   return { x: 50, y: 50, z: 50, estimated: true }
 }
@@ -278,22 +262,6 @@ export default function MusicMap({
     ctx.textBaseline = 'middle'
     ctx.fillStyle = '#71717a'
     ctx.fillText('← underground  mainstream →', front[0].sx - 4, (front[0].sy + back[0].sy) / 2)
-
-    if (!embedded) {
-      ctx.font = 'bold 11px monospace'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      for (const [name, pos] of Object.entries(CATEGORY_FALLBACK)) {
-        const p = project(pos.x, pos.y, pos.z, rX, rY, W, H)
-        const label = name.split('/')[0]
-        ctx.strokeStyle = '#09090b'
-        ctx.lineWidth = 3
-        ctx.lineJoin = 'round'
-        ctx.strokeText(label, p.sx, p.sy)
-        ctx.fillStyle = '#a1a1aa'
-        ctx.fillText(label, p.sx, p.sy)
-      }
-    }
 
     const projected = hForDots.map(entry => {
       const { x, y, z } = resolveCoords(entry)

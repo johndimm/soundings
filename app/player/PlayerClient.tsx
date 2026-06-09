@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { parseShareId } from '@/app/lib/shareId'
 import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
+import { normalizeCategoryTree, type CategoryTree } from '@/app/lib/categoryTree'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 import { writeNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
 import PlayerConstellationsEmbed from './PlayerConstellationsEmbed'
@@ -160,8 +161,9 @@ function genChannelId() {
 function deriveChannelName(history: HistoryEntry[], profile: string): string {
   const counts: Record<string, number> = {}
   for (const e of history) {
-    if (!e.category) continue
-    const top = e.category.split('>')[0].trim().split('/')[0].trim()
+    const top =
+      e.categoryPaths?.[0]?.super.replace(/_/g, ' ') ??
+      (e.category ? e.category.split('>')[0].trim().split('/')[0].trim() : '')
     if (top) counts[top] = (counts[top] ?? 0) + 1
   }
   const top = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 2).map(([g]) => g)
@@ -1152,6 +1154,7 @@ export default function PlayerClient({
   const timePeriodRef = useRef('')
   const popularityRef = useRef(50)
   const providerRef = useRef<LLMProvider>('deepseek')
+  const categoryTreeRef = useRef<CategoryTree | null>(null)
   const sourceRef = useRef<PlaybackSource>(DEFAULT_PLAYBACK_SOURCE)
   const sliderRef = useRef(0)
   const durationRef = useRef(0)
@@ -1243,6 +1246,19 @@ export default function PlayerClient({
       artistTextRef.current
     )
   }, [])
+
+  const captureCategoryTree = useCallback((data: { categoryTree?: unknown }) => {
+    if (data.categoryTree) {
+      const tree = normalizeCategoryTree(data.categoryTree)
+      if (tree) categoryTreeRef.current = tree
+    }
+  }, [])
+
+  const llmTreePayload = useCallback((): { categoryTree?: CategoryTree } => {
+    if (buildDjNotes().trim() || readSettingsGlobalNotes().trim()) return {}
+    if (categoryTreeRef.current) return { categoryTree: categoryTreeRef.current }
+    return {}
+  }, [buildDjNotes])
 
   const recomputeAlbumArtPan = useCallback(() => {
     const el = albumPanelRef.current
@@ -1872,12 +1888,13 @@ export default function PlayerClient({
       const listenFrac = durationRef.current > 0
         ? Math.min(1, Math.max(0, sliderRef.current) / durationRef.current)
         : undefined
-      const event: ListenEvent = { track: cur.track.name, artist: cur.track.artist, stars, coords: cur.coords }
+      const event: ListenEvent = { track: cur.track.name, artist: cur.track.artist, stars, coords: cur.coords, categoryPaths: cur.categoryPaths }
       const historyEntry: HistoryEntry = {
         ...event,
         albumArt: cur.track.albumArt,
         uri: cur.track.uri ?? null,
         category: cur.category,
+        categoryPaths: cur.categoryPaths,
         coords: cur.coords,
         source: cur.track.source as PlaybackSource | undefined,
         listenFrac,
@@ -3074,6 +3091,7 @@ export default function PlayerClient({
       uri: currentCard.track.uri ?? null,
       source: currentCard.track.source as PlaybackSource | undefined,
       category: currentCard.category,
+      categoryPaths: currentCard.categoryPaths,
       coords: currentCard.coords,
       stars: null,
       listenFrac: 0,
@@ -3773,6 +3791,7 @@ export default function PlayerClient({
         mode: exploreModeRef.current,
         numSongs,
         profileOnly: true,
+        ...llmTreePayload(),
       }
       if (forceTextSearch) {
         payload.forceTextSearch = true
@@ -3807,11 +3826,13 @@ export default function PlayerClient({
       }
 
       const data = await res.json()
+      captureCategoryTree(data)
       const suggestions: SongSuggestion[] = (data.songs ?? []).map(
         (s: SongSuggestion) => ({
           search: s.search,
           reason: s.reason,
           category: s.category,
+          categoryPaths: s.categoryPaths,
           spotifyId: s.spotifyId,
           youtubeVideoId: s.youtubeVideoId,
           coords: s.coords,
@@ -3830,7 +3851,7 @@ export default function PlayerClient({
         : []
       return { suggestions, profile: data.profile, suggestedArtists }
     },
-    [youtubeResolveTestActive, getDjContextHistories, buildDjNotes]
+    [youtubeResolveTestActive, getDjContextHistories, buildDjNotes, llmTreePayload, captureCategoryTree]
   )
 
   /** Single Spotify/YouTube lookup when a suggestion is promoted to Up Next / now playing. */
@@ -3881,7 +3902,7 @@ export default function PlayerClient({
         setYtCreditsRemaining(data.ytCreditsRemaining)
       }
       const songs = data.songs as
-        | { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[]
+        | { track: SpotifyTrack; reason: string; category?: string; categoryPaths?: SongSuggestion['categoryPaths']; coords?: { x: number; y: number }; composed?: number; performer?: string }[]
         | undefined
       resolveStatsRef.current.attempts++
       if (!songs?.length) {
@@ -3899,6 +3920,7 @@ export default function PlayerClient({
         track: t.track,
         reason: t.reason,
         category: t.category,
+        categoryPaths: t.categoryPaths,
         coords: t.coords,
         composed: t.composed,
         performer: t.performer,
@@ -3988,6 +4010,7 @@ export default function PlayerClient({
         track,
         reason: heardRateLimitReason(sourceRef.current),
         category: entry.category,
+        categoryPaths: entry.categoryPaths,
         coords: entry.coords,
       }
       lastPlayedUriRef.current = null
@@ -4007,6 +4030,7 @@ export default function PlayerClient({
         track,
         reason: heardRateLimitReason(sourceRef.current),
         category: entry.category,
+        categoryPaths: entry.categoryPaths,
         coords: entry.coords,
       })
     }
@@ -4070,6 +4094,7 @@ export default function PlayerClient({
       // the profile-only flicker loop on Spotify logins.
       youtubeResolveTest:
         youtubeResolveTestActive && sourceRef.current === 'youtube',
+      ...llmTreePayload(),
     }
     fetch('/api/next-song', {
       method: 'POST',
@@ -4080,6 +4105,7 @@ export default function PlayerClient({
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (!data || gen !== profileGenRef.current) return
+        captureCategoryTree(data)
         if (data.profile) {
           setPriorProfile(data.profile)
           priorProfileRef.current = data.profile
@@ -4096,6 +4122,7 @@ export default function PlayerClient({
                 search: s.search,
                 reason: s.reason,
                 category: s.category,
+                categoryPaths: s.categoryPaths,
                 spotifyId: s.spotifyId,
                 youtubeVideoId: s.youtubeVideoId,
                 coords: s.coords,
@@ -4120,7 +4147,7 @@ export default function PlayerClient({
       .finally(() => {
         fetchingRef.current = false
       })
-  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer, getDjContextHistories, buildDjNotes])
+  }, [youtubeResolveTestActive, playerConfigDj, youtubeResolveTestFromServer, getDjContextHistories, buildDjNotes, llmTreePayload, captureCategoryTree])
 
   // ── Fetch from LLM → suggestion buffer (Spotify only when promoting to queue / now playing) ──
   const fetchToBuffer = useCallback(
@@ -4555,6 +4582,7 @@ export default function PlayerClient({
             track: SpotifyTrack
             reason: string
             category?: string
+            categoryPaths?: SongSuggestion['categoryPaths']
             coords?: { x: number; y: number }
             composed?: number
           }[]
@@ -4596,6 +4624,7 @@ export default function PlayerClient({
           track: t.track,
           reason: t.reason,
           category: t.category,
+          categoryPaths: t.categoryPaths,
           coords: t.coords,
           composed: t.composed,
         })
@@ -4715,6 +4744,7 @@ export default function PlayerClient({
           track: SpotifyTrack
           reason: string
           category?: string
+          categoryPaths?: SongSuggestion['categoryPaths']
           coords?: { x: number; y: number }
           composed?: number
         }[]
@@ -4753,6 +4783,7 @@ export default function PlayerClient({
         track: t.track,
         reason: t.reason,
         category: t.category,
+        categoryPaths: t.categoryPaths,
         coords: t.coords,
         composed: t.composed,
       })
@@ -4863,6 +4894,7 @@ export default function PlayerClient({
           track: SpotifyTrack
           reason: string
           category?: string
+          categoryPaths?: SongSuggestion['categoryPaths']
           coords?: { x: number; y: number }
           composed?: number
         }[]
@@ -4903,6 +4935,7 @@ export default function PlayerClient({
         track: t.track,
         reason: t.reason,
         category: t.category,
+        categoryPaths: t.categoryPaths,
         coords: t.coords,
         composed: t.composed,
       })
@@ -5278,12 +5311,14 @@ export default function PlayerClient({
       artist: cur.track.artist,
       stars,
       coords: cur.coords,
+      categoryPaths: cur.categoryPaths,
     }
     const historyEntry: HistoryEntry = {
       ...event,
       albumArt: cur.track.albumArt,
       uri: cur.track.uri ?? null,
       category: cur.category,
+      categoryPaths: cur.categoryPaths,
       coords: cur.coords,
       source: cur.track.source as PlaybackSource | undefined,
       listenFrac,
@@ -5347,8 +5382,8 @@ export default function PlayerClient({
     cardHistoryRef.current = newCardHistory
 
     // Rebuild session history from scratch; clear profile so LLM re-learns
-    const newSession = newCardHistory.map(({ track, artist, stars, coords }) => ({
-      track, artist, stars, coords,
+    const newSession = newCardHistory.map(({ track, artist, stars, coords, categoryPaths }) => ({
+      track, artist, stars, coords, categoryPaths,
     }))
     setSessionHistory(newSession)
     sessionHistoryRef.current = newSession
@@ -5368,8 +5403,8 @@ export default function PlayerClient({
     )
     setCardHistory(newCardHistory)
     cardHistoryRef.current = newCardHistory
-    sessionHistoryRef.current = newCardHistory.map(({ track, artist, stars, coords }) => ({
-      track, artist, stars, coords,
+    sessionHistoryRef.current = newCardHistory.map(({ track, artist, stars, coords, categoryPaths }) => ({
+      track, artist, stars, coords, categoryPaths,
     }))
   }, [])
 
@@ -5579,6 +5614,7 @@ export default function PlayerClient({
         track,
         reason: HEARD_PLAYBACK_REASON,
         category: entry.category,
+        categoryPaths: entry.categoryPaths,
         coords: entry.coords,
       }
       const ok = await playUri(track.uri, 'history entry')
@@ -6343,12 +6379,14 @@ export default function PlayerClient({
                 artist: removed.track.artist,
                 stars: 0.5,
                 coords: removed.coords,
+                categoryPaths: removed.categoryPaths,
               }
               const historyEntry: HistoryEntry = {
                 ...event,
                 albumArt: removed.track.albumArt,
                 uri: removed.track.uri ?? null,
                 category: removed.category,
+                categoryPaths: removed.categoryPaths,
                 coords: removed.coords,
                 source: removed.track.source as PlaybackSource | undefined,
               }

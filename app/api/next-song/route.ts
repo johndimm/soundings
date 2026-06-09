@@ -44,6 +44,15 @@ import {
   isSpotifyOffline,
   markRateLimited,
 } from '@/app/lib/spotify/status'
+import {
+  buildChannelTreeTaggingSection,
+  buildMusicTreeExplorationSection,
+  generateCategoryTree,
+  normalizeCategoryTree,
+  superKey,
+  type CategoryPath,
+  type CategoryTree,
+} from '@/app/lib/categoryTree'
 
 const DEFAULT_FORCE_TEXT_SEARCH = true
 
@@ -65,8 +74,10 @@ export async function POST(req: NextRequest) {
       numSongs?: number
       profileOnly?: boolean
       songsToResolve?: SongSuggestion[]
-      genrePrefixes?: string[]
+      categoryTree?: CategoryTree
       source?: PlaybackSource
+      /** CLI taste tests: bypass Spotify gate for profile-only LLM batches. */
+      tasteTest?: boolean
       /** Client echoes test mode (dev fallback if server env is missing in the route bundle). */
       youtubeResolveTest?: boolean
     }>,
@@ -105,7 +116,9 @@ export async function POST(req: NextRequest) {
   const skipGlobalSpotifyGate =
     hasResolveOnly ||
     (llmOnlyNoSpotify && !isSpotifyOffline()) ||
-    youtubeTestProfileOnly
+    youtubeTestProfileOnly ||
+    (llmOnlyNoSpotify && rawSource === 'youtube') ||
+    (llmOnlyNoSpotify && body.tasteTest === true)
 
   if (!skipGlobalSpotifyGate && !isSpotifyAvailable()) {
     const waitMs = isSpotifyOffline() ? getSpotifyOfflineWaitMs() : getRateLimitRemainingMs()
@@ -157,13 +170,15 @@ export async function POST(req: NextRequest) {
     mode,
     profileOnly,
     songsToResolve,
-    genrePrefixes,
+    categoryTree: bodyCategoryTree,
     source,
   } = body
   const ytResolveHints: YouTubeResolveHintOpts = {
     preferredArtists,
   }
   const combinedNotes = [notes, globalNotes].filter(Boolean).join('\n\n') || undefined
+  const llmProvider = provider ?? 'deepseek'
+  const sessionHist = sessionHistory ?? []
 
   // ── Resolve-only path: skip LLM, just look up provided songs ────────────
   if (songsToResolve && songsToResolve.length > 0) {
@@ -239,23 +254,45 @@ export async function POST(req: NextRequest) {
     })
   }
 
+  let categoryTree: CategoryTree | null =
+    bodyCategoryTree ? normalizeCategoryTree(bodyCategoryTree) : null
+
+  if (!categoryTree && !combinedNotes?.trim()) {
+    try {
+      categoryTree = await generateCategoryTree(llmProvider)
+    } catch (e) {
+      console.error('[next-song] category tree generation failed:', e)
+    }
+  }
+
+  const triedSuperKeys = [
+    ...new Set(sessionHist.flatMap((e) => (e.categoryPaths ?? []).map(superKey))),
+  ]
+
+  const batchCount = Math.max(1, Math.floor(Number(body.numSongs) || 3))
+  const treeExplorationSection = categoryTree
+    ? combinedNotes?.trim()
+      ? buildChannelTreeTaggingSection(categoryTree)
+      : buildMusicTreeExplorationSection(categoryTree, sessionHist, batchCount, triedSuperKeys)
+    : undefined
+
   let songs: SongSuggestion[]
   let profile: string | undefined
   let suggestedArtists: string[] = []
   try {
     const result = await getNextSongQuery(
-      sessionHistory ?? [],
+      sessionHist,
       provider,
       combinedNotes,
       priorProfile,
       alreadyHeard,
       mode,
-      body.numSongs
+      body.numSongs,
+      treeExplorationSection,
     )
     songs = result.songs
     profile = result.profile
     suggestedArtists = result.suggestedArtists ?? []
-    const llmProvider = provider ?? 'deepseek'
     const llmModelId = getLLMModelApiId(llmProvider)
     const idsFromLlm = songs.filter(s => normalizeSpotifyTrackId(s.spotifyId)).length
     logLlmCallWithModel({
@@ -273,9 +310,11 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  const treePayload = categoryTree ? { categoryTree } : {}
+
   // ── Profile-only path: return LLM suggestions without any track lookup ──
   if (profileOnly) {
-    return Response.json({ songs, profile, suggestedArtists })
+    return Response.json({ songs, profile, suggestedArtists, ...treePayload })
   }
 
   // ── YouTube resolve path ──────────────────────────────────────────────────
@@ -299,6 +338,7 @@ export async function POST(req: NextRequest) {
       profile,
       suggestedArtists,
       ytCreditsRemaining: getYouTubeCreditsRemaining(),
+      ...treePayload,
     })
   }
 
@@ -341,10 +381,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'no_tracks_found' }, { status: 404 })
   }
 
-  return Response.json({ songs: foundSongs, profile, suggestedArtists })
+  return Response.json({ songs: foundSongs, profile, suggestedArtists, ...treePayload })
 }
 
-type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }
+type YTFoundSong = { track: import('@/app/lib/youtube').YouTubeTrack; reason: string; category?: string; categoryPaths?: CategoryPath[]; coords?: { x: number; y: number }; composed?: number; performer?: string }
 
 async function resolveYouTubeSongs(
   songs: SongSuggestion[],
@@ -359,6 +399,7 @@ async function resolveYouTubeSongs(
         track,
         reason: song.reason,
         category: song.category,
+        categoryPaths: song.categoryPaths,
         coords: song.coords,
         composed: song.composed,
         performer: song.performer,
@@ -377,6 +418,7 @@ async function resolveYouTubeSongs(
         track: res.track,
         reason: song.reason,
         category: song.category,
+        categoryPaths: song.categoryPaths,
         coords: song.coords,
         composed: song.composed,
         performer: song.performer,
@@ -397,7 +439,7 @@ function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-type FoundSong = { track: SpotifyTrack; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }
+type FoundSong = { track: SpotifyTrack; reason: string; category?: string; categoryPaths?: CategoryPath[]; coords?: { x: number; y: number }; composed?: number; performer?: string }
 
 function buildTrackKey(track: SpotifyTrack) {
   return `${track.name.toLowerCase()}|${track.artist.toLowerCase()}`
@@ -411,7 +453,7 @@ function trackIsDuplicate(track: SpotifyTrack, seen: Set<string>, produced: Set<
 }
 
 async function resolveSongs(
-  songs: { search: string; reason: string; spotifyId?: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
+  songs: { search: string; reason: string; spotifyId?: string; category?: string; categoryPaths?: CategoryPath[]; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
   accessToken: string,
   forceTextSearch = DEFAULT_FORCE_TEXT_SEARCH,
   sessionHistory: ListenEvent[],
@@ -446,6 +488,7 @@ async function resolveSongs(
 
   const idToReason = new Map<string, string>()
   const idToCategory = new Map<string, string>()
+  const idToCategoryPaths = new Map<string, CategoryPath[]>()
   const idToCoords = new Map<string, { x: number; y: number }>()
   const idToComposed = new Map<string, number>()
   const idToPerformer = new Map<string, string>()
@@ -457,6 +500,7 @@ async function resolveSongs(
     if (!idToReason.has(id)) {
       idToReason.set(id, song.reason)
       if (song.category) idToCategory.set(id, song.category)
+      if (song.categoryPaths?.length) idToCategoryPaths.set(id, song.categoryPaths)
       if (song.coords) idToCoords.set(id, song.coords)
       if (song.composed) idToComposed.set(id, song.composed)
       if (song.performer) idToPerformer.set(id, song.performer)
@@ -517,10 +561,11 @@ async function resolveSongs(
           if (skipTrack(track)) return
           const reason = idToReason.get(track.id) ?? 'Spotify batch match'
           const category = idToCategory.get(track.id)
+          const categoryPaths = idToCategoryPaths.get(track.id)
           const coords = idToCoords.get(track.id)
           const composed = idToComposed.get(track.id)
           const performer = idToPerformer.get(track.id)
-          results.push({ track, reason, category, coords, composed, performer })
+          results.push({ track, reason, category, categoryPaths, coords, composed, performer })
           const song = songs.find(s => normalizeSpotifyTrackId(s.spotifyId) === track.id)
           if (song) resolvedSearches.push(song.search)
         })
@@ -587,7 +632,7 @@ async function resolveSongs(
 }
 
 async function searchSongsSequential(
-  songs: { search: string; reason: string; category?: string; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
+  songs: { search: string; reason: string; category?: string; categoryPaths?: CategoryPath[]; coords?: { x: number; y: number }; composed?: number; performer?: string }[],
   accessToken: string,
   seenHistory: Set<string>,
   produced: Set<string>
@@ -621,7 +666,7 @@ async function searchSongsSequential(
         console.info('[next-song] skip duplicate (history)', song.search.slice(0, 60))
         continue
       }
-      results.push({ track: response.track, reason: song.reason, category: song.category, coords: song.coords, composed: song.composed, performer: song.performer })
+      results.push({ track: response.track, reason: song.reason, category: song.category, categoryPaths: song.categoryPaths, coords: song.coords, composed: song.composed, performer: song.performer })
       resolvedSearches.push(song.search)
     }
 

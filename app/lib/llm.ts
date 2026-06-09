@@ -1,5 +1,12 @@
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
+import {
+  parseCategoryPathsFromRaw,
+  pathsToCategoryLabel,
+  type CategoryPath,
+} from '@/app/lib/categoryTree'
+
+export type { CategoryPath }
 
 export interface ListenEvent {
   track: string
@@ -7,12 +14,14 @@ export interface ListenEvent {
   /** 0–5 in 0.5 increments. Null only for legacy imports or interrupted writes (player now always records a score). */
   stars: number | null
   coords?: { x: number; y: number; z?: number }
+  categoryPaths?: CategoryPath[]
 }
 
 export interface SongSuggestion {
   search: string
   reason: string
   category?: string
+  categoryPaths?: CategoryPath[]
   spotifyId?: string
   /** When set, YouTube resolve skips search.list (saves Data API quota). Parsed from LLM youtube_url / youtube_video_id. */
   youtubeVideoId?: string
@@ -107,7 +116,9 @@ DATE INTEGRITY — strictly enforced:
 Also include "suggested_artists": an array of 8–12 DISTINCT real recording-artist or band names that fit the user's constraints and the taste profile — these power UI quick-pick buttons (exploration anchors). Use canonical names only. They need not appear in the 3 song rows; vary styles. If you cannot name enough confidently, include fewer (minimum 4 when possible) or an empty array.
 
 Respond with ONLY a JSON object:
-{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"broad label > narrower label","composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — grounded in ratings and coordinates you have actually observed. Keep it under 60 words.","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
+{"songs":[{"search":"track name artist name","reason":"one sentence: why this song fits the taste and space position (do NOT include Slot labels like 'Slot 1:')","category":"super label > leaf label","category_paths":[{"dimension":"region","super":"anglo_american","leaf":"classic rock"}],"composed":1791,"coords":{"x":42,"y":28,"z":35}},{"search":"...","reason":"...","category":"...","category_paths":[{"dimension":"region","super":"...","leaf":"..."}],"coords":{"x":85,"y":72,"z":80}},{"search":"...","reason":"...","category":"...","category_paths":[{"dimension":"genre","super":"...","leaf":"..."}],"coords":{"x":18,"y":55,"z":20}}],"profile":"2-3 natural sentences addressed directly to the listener (use 'you'/'your') describing their emerging taste — grounded in ratings and coordinates you have actually observed. Keep it under 60 words.","suggested_artists":["Artist One","Artist Two","Artist Three","Artist Four","Artist Five","Artist Six","Artist Seven","Artist Eight"]}
+
+When a SESSION CATEGORY TREE is provided in the user message, tag every song with category_paths from that tree (required). The "category" field echoes super > leaf for display.
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
 YOUTUBE (youtube_url or youtube_video_id) — optional; use only when you are certain:
@@ -158,7 +169,8 @@ export function buildUserPrompt(
   notes?: string,
   alreadyHeard?: string[],
   mode: ExploreMode = 50,
-  numSongs = 3
+  numSongs = 3,
+  treeExplorationSection?: string,
 ): string {
   let prompt = ''
 
@@ -170,7 +182,6 @@ export function buildUserPrompt(
     prompt += `DO NOT suggest any of these songs (already heard or queued):\n${alreadyHeard.map(s => `- ${s}`).join('\n')}\n\n`
   }
 
-
   if (priorProfile) {
     prompt += `Taste profile so far:\n${priorProfile}\n\n`
   }
@@ -179,16 +190,29 @@ export function buildUserPrompt(
     prompt += `Provide exactly ${numSongs} song suggestions this turn.\n\n`
   }
 
+  if (treeExplorationSection) {
+    prompt += `${treeExplorationSection}\n\n`
+  }
+
   if (sessionHistory.length === 0 && !priorProfile) {
-    prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the coordinate space. You choose which musical areas to explore. Match any user constraints above.`
+    if (notes?.trim()) {
+      prompt += `FIRST TURN — all ${numSongs} songs must fit the user constraints. Pick well-known, on-target exemplars (not adjacent genres). Tag category_paths from the tree when provided.\n`
+    } else if (treeExplorationSection) {
+      prompt += `FIRST TURN — follow the 20Q category tree instructions above. Still assign coords for the map.\n`
+    } else {
+      prompt += `FIRST TURN — no history yet. Apply the first-turn rule: ${numSongs} songs from maximally distant parts of the coordinate space. You choose which musical areas to explore.\n`
+    }
     return prompt
   }
 
   if (sessionHistory.length > 0) {
     const lines = sessionHistory.map(e => {
       const pos = e.coords ? ` @ (${Math.round(e.coords.x)}, ${Math.round(e.coords.y)})` : ''
+      const paths = e.categoryPaths?.length
+        ? ` {${e.categoryPaths.map(p => `${p.dimension}/${p.super}${p.leaf ? `/${p.leaf}` : ''}`).join(', ')}}`
+        : ''
       const rating = e.stars !== null && e.stars !== undefined ? `★${e.stars}` : '(skipped)'
-      return `- "${e.track}" by ${e.artist}: ${rating}${pos}`
+      return `- "${e.track}" by ${e.artist}: ${rating}${paths}${pos}`
     }).join('\n')
     prompt += `Ratings this session:\n${lines}\n\n`
   }
@@ -196,7 +220,15 @@ export function buildUserPrompt(
   const hasLikes = sessionHistory.some(e => (e.stars ?? 0) >= 3.5) ||
     (priorProfile ? /LIKED:\s*(?!\[none|\[no confirmed|\[nothing)/i.test(priorProfile) : false)
 
-  prompt += slotInstructions(mode, hasLikes, numSongs)
+  if (notes?.trim()) {
+    prompt += `CHANNEL LOCK: All ${numSongs} songs MUST satisfy the user constraints above. Stay within the requested style, era, and region — vary artists and specific tracks, not the genre. Do not use wild-card slots to leave the channel.\n`
+  } else if (!treeExplorationSection) {
+    prompt += slotInstructions(mode, hasLikes, numSongs)
+  } else if (hasLikes) {
+    prompt += `Apply slot rules where compatible with the 20Q tree instructions above — Slot 1 near liked super-categories, Slot 2 from fresh supers, Slot 3 a wild card within the tree.\n`
+  } else {
+    prompt += `Continue 20Q exploration per the tree instructions above.\n`
+  }
 
   if (notes?.trim()) {
     prompt += `\n\nREMINDER — all songs must satisfy: ${notes.trim()}. Do not hallucinate dates or genres to fit this constraint; omit a slot instead.`
@@ -211,7 +243,8 @@ async function askAnthropic(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  treeExplorationSection?: string,
 ): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -224,7 +257,7 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) }],
+      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -238,7 +271,8 @@ async function askOpenAI(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  treeExplorationSection?: string,
 ): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -251,7 +285,7 @@ async function askOpenAI(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) },
       ],
     }),
   })
@@ -266,7 +300,8 @@ async function askDeepSeek(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  treeExplorationSection?: string,
 ): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -279,7 +314,7 @@ async function askDeepSeek(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) },
+        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) },
       ],
     }),
   })
@@ -294,7 +329,8 @@ async function askGemini(
   notes?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  treeExplorationSection?: string,
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
@@ -304,7 +340,7 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs) }] }],
+        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) }] }],
         generationConfig: { maxOutputTokens: 2048 },
       }),
     }
@@ -326,14 +362,15 @@ export async function getNextSongQuery(
   priorProfile?: string,
   alreadyHeard?: string[],
   mode?: ExploreMode,
-  numSongs?: number
+  numSongs?: number,
+  treeExplorationSection?: string,
 ): Promise<{ songs: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> {
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
-      default: return askAnthropic(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
+      default: return askAnthropic(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
     }
   }
 
@@ -501,16 +538,24 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         const c = s as Record<string, unknown>
         return Boolean(s && typeof s === 'object' && typeof c.search === 'string' && typeof c.reason === 'string')
       })
-      .map((s: LLMRow) => ({
+      .map((s: LLMRow) => {
+        const row = s as unknown as Record<string, unknown>
+        const categoryPaths = parseCategoryPathsFromRaw(row.category_paths)
+        const category =
+          typeof s.category === 'string' && s.category.trim()
+            ? s.category
+            : pathsToCategoryLabel(categoryPaths)
+        return {
         search: s.search,
         reason: s.reason.replace(/^Slot\s*\d+\s*[—–-]\s*/i, '').replace(/^Slot\s*\d+:\s*/i, ''),
-        category: typeof s.category === 'string' ? s.category : undefined,
-        spotifyId: normalizeSpotifyTrackId(rawSpotifyIdFromRow(s as unknown as Record<string, unknown>)),
+        category,
+        categoryPaths: categoryPaths.length ? categoryPaths : undefined,
+        spotifyId: normalizeSpotifyTrackId(rawSpotifyIdFromRow(row)),
         youtubeVideoId: rawYoutubeVideoIdFromRow(s as unknown as Record<string, unknown>),
         coords: parseCoords(s.coords),
         composed: typeof s.composed === 'number' && Number.isFinite(s.composed) ? s.composed : undefined,
         performer: typeof s.performer === 'string' && s.performer.trim() ? s.performer.trim() : undefined,
-      }))
+      }})
       .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
     const chosen = songs.slice(0, 10)  // allow up to 10; caller requested numSongs
     const suggestedArtists = parseSuggestedArtistsRaw(

@@ -98,6 +98,7 @@ export interface CardState {
   track: Track
   reason: string
   category?: string
+  categoryPaths?: Array<{ dimension: string; super: string; leaf?: string | null }>
   coords?: { x: number; y: number }
   composed?: number
   performer?: string
