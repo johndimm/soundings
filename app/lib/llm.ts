@@ -1,6 +1,7 @@
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
 import {
+  deprioritizedSupersFromHistory,
   parseCategoryPathsFromRaw,
   pathsToCategoryLabel,
   type CategoryPath,
@@ -62,6 +63,8 @@ export function getLLMModelApiId(provider: LLMProvider): string {
 
 const SYSTEM_PROMPT = `You are a DJ navigating a listener's taste across a high-dimensional music space.
 
+Each user message includes SONG UNIQUENESS RULES and a compact HEARD SESSION (heardSkip count + recent window) — obey them every turn.
+
 THE 3D MAP (for display — project your full musical knowledge onto these axes):
   X-axis: 0 = purely acoustic/live/traditional instruments → 100 = fully electronic/synthesized
   Y-axis: 0 = calm/sparse/minimal/introspective → 100 = intense/energetic/dense/driving
@@ -92,6 +95,11 @@ THE 3-SLOT RULE — every batch of 3 must serve distinct purposes:
 - Slot 1 — NEARBY: If there are likes (★3.5+), pick something musically adjacent to a liked song (similar instruments, era, energy, or mood). If no likes yet, pick from an UNTRIED super-category — never deepen the most-visited or low-rated area.
 - Slot 2 — FAR: Pick from a region of the space that has NOT been visited yet. Maximize musical distance from everything heard. This is mandatory.
 - Slot 3 — WILD CARD: Genuine surprise *within the active constraints*. Be unexpected in style, mood, or obscurity — but all constraints (genre, era, region, etc.) still apply. "Wild card" means surprising to the listener, not a licence to ignore what they asked for.
+
+ARTIST DIVERSITY (canvassing the musical landscape):
+- Every batch: all songs must be by DIFFERENT artists.
+- Do not suggest an artist already heard 2+ times this session unless that artist has a ★4+ track.
+- Repeating the same act across batches (e.g. four Kraftwerk songs in a row) is a rut — open a new dimension, super-category, or region instead.
 
 FIRST TURN (no history): Pick 3 songs from maximally distant parts of the coordinate space — spread x, y, and z widely across the batch. You choose which musical areas to explore; the app does not prescribe genres or traditions.
 
@@ -146,7 +154,7 @@ export type ExploreMode = number
 function slotInstructions(mode: ExploreMode, hasLikes: boolean, numSongs: number): string {
   const extra = numSongs > 3 ? ` For songs beyond the first 3, continue the same distribution pattern — vary positions across the space.` : ''
   if (!hasLikes) {
-    return `No confirmed likes yet (nothing ★3.5+). All ${numSongs} slots must explore different UNTRIED super-categories — maximize musical distance. Never cluster in an area that already got low ratings (★≤2.5).`
+    return `No confirmed likes yet (nothing ★3.5+). All ${numSongs} slots must explore different UNTRIED super-categories — maximize musical distance. All ${numSongs} songs must be by different artists. Never cluster in an area that already got low ratings (★≤2.5) or repeat an artist heard 2+ times without ★4+.`
   }
   if (mode <= 20) {
     return `FAMILIAR MODE: All ${numSongs} slots should be near liked positions (within ~15 coordinate units). Deepen what already works — different songs but same musical neighborhood.`
@@ -163,6 +171,155 @@ function slotInstructions(mode: ExploreMode, hasLikes: boolean, numSongs: number
   return `ADVENTURE MODE: All ${numSongs} slots in maximally unexplored territory (≥40 units from everything heard). Ignore proximity to liked songs entirely.`
 }
 
+/** Recent tracks listed explicitly; older session picks are covered by heardSkip only. */
+export const HEARD_RECENT_WINDOW = 12
+/** Ratings block shows the tail; older rows omitted to save tokens. */
+export const RATINGS_RECENT_WINDOW = 15
+
+/** One played or queued recording — used to forbid repeats in the LLM prompt. */
+export interface HeardRecording {
+  track: string
+  artist: string
+  /** Queued or now-playing — not yet in ratings. */
+  pending?: boolean
+}
+
+/** Canonical "search" shape the LLM should use: "track title" + space + artist. */
+export function canonicalSongSearch(track: string, artist: string): string {
+  return `${track.trim()} ${artist.trim()}`
+}
+
+export function mergeHeardRecordings(recordings: HeardRecording[]): HeardRecording[] {
+  const map = new Map<string, HeardRecording>()
+  for (const r of recordings) {
+    const track = r.track.trim()
+    const artist = r.artist.trim()
+    if (!track || !artist) continue
+    const key = `${track.toLowerCase()}|${artist.toLowerCase()}`
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, { track, artist, pending: r.pending })
+    } else if (r.pending) {
+      existing.pending = true
+    }
+  }
+  return [...map.values()]
+}
+
+/** Anti-duplicate rules for the user prompt — paired with heardSkip pagination each turn. */
+export function buildNoDuplicateRulesSection(
+  numSongs: number,
+  heardSkip: number,
+  hasPending: boolean,
+): string {
+  if (heardSkip === 0 && !hasPending) {
+    return (
+      `SONG UNIQUENESS RULES (this batch):\n` +
+      `- All ${numSongs} songs must be different recordings by different artists.\n` +
+      `- No two rows in your JSON may share the same track title + artist.\n\n`
+    )
+  }
+
+  const lines = [
+    `SONG UNIQUENESS RULES — mandatory this turn:`,
+    `1. HEARD SESSION uses pagination: heardSkip=${heardSkip} — treat chronological positions 1–${heardSkip} as forbidden (like skipping ${heardSkip} results).`,
+    `2. Every "search" must name a recording NOT in those ${heardSkip} heard positions — including older tracks omitted from the list to save tokens.`,
+    `3. Duplicate test: same track title + same artist = forbidden — even if wording differs ("Title by Artist" vs "Title Artist"), or if it is a remaster, live take, or alternate mix of the same work.`,
+    `4. All ${numSongs} songs this batch must be different recordings from each other AND from every heard/queued track.`,
+    `5. A song played earlier this session stays forbidden for the entire session. Five (or fifty) songs later does not clear it.`,
+  ]
+  if (hasPending) {
+    lines.push(`6. PENDING DJ ROWS below are equally forbidden — do not repeat them.`)
+  }
+  lines.push(
+    `${hasPending ? '7' : '6'}. Before returning JSON, cross-check each "search" against heardSkip and the lists below. If you cannot find ${numSongs} genuinely new recordings, return fewer songs — never recycle a heard track.`,
+    '',
+  )
+  return lines.join('\n') + '\n'
+}
+
+export function buildHeardRecordingsPromptSection(
+  heardSkip: number,
+  recentRecordings: HeardRecording[],
+  pendingSearches: string[] | undefined,
+  numSongs: number,
+): string {
+  const pending = [...new Set((pendingSearches ?? []).map((s) => s.trim()).filter(Boolean))]
+  const rules = buildNoDuplicateRulesSection(numSongs, heardSkip, pending.length > 0)
+
+  if (heardSkip === 0 && !pending.length) {
+    return rules
+  }
+
+  let out = rules
+
+  if (heardSkip > 0) {
+    const olderOmitted = Math.max(0, heardSkip - recentRecordings.length)
+    out +=
+      `HEARD SESSION (pagination): ${heardSkip} unique recordings heard chronologically. heardSkip=${heardSkip} — do NOT suggest positions 1–${heardSkip}.\n`
+    if (olderOmitted > 0) {
+      out += `(${olderOmitted} older tracks omitted from list — still forbidden via heardSkip.)\n`
+    }
+    if (recentRecordings.length) {
+      out += `RECENT HEARD (last ${recentRecordings.length} — explicit forbidden searches):\n`
+      for (const r of recentRecordings) {
+        const tag = r.pending ? ' [queued/now playing]' : ''
+        out += `- "${r.track}" by ${r.artist}${tag} → forbidden search: "${canonicalSongSearch(r.track, r.artist)}"\n`
+      }
+    }
+    out += '\n'
+  }
+
+  if (pending.length) {
+    out +=
+      `PENDING DJ ROWS — also forbidden (queued, not yet played):\n` +
+      `${pending.map((s) => `- ${s}`).join('\n')}\n\n`
+  }
+
+  return out
+}
+
+/** Recent artists + saturated acts — keeps the DJ from clustering one neighborhood. */
+export function buildSessionDiversitySection(
+  sessionHistory: ListenEvent[],
+  numSongs: number,
+): string {
+  if (!sessionHistory.length) return ''
+
+  const artistStats = new Map<string, { count: number; display: string; bestStars: number }>()
+  for (const e of sessionHistory) {
+    const key = e.artist.trim().toLowerCase()
+    if (!key) continue
+    const cur = artistStats.get(key) ?? { count: 0, display: e.artist, bestStars: 0 }
+    cur.count++
+    if (e.stars != null && e.stars > 0) {
+      cur.bestStars = Math.max(cur.bestStars, e.stars)
+    }
+    artistStats.set(key, cur)
+  }
+
+  const saturatedArtists = [...artistStats.values()]
+    .filter((a) => a.count >= 2 && a.bestStars < 4)
+    .sort((a, b) => b.count - a.count)
+
+  let out =
+    `CANVAS DIVERSITY — map the musical landscape; do not drill one artist or neighborhood:\n` +
+    `- All ${numSongs} songs this batch MUST be by different artists.\n` +
+    `- Do not repeat an artist heard 2+ times unless they earned ★4+.\n` +
+    `- Recent heard tracks are listed under HEARD SESSION above; maximize distance from heardSkip.\n\n`
+
+  if (saturatedArtists.length) {
+    out += 'ARTIST SATURATION (avoid these acts this batch):\n'
+    for (const a of saturatedArtists) {
+      const best = a.bestStars > 0 ? `★${a.bestStars}` : 'unrated/skipped'
+      out += `- ${a.display} (${a.count}× heard, best ${best})\n`
+    }
+    out += '\n'
+  }
+
+  return out
+}
+
 export function buildUserPrompt(
   sessionHistory: ListenEvent[],
   priorProfile?: string,
@@ -171,6 +328,10 @@ export function buildUserPrompt(
   mode: ExploreMode = 50,
   numSongs = 3,
   treeExplorationSection?: string,
+  heardRecordings?: HeardRecording[],
+  pendingSearches?: string[],
+  heardSkip?: number,
+  heardRecent?: HeardRecording[],
 ): string {
   let prompt = ''
 
@@ -178,8 +339,33 @@ export function buildUserPrompt(
     prompt += `USER CONSTRAINTS (must be followed for every song): ${notes.trim()}\n\n`
   }
 
-  if (alreadyHeard && alreadyHeard.length > 0) {
-    prompt += `DO NOT suggest any of these songs (already heard or queued):\n${alreadyHeard.map(s => `- ${s}`).join('\n')}\n\n`
+  const mergedHeard = heardRecordings?.length
+    ? mergeHeardRecordings(heardRecordings)
+    : mergeHeardRecordings(
+        sessionHistory.map((e) => ({ track: e.track, artist: e.artist })),
+      )
+  const skip = heardSkip ?? mergedHeard.length
+  const recentHeard = heardRecent?.length
+    ? mergeHeardRecordings(heardRecent)
+    : mergedHeard.slice(-HEARD_RECENT_WINDOW)
+  const pending = [...new Set((pendingSearches ?? []).map((s) => s.trim()).filter(Boolean))]
+
+  // Anti-duplicate rules + heardSkip pagination live in the user prompt (not app-side filtering).
+  prompt += buildHeardRecordingsPromptSection(skip, recentHeard, pendingSearches, numSongs)
+
+  if (
+    alreadyHeard &&
+    alreadyHeard.length > 0 &&
+    skip === 0 &&
+    pending.length === 0
+  ) {
+    prompt +=
+      `LEGACY HEARD LIST (also forbidden):\n` +
+      `${alreadyHeard.map((s) => `- ${s}`).join('\n')}\n\n`
+  }
+
+  if (sessionHistory.length > 0) {
+    prompt += buildSessionDiversitySection(sessionHistory, numSongs)
   }
 
   if (priorProfile) {
@@ -206,7 +392,10 @@ export function buildUserPrompt(
   }
 
   if (sessionHistory.length > 0) {
-    const lines = sessionHistory.map(e => {
+    const total = sessionHistory.length
+    const shown = sessionHistory.slice(-RATINGS_RECENT_WINDOW)
+    const omitted = Math.max(0, total - shown.length)
+    const lines = shown.map(e => {
       const pos = e.coords ? ` @ (${Math.round(e.coords.x)}, ${Math.round(e.coords.y)})` : ''
       const paths = e.categoryPaths?.length
         ? ` {${e.categoryPaths.map(p => `${p.dimension}/${p.super}${p.leaf ? `/${p.leaf}` : ''}`).join(', ')}}`
@@ -214,7 +403,13 @@ export function buildUserPrompt(
       const rating = e.stars !== null && e.stars !== undefined ? `★${e.stars}` : '(skipped)'
       return `- "${e.track}" by ${e.artist}: ${rating}${paths}${pos}`
     }).join('\n')
-    prompt += `Ratings this session:\n${lines}\n\n`
+    prompt += `Ratings this session (${total} total; heardSkip=${skip}; showing last ${shown.length}`
+    if (omitted > 0) prompt += `; ${omitted} oldest omitted to save tokens`
+    prompt += `):\n${lines}\n`
+    if (omitted > 0) {
+      prompt += `(${omitted} older ratings omitted — those tracks remain forbidden via heardSkip=${skip}.)\n`
+    }
+    prompt += '\n'
   }
 
   const hasLikes = sessionHistory.some(e => (e.stars ?? 0) >= 3.5) ||
@@ -227,22 +422,13 @@ export function buildUserPrompt(
   } else if (hasLikes) {
     prompt += `Apply slot rules where compatible with the 20Q tree instructions above — Slot 1 near liked super-categories, Slot 2 from fresh supers, Slot 3 a wild card within the tree.\n`
   } else {
-    const lowRatedSupers = new Map<string, number[]>()
-    for (const e of sessionHistory) {
-      const stars = e.stars ?? 0
-      if (stars <= 0 || stars > 2.5) continue
-      for (const p of e.categoryPaths ?? []) {
-        const k = `${p.dimension}/${p.super}`
-        if (!lowRatedSupers.has(k)) lowRatedSupers.set(k, [])
-        lowRatedSupers.get(k)!.push(stars)
-      }
-    }
-    const exhausted = [...lowRatedSupers.entries()]
-      .filter(([, rs]) => rs.length >= 2)
-      .map(([k]) => k)
+    const { disliked, saturated, all } = deprioritizedSupersFromHistory(sessionHistory)
     prompt += `NO CONFIRMED LIKES (★3.5+): Do not infer taste from low-rated rows. ★3 is neutral, not a like. Each batch must open NEW tree supers — never stack 2+ picks in the same super-category until the listener rates ★3.5+.\n`
-    if (exhausted.length) {
-      prompt += `Exhausted low-rated areas (avoid clustering): ${exhausted.join(', ')}.\n`
+    if (all.length) {
+      const parts: string[] = []
+      if (disliked.length) parts.push(`disliked: ${disliked.join(', ')}`)
+      if (saturated.length) parts.push(`saturated (2+ visits, no ★3.5+): ${saturated.join(', ')}`)
+      prompt += `Deprioritize these supers: ${parts.join('; ')}.\n`
     }
     prompt += `Continue 20Q exploration per the tree instructions above — prioritize dimensions and supers NOT yet tried.\n`
   }
@@ -251,7 +437,21 @@ export function buildUserPrompt(
     prompt += `\n\nREMINDER — all songs must satisfy: ${notes.trim()}. Do not hallucinate dates or genres to fit this constraint; omit a slot instead.`
   }
 
+  if (skip > 0 || pending.length > 0) {
+    prompt +=
+      `\nFINAL CHECK (SONG UNIQUENESS RULES): Re-read every "search" in your JSON — heardSkip=${skip}` +
+      `${pending.length ? '; also check PENDING DJ ROWS' : ''}. ` +
+      `Zero duplicates. Return fewer songs rather than repeat.\n`
+  }
+
   return prompt
+}
+
+type LlmPromptContext = {
+  heardRecordings?: HeardRecording[]
+  heardSkip?: number
+  heardRecent?: HeardRecording[]
+  pendingSearches?: string[]
 }
 
 async function askAnthropic(
@@ -262,6 +462,7 @@ async function askAnthropic(
   mode?: ExploreMode,
   numSongs?: number,
   treeExplorationSection?: string,
+  promptContext?: LlmPromptContext,
 ): Promise<string> {
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -274,7 +475,22 @@ async function askAnthropic(
       model: 'claude-opus-4-6',
       max_tokens: 2048,
       system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) }],
+      messages: [{
+        role: 'user',
+        content: buildUserPrompt(
+          sessionHistory,
+          priorProfile,
+          notes,
+          alreadyHeard,
+          mode,
+          numSongs,
+          treeExplorationSection,
+          promptContext?.heardRecordings,
+          promptContext?.pendingSearches,
+          promptContext?.heardSkip,
+          promptContext?.heardRecent,
+        ),
+      }],
     }),
   })
   if (!res.ok) throw new Error(`Anthropic responded with ${res.status}`)
@@ -290,6 +506,7 @@ async function askOpenAI(
   mode?: ExploreMode,
   numSongs?: number,
   treeExplorationSection?: string,
+  promptContext?: LlmPromptContext,
 ): Promise<string> {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -302,7 +519,22 @@ async function askOpenAI(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) },
+        {
+          role: 'user',
+          content: buildUserPrompt(
+            sessionHistory,
+            priorProfile,
+            notes,
+            alreadyHeard,
+            mode,
+            numSongs,
+            treeExplorationSection,
+            promptContext?.heardRecordings,
+            promptContext?.pendingSearches,
+            promptContext?.heardSkip,
+            promptContext?.heardRecent,
+          ),
+        },
       ],
     }),
   })
@@ -319,6 +551,7 @@ async function askDeepSeek(
   mode?: ExploreMode,
   numSongs?: number,
   treeExplorationSection?: string,
+  promptContext?: LlmPromptContext,
 ): Promise<string> {
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
@@ -331,7 +564,22 @@ async function askDeepSeek(
       max_tokens: 2048,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) },
+        {
+          role: 'user',
+          content: buildUserPrompt(
+            sessionHistory,
+            priorProfile,
+            notes,
+            alreadyHeard,
+            mode,
+            numSongs,
+            treeExplorationSection,
+            promptContext?.heardRecordings,
+            promptContext?.pendingSearches,
+            promptContext?.heardSkip,
+            promptContext?.heardRecent,
+          ),
+        },
       ],
     }),
   })
@@ -348,6 +596,7 @@ async function askGemini(
   mode?: ExploreMode,
   numSongs?: number,
   treeExplorationSection?: string,
+  promptContext?: LlmPromptContext,
 ): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY
   const res = await fetch(
@@ -357,7 +606,23 @@ async function askGemini(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: buildUserPrompt(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection) }] }],
+        contents: [{
+          parts: [{
+            text: buildUserPrompt(
+              sessionHistory,
+              priorProfile,
+              notes,
+              alreadyHeard,
+              mode,
+              numSongs,
+              treeExplorationSection,
+              promptContext?.heardRecordings,
+              promptContext?.pendingSearches,
+              promptContext?.heardSkip,
+              promptContext?.heardRecent,
+            ),
+          }],
+        }],
         generationConfig: { maxOutputTokens: 2048 },
       }),
     }
@@ -381,13 +646,23 @@ export async function getNextSongQuery(
   mode?: ExploreMode,
   numSongs?: number,
   treeExplorationSection?: string,
+  heardRecordings?: HeardRecording[],
+  pendingSearches?: string[],
+  heardSkip?: number,
+  heardRecent?: HeardRecording[],
 ): Promise<{ songs: SongSuggestion[]; profile?: string; suggestedArtists: string[] }> {
+  const promptContext: LlmPromptContext = {
+    heardRecordings,
+    heardSkip,
+    heardRecent,
+    pendingSearches,
+  }
   const ask = () => {
     switch (provider) {
-      case 'openai': return askOpenAI(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
-      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
-      case 'gemini': return askGemini(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
-      default: return askAnthropic(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection)
+      case 'openai': return askOpenAI(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection, promptContext)
+      case 'deepseek': return askDeepSeek(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection, promptContext)
+      case 'gemini': return askGemini(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection, promptContext)
+      default: return askAnthropic(sessionHistory, priorProfile, notes, alreadyHeard, mode, numSongs, treeExplorationSection, promptContext)
     }
   }
 

@@ -5,7 +5,14 @@ import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { SpotifyTrack } from '@/app/lib/spotify'
 import { parseShareId } from '@/app/lib/shareId'
-import { ListenEvent, LLMProvider, SongSuggestion } from '@/app/lib/llm'
+import {
+  HEARD_RECENT_WINDOW,
+  ListenEvent,
+  LLMProvider,
+  SongSuggestion,
+  mergeHeardRecordings,
+  type HeardRecording,
+} from '@/app/lib/llm'
 import { normalizeCategoryTree, type CategoryTree } from '@/app/lib/categoryTree'
 import SessionPanel, { HistoryEntry } from './SessionPanel'
 import { writeNowPlayingSnapshot } from '@/app/lib/nowPlayingBridge'
@@ -3773,21 +3780,30 @@ export default function PlayerClient({
         }
       }
       const cur = currentCardRef.current
-      const djCardHistory = getDjContextHistories().cardHistory
-      const alreadyHeard = [
-        ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
-        ...djCardHistory.map(e => `${e.track} by ${e.artist}`),
-        ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
-        ...suggestionBufferRef.current.map(s => s.search),
-      ]
-      const alreadyHeardDeduped = [...new Set(alreadyHeard.map(s => s.trim()).filter(Boolean))]
+      const djContext = getDjContextHistories()
+      const heardRecordings: HeardRecording[] = mergeHeardRecordings([
+        ...djContext.cardHistory.map((e) => ({ track: e.track, artist: e.artist })),
+        ...sessionHist.map((e) => ({ track: e.track, artist: e.artist })),
+        ...(cur ? [{ track: cur.track.name, artist: cur.track.artist, pending: true }] : []),
+        ...queueRef.current.map((c) => ({
+          track: c.track.name,
+          artist: c.track.artist,
+          pending: true,
+        })),
+      ])
+      const pendingSearches = suggestionBufferRef.current.map((s) => s.search).filter(Boolean)
       const payload: Record<string, unknown> = {
         sessionHistory: sessionHist,
         priorProfile: profile || undefined,
         provider: providerRef.current,
         notes: buildDjNotes(),
         globalNotes: readSettingsGlobalNotes() || undefined,
-        alreadyHeard: alreadyHeardDeduped.length > 0 ? alreadyHeardDeduped : undefined,
+        heardSkip: heardRecordings.length > 0 ? heardRecordings.length : undefined,
+        heardRecent:
+          heardRecordings.length > 0
+            ? heardRecordings.slice(-HEARD_RECENT_WINDOW)
+            : undefined,
+        pendingSearches: pendingSearches.length > 0 ? pendingSearches : undefined,
         mode: exploreModeRef.current,
         numSongs,
         profileOnly: true,
@@ -4071,21 +4087,29 @@ export default function PlayerClient({
     const gen = ++profileGenRef.current
     fetchingRef.current = true
     const { sessionHistory: djSessionHistory, cardHistory: djCardHistory } = getDjContextHistories()
+    const cur = currentCardRef.current
+    const heardRecordings = mergeHeardRecordings([
+      ...djCardHistory.map((e) => ({ track: e.track, artist: e.artist })),
+      ...djSessionHistory.map((e) => ({ track: e.track, artist: e.artist })),
+      ...(cur ? [{ track: cur.track.name, artist: cur.track.artist, pending: true }] : []),
+      ...queueRef.current.map((c) => ({
+        track: c.track.name,
+        artist: c.track.artist,
+        pending: true,
+      })),
+    ])
+    const pendingSearches = suggestionBufferRef.current.map((s) => s.search).filter(Boolean)
     const payload: Record<string, unknown> = {
       sessionHistory: djSessionHistory,
       priorProfile: priorProfileRef.current || undefined,
       provider: providerRef.current,
       notes: buildDjNotes(),
-      alreadyHeard: (() => {
-        const cur = currentCardRef.current
-        const list = [
-          ...(cur ? [`${cur.track.name} by ${cur.track.artist}`] : []),
-          ...djCardHistory.map(e => `${e.track} by ${e.artist}`),
-          ...queueRef.current.map(c => `${c.track.name} by ${c.track.artist}`),
-          ...suggestionBufferRef.current.map(s => s.search),
-        ]
-        return [...new Set(list.map(s => s.trim()).filter(Boolean))]
-      })(),
+      heardSkip: heardRecordings.length > 0 ? heardRecordings.length : undefined,
+      heardRecent:
+        heardRecordings.length > 0
+          ? heardRecordings.slice(-HEARD_RECENT_WINDOW)
+          : undefined,
+      pendingSearches: pendingSearches.length > 0 ? pendingSearches : undefined,
       mode: exploreModeRef.current,
       profileOnly: true,
       accessToken: accessTokenRef.current,

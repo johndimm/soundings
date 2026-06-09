@@ -7,6 +7,7 @@ import {
   ListenEvent,
   ExploreMode,
   SongSuggestion,
+  type HeardRecording,
 } from '@/app/lib/llm'
 import {
   logLlmCallWithModel,
@@ -69,6 +70,10 @@ export async function POST(req: NextRequest) {
       globalNotes?: string
       forceTextSearch?: boolean
       alreadyHeard?: string[]
+      heardRecordings?: HeardRecording[]
+      heardSkip?: number
+      heardRecent?: HeardRecording[]
+      pendingSearches?: string[]
       accessToken?: string
       mode?: ExploreMode
       numSongs?: number
@@ -167,6 +172,10 @@ export async function POST(req: NextRequest) {
     globalNotes,
     forceTextSearch,
     alreadyHeard,
+    heardRecordings,
+    heardSkip,
+    heardRecent,
+    pendingSearches,
     mode,
     profileOnly,
     songsToResolve,
@@ -289,6 +298,10 @@ export async function POST(req: NextRequest) {
       mode,
       body.numSongs,
       treeExplorationSection,
+      heardRecordings,
+      pendingSearches,
+      heardSkip,
+      heardRecent,
     )
     songs = result.songs
     profile = result.profile

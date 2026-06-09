@@ -273,12 +273,63 @@ function exhaustedDislikedSupers(dislikedSupers: Map<string, number[]>): string[
     .map(([k]) => k)
 }
 
-function buildDislikeAvoidanceSection(exhausted: string[]): string {
-  if (!exhausted.length) return ''
-  return `DEPRIORITIZE — consistent low ratings (★≤2.5) in these super-categories; do NOT cluster more picks here:
-${exhausted.map((s) => `- ${s}`).join('\n')}
+/** Supers visited 2+ times without ★3.5+ — saturated while canvassing; move to fresh territory. */
+function saturatedSupersWithoutLikes(
+  history: Array<{ stars?: number | null; categoryPaths?: CategoryPath[] }>,
+): string[] {
+  const stats = new Map<string, { visits: number; maxStars: number }>()
+  for (const entry of history) {
+    const stars = entry.stars
+    for (const p of entry.categoryPaths ?? []) {
+      const k = superKey(p)
+      const cur = stats.get(k) ?? { visits: 0, maxStars: 0 }
+      cur.visits++
+      if (stars != null && stars > 0) {
+        cur.maxStars = Math.max(cur.maxStars, stars)
+      }
+      stats.set(k, cur)
+    }
+  }
+  return [...stats.entries()]
+    .filter(([, v]) => v.visits >= 2 && v.maxStars < 3.5)
+    .map(([k]) => k)
+}
 
-ANTI-RUT: Each song this batch MUST use category_paths from supers NOT listed above. Open fresh dimensions — never deepen a low-rated neighborhood (e.g. more Kraftwerk after low-rated electronic picks).
+/** Disliked + saturated supers to deprioritize during 20Q exploration. */
+export function deprioritizedSupersFromHistory(
+  history: Array<{ stars?: number | null; categoryPaths?: CategoryPath[] }>,
+): { disliked: string[]; saturated: string[]; all: string[] } {
+  const dislikedSupers = new Map<string, number[]>()
+  for (const entry of history) {
+    const stars = entry.stars ?? 0
+    if (stars <= 0 || stars > 2.5) continue
+    for (const p of entry.categoryPaths ?? []) {
+      const k = superKey(p)
+      if (!dislikedSupers.has(k)) dislikedSupers.set(k, [])
+      dislikedSupers.get(k)!.push(stars)
+    }
+  }
+  const disliked = exhaustedDislikedSupers(dislikedSupers)
+  const saturated = saturatedSupersWithoutLikes(history)
+  const all = [...new Set([...disliked, ...saturated])]
+  return { disliked, saturated, all }
+}
+
+function buildDeprioritizeSection(disliked: string[], saturated: string[]): string {
+  if (!disliked.length && !saturated.length) return ''
+  const lines: string[] = []
+  if (disliked.length) {
+    lines.push('DISLIKED (★≤2.5, 2+ lows) — do NOT cluster here:')
+    for (const s of disliked) lines.push(`- ${s}`)
+  }
+  const saturatedOnly = saturated.filter((s) => !disliked.includes(s))
+  if (saturatedOnly.length) {
+    lines.push('SATURATED (2+ visits, no ★3.5+) — move on; pick untried supers:')
+    for (const s of saturatedOnly) lines.push(`- ${s}`)
+  }
+  return `${lines.join('\n')}
+
+ANTI-RUT: Each song this batch MUST use category_paths from supers NOT listed above. Tag DIFFERENT untried supers when possible. Never stack the same artist (e.g. four Kraftwerk picks) while canvassing.
 `
 }
 
@@ -349,9 +400,9 @@ export function buildMusicTreeExplorationSection(
     }
   }
 
-  const exhausted = exhaustedDislikedSupers(dislikedSupers)
-  const exhaustedSet = new Set(exhausted)
-  const dislikeSection = buildDislikeAvoidanceSection(exhausted)
+  const { disliked: exhausted, saturated, all: deprioritizeAll } = deprioritizedSupersFromHistory(history)
+  const deprioritizeSet = new Set(deprioritizeAll)
+  const dislikeSection = buildDeprioritizeSection(exhausted, saturated)
 
   if (history.length === 0) {
     const plan = formatRoundOneSlotRequirements(buildRoundOneSlots(tree, batchCount, triedSuperKeys))
@@ -399,10 +450,10 @@ Explore untried leaves within those supers only — do NOT return to exhausted l
 ${leafNearMiss}Tag every song with category_paths from the tree.`
   }
 
-  const focusDim = dimensionWithMostUntriedSupers(tree, tried, exhaustedSet)
+  const focusDim = dimensionWithMostUntriedSupers(tree, tried, deprioritizeSet)
   const freshSupers = focusDim
     ? untriedSupersForDimension(focusDim, tried)
-        .filter((s) => !exhaustedSet.has(`${focusDim.id}:${s.id}`))
+        .filter((s) => !deprioritizeSet.has(`${focusDim.id}:${s.id}`))
         .map((s) => `${focusDim.label} → ${s.label}`)
     : []
   const leafNearMiss = buildLeafNearMissSection(tree, history, tried)
