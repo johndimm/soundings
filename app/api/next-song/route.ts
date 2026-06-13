@@ -442,6 +442,10 @@ async function resolveYouTubeSongs(
     } else if (res.status === 'error') {
       console.warn('[next-song] YouTube resolve error', res.message, '—', song.search.slice(0, 60))
     }
+    // Rate limit: respect YouTube's 200 searches/minute by adding delay between searches
+    if (i < songs.length - 1) {
+      await sleep(SEARCH_DELAY_MS)
+    }
   }
   return { songs: results, quotaExceeded: false, resolvedIndices }
 }
