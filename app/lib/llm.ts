@@ -1,5 +1,6 @@
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
+import { getCachedYouTubeVideoId } from '@/app/lib/youtube'
 import {
   deprioritizedSupersFromHistory,
   parseCategoryPathsFromRaw,
@@ -850,6 +851,12 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
         performer: typeof s.performer === 'string' && s.performer.trim() ? s.performer.trim() : undefined,
       }})
       .filter((song: SongSuggestion): song is SongSuggestion => Boolean(song.search && song.reason))
+      // Enrich songs without youtubeVideoId by looking up cached results
+      .map((song: SongSuggestion) => {
+        if (song.youtubeVideoId) return song
+        const cachedId = getCachedYouTubeVideoId(song.search)
+        return cachedId ? { ...song, youtubeVideoId: cachedId } : song
+      })
     const chosen = songs.slice(0, 10)  // allow up to 10; caller requested numSongs
     const suggestedArtists = parseSuggestedArtistsRaw(
       parsed.suggested_artists ?? parsed.suggestedArtists
@@ -858,7 +865,7 @@ function parseLLMResponse(raw: string): { songs: SongSuggestion[]; profile?: str
       const withId = chosen.filter(s => s.spotifyId).length
       const withYt = chosen.filter(s => s.youtubeVideoId).length
       console.log(
-        `LLM songs: ${chosen.length} tracks, ${withId} with spotifyId, ${withYt} with youtubeVideoId, ${chosen.length - withId - withYt} search-only`
+        `LLM songs: ${chosen.length} tracks, ${withId} with spotifyId, ${withYt} with youtubeVideoId (enriched from cache), ${chosen.length - withId - withYt} search-only`
       )
       console.log(
         chosen.map((s: SongSuggestion) => ({

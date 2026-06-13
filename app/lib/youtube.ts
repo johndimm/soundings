@@ -87,6 +87,18 @@ for (const [key, entry] of searchCache) {
   for (const c of entry.candidates) videoIdToKey.set(c.videoId, key)
 }
 
+/**
+ * Look up a cached YouTube video ID for a song by its search query.
+ * Returns the video ID if found in cache, null otherwise.
+ * Zero quota cost — uses already-cached search results.
+ * @param query Normalized search query (e.g., "track name artist name")
+ */
+export function getCachedYouTubeVideoId(query: string): string | null {
+  const cacheKey = query.toLowerCase().trim()
+  const entry = searchCache.get(cacheKey)
+  return entry?.track.videoId ?? null
+}
+
 const QUOTA_FILE = join(process.cwd(), '.youtube-quota.json')
 const DAILY_CREDITS = YOUTUBE_DAILY_CREDITS
 
