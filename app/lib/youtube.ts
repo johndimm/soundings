@@ -871,16 +871,16 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
     }
     if (res.status === 429) {
       // 429 is rate limiting, not necessarily daily quota exhaustion.
-      // Only mark daily backoff if it explicitly mentions daily limits.
-      // Otherwise treat as temporary error - client will retry shortly.
+      // Only mark daily backoff if it explicitly mentions daily/24-hour limits.
+      // Otherwise treat as temporary per-minute rate limiting - client will retry shortly.
       const message = body?.error?.message ?? ''
-      const isDailyLimit = typeof message === 'string' && message.includes('daily')
+      const isDailyLimit = typeof message === 'string' && (message.includes('daily') || message.includes('per day'))
       if (isDailyLimit) {
         console.warn('[youtube] 429 with daily limit — marking 24h backoff', message.slice(0, 100))
         markQuotaExceeded()
         return { status: 'quota_exceeded' }
       }
-      console.warn('[youtube] 429 rate limit (temporary, not daily quota)', message.slice(0, 100))
+      console.warn('[youtube] 429 rate limit (temporary, per-minute not daily)', message.slice(0, 100))
       return { status: 'error', message: `YouTube API temporarily rate limited (retry in ~30s)` }
     }
     const errorMsg = typeof body === 'object' && body !== null ? JSON.stringify(body).slice(0, 200) : ''
