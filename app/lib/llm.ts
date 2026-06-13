@@ -1,6 +1,6 @@
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
-import { getCachedYouTubeVideoId } from '@/app/lib/youtube'
+import { getCachedYouTubeVideoId } from '@/app/lib/youtubeCache'
 import {
   deprioritizedSupersFromHistory,
   parseCategoryPathsFromRaw,

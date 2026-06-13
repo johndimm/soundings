@@ -148,18 +148,6 @@ async function initCacheFromKv() {
 // Start loading in background (don't await - let requests proceed)
 initCacheFromKv().catch(err => console.warn('[youtube] cache init error:', err))
 
-/**
- * Look up a cached YouTube video ID for a song by its search query.
- * Returns the video ID if found in cache, null otherwise.
- * Zero quota cost — uses already-cached search results.
- * @param query Normalized search query (e.g., "track name artist name")
- */
-export function getCachedYouTubeVideoId(query: string): string | null {
-  const cacheKey = query.toLowerCase().trim()
-  const entry = searchCache.get(cacheKey)
-  return entry?.track.videoId ?? null
-}
-
 const DAILY_CREDITS = YOUTUBE_DAILY_CREDITS
 
 function pacificDateKey(d = new Date()): string {
