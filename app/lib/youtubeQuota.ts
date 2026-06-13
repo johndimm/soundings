@@ -8,5 +8,5 @@ export const YOUTUBE_DAILY_CREDITS = 110_000
 export const YOUTUBE_DAILY_SEARCH_QUOTA =
   YOUTUBE_DAILY_CREDITS / YOUTUBE_CREDITS_PER_SEARCH
 
-/** Warn in UI when fewer than ~5% of daily credits remain (5% of 71,400 ≈ 3,570). */
-export const YOUTUBE_LOW_CREDITS_THRESHOLD = 3_600
+/** Warn in UI when fewer than ~5% of daily credits remain (5% of 110,000 ≈ 5,500). */
+export const YOUTUBE_LOW_CREDITS_THRESHOLD = 5_000
