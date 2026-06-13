@@ -1,5 +1,3 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { join } from 'path'
 import type { Track } from '@/app/lib/playback/types'
 import { isYoutubeResolveTestServerEnabled } from '@/app/lib/youtubeResolveTestEnv'
 import {
@@ -28,8 +26,23 @@ function decodeHtmlEntities(s: string): string {
 }
 
 // Each search.list costs 100 quota credits. Daily allowance = 110,000 credits → 1,100 searches/day.
-// Cache aggressively to disk so restarts don't re-burn quota.
-const CACHE_FILE = join(process.cwd(), '.youtube-cache.json')
+// Cache to Vercel KV (Redis) for persistence across deployments.
+let kvClient: typeof import('@vercel/kv').kv | null = null
+
+async function getKvClient() {
+  if (!kvClient && process.env.KV_REST_API_URL) {
+    try {
+      const { kv } = await import('@vercel/kv')
+      kvClient = kv
+    } catch {
+      console.warn('[youtube] Vercel KV not available, cache will be in-memory only')
+      return null
+    }
+  }
+  return kvClient
+}
+
+const KV_CACHE_KEY = 'youtube-cache'
 
 export type YouTubeTrack = Track & { source: 'youtube'; videoId: string }
 
@@ -60,32 +73,67 @@ function toEntry(v: CacheDiskValue): YouTubeCacheEntry {
 }
 
 function loadCache(): Map<string, YouTubeCacheEntry> {
-  try {
-    if (existsSync(CACHE_FILE)) {
-      const data = JSON.parse(readFileSync(CACHE_FILE, 'utf-8')) as Record<string, CacheDiskValue>
-      const map = new Map<string, YouTubeCacheEntry>()
-      for (const [k, v] of Object.entries(data)) map.set(k, toEntry(v))
-      return map
-    }
-  } catch {}
+  // Start with empty in-memory cache; KV will be loaded separately
   return new Map()
 }
 
-function persistCache(cache: Map<string, YouTubeCacheEntry>) {
+async function loadCacheFromKv(): Promise<Map<string, YouTubeCacheEntry>> {
+  const kv = await getKvClient()
+  if (!kv) return new Map()
   try {
-    writeFileSync(CACHE_FILE, JSON.stringify(Object.fromEntries(cache)))
-  } catch {}
+    const data = await kv.get<Record<string, CacheDiskValue>>(KV_CACHE_KEY)
+    if (data) {
+      const map = new Map<string, YouTubeCacheEntry>()
+      for (const [k, v] of Object.entries(data)) map.set(k, toEntry(v))
+      console.info(`[youtube] loaded ${map.size} cached entries from Vercel KV`)
+      return map
+    }
+  } catch (err) {
+    console.warn('[youtube] failed to load cache from KV:', err)
+  }
+  return new Map()
 }
 
-const searchCache = loadCache()
+async function persistCache(cache: Map<string, YouTubeCacheEntry>) {
+  const kv = await getKvClient()
+  if (!kv) return
+  try {
+    await kv.set(KV_CACHE_KEY, Object.fromEntries(cache))
+  } catch (err) {
+    console.warn('[youtube] failed to persist cache to KV:', err)
+  }
+}
+
+let searchCache = loadCache()
+let cacheInitialized = false
 
 // Reverse lookup: videoId → cache key (query). Rebuilt on load + updated on new searches.
 // Used by getNextYouTubeCandidate to find the entry without the original query string.
-const videoIdToKey = new Map<string, string>()
-for (const [key, entry] of searchCache) {
-  videoIdToKey.set(entry.track.videoId, key)
-  for (const c of entry.candidates) videoIdToKey.set(c.videoId, key)
+let videoIdToKey = new Map<string, string>()
+
+function rebuildReverseIndex() {
+  videoIdToKey.clear()
+  for (const [key, entry] of searchCache) {
+    videoIdToKey.set(entry.track.videoId, key)
+    for (const c of entry.candidates) videoIdToKey.set(c.videoId, key)
+  }
 }
+
+rebuildReverseIndex()
+
+// Initialize cache from Vercel KV on first use (non-blocking)
+async function initCacheFromKv() {
+  if (cacheInitialized) return
+  cacheInitialized = true
+  const kvCache = await loadCacheFromKv()
+  if (kvCache.size > 0) {
+    searchCache = kvCache
+    rebuildReverseIndex()
+  }
+}
+
+// Start loading in background (don't await - let requests proceed)
+initCacheFromKv().catch(err => console.warn('[youtube] cache init error:', err))
 
 /**
  * Look up a cached YouTube video ID for a song by its search query.
@@ -836,7 +884,7 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
       const entry: YouTubeCacheEntry = { track, candidates: [] }
       searchCache.set(cacheKey, entry)
       videoIdToKey.set(track.videoId, cacheKey)
-      persistCache(searchCache)
+      persistCache(searchCache).catch(err => console.warn('[youtube] cache persist error:', err))
       const how =
         idFromQuery === qTrim ? 'bare id' : extractYoutubeVideoId(qTrim) ? 'URL' : 'URL in text'
       console.info(`[youtube] zero-quota resolve (validated): ${idFromQuery} (${how})`)
@@ -991,7 +1039,7 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
   searchCache.set(cacheKey, entry)
   videoIdToKey.set(videoId, cacheKey)
   for (const c of candidates) videoIdToKey.set(c.videoId, cacheKey)
-  persistCache(searchCache)
+  persistCache(searchCache).catch(err => console.warn('[youtube] cache persist error:', err))
   clearYouTubeQuotaBackoff()
   console.info(`[youtube] found: "${title}" (${videoId}) + ${candidates.length} fallback candidates`)
   return { status: 'ok', track }
