@@ -129,14 +129,15 @@ Respond with ONLY a JSON object:
 When a SESSION CATEGORY TREE is provided in the user message, tag every song with category_paths from that tree (required). The "category" field echoes super > leaf for display.
 You may add optional "spotify_id" on any song object when (and only when) you have a trustworthy reference — see rules below.
 
-YOUTUBE (youtube_url or youtube_video_id) — optional; use only when you are certain:
-- The server validates every youtube_url / youtube_video_id before playback: oEmbed embeddability, videos.list status, and title relevance vs "search". Wrong, non-embeddable, or mismatched ids are rejected and we fall back to search (which costs API quota).
-- Include youtube_url or youtube_video_id ONLY when you know the exact video for this recording (must match "search" — same work, same performer). A wrong id plays the wrong piece.
-- When you know the exact video, include either:
+YOUTUBE (youtube_url or youtube_video_id) — CRITICAL for quota efficiency:
+- The server validates every youtube_url / youtube_video_id before playback: oEmbed embeddability, videos.list status, and title relevance vs "search".
+- IMPORTANT: Wrong, non-embeddable, or mismatched ids are gracefully rejected and we fall back to search. No penalty — just costs an extra search.
+- When you have high confidence in the exact video for this recording (same work, same performer, exact recording), include either:
   - "youtube_url": full https://www.youtube.com/watch?v=… or https://youtu.be/… or music.youtube.com/watch?v=…
   - OR "youtube_video_id": the 11-character id only.
-- Do NOT invent or guess ids or URLs. If unsure, omit youtube fields — we resolve via "search".
+- Confidence threshold: if you're >70% sure this is the right video, include it. Wrong guesses just trigger a fallback search — no cost beyond that single search.
 - The "search" field remains required and is the source of truth for validation and fallback lookup.
+- QUOTA CONSTRAINT: We have ~700 YouTube searches per day. Every youtube_video_id you provide saves one expensive search and lets us serve more songs.
 
 SPOTIFY ID (spotify_id) — conservative but not silent:
 - You do NOT have live Spotify API access. Never invent random-looking 22-character strings; wrong IDs break playback.
