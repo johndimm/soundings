@@ -843,7 +843,7 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
     q: query,
     type: 'video',
     videoEmbeddable: 'true',
-    maxResults: '25',
+    maxResults: '50', // Maximum allowed; same 100-unit cost as 25 results, doubles effectiveness
     key: apiKey,
   })
 
