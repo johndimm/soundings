@@ -861,11 +861,14 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
     const body = await res.json().catch(() => null)
     if (res.status === 403 || res.status === 429) {
       const reason = body?.error?.errors?.[0]?.reason ?? body?.error?.message
-      if (
+      const message = body?.error?.message ?? ''
+      const isQuotaExceeded =
         reason === 'quotaExceeded' ||
         reason === 'dailyLimitExceeded' ||
-        (typeof reason === 'string' && reason.includes('Quota exceeded'))
-      ) {
+        (typeof reason === 'string' && reason.includes('Quota exceeded')) ||
+        (typeof message === 'string' && message.includes('Quota exceeded'))
+      if (isQuotaExceeded) {
+        console.warn('[youtube] quota exceeded — marking backoff', { reason, message: message.slice(0, 100) })
         markQuotaExceeded()
         return { status: 'quota_exceeded' }
       }
@@ -873,7 +876,7 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
         console.warn('[youtube] 403 forbidden', body)
         return { status: 'error', message: `YouTube API forbidden: ${reason ?? res.status}` }
       } else {
-        console.warn('[youtube] 429 rate limited', body)
+        console.warn('[youtube] 429 rate limited (not quota)', body)
         return { status: 'error', message: `YouTube API rate limited: ${reason ?? res.status}` }
       }
     }
