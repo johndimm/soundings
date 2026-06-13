@@ -26,9 +26,17 @@ function decodeHtmlEntities(s: string): string {
 }
 
 // Quota management (server-only - uses filesystem)
-// Note: This import only works in server contexts (API routes, server functions)
-// Client-side code cannot import youtube.ts directly due to quota file I/O
-import { loadQuotaState, persistQuotaState, type QuotaDisk } from '@/app/lib/youtubeQuotaServer'
+// Imported dynamically to avoid bundling fs module in client code
+type QuotaDisk = {
+  ptDate: string
+  creditsUsed: number
+  quotaExceededUntil: number
+}
+
+async function getQuotaServer() {
+  const { loadQuotaState, persistQuotaState } = await import('@/app/lib/youtubeQuotaServer')
+  return { loadQuotaState, persistQuotaState }
+}
 
 // Each search.list costs 100 quota credits. Daily allowance = 110,000 credits → 1,100 searches/day.
 // Cache to Vercel KV (Redis) for persistence across deployments.
@@ -158,21 +166,34 @@ function pacificDateKey(d = new Date()): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 }
 
+let quotaPtDate = pacificDateKey()
+let creditsUsed = 0
+let quotaExceededUntil = 0
+let quotaStateLoaded = false
+
+async function initQuotaState() {
+  if (quotaStateLoaded) return
+  try {
+    const { loadQuotaState } = await getQuotaServer()
+    const s = loadQuotaState()
+    quotaPtDate = s.ptDate
+    creditsUsed = s.creditsUsed
+    quotaExceededUntil = s.quotaExceededUntil
+    quotaStateLoaded = true
+  } catch {}
+}
+
 function persistQuotaStateLocal() {
   const payload: QuotaDisk = {
     ptDate: pacificDateKey(),
     creditsUsed,
     quotaExceededUntil,
   }
-  persistQuotaState(payload)
+  // Fire and forget - we don't need to await
+  getQuotaServer().then(({ persistQuotaState }) => {
+    persistQuotaState(payload)
+  }).catch(err => console.warn('[youtube] quota persist error:', err))
 }
-
-let quotaPtDate = pacificDateKey()
-let { creditsUsed, quotaExceededUntil } = (() => {
-  const s = loadQuotaState()
-  quotaPtDate = s.ptDate
-  return { creditsUsed: s.creditsUsed, quotaExceededUntil: s.quotaExceededUntil }
-})()
 
 function rollQuotaIfNewDay() {
   const today = pacificDateKey()
@@ -182,6 +203,13 @@ function rollQuotaIfNewDay() {
   quotaExceededUntil = 0
   persistQuotaStateLocal()
   console.info('[youtube] new Pacific day — API credit counter reset')
+}
+
+// Ensure quota is initialized before using it in searches
+export async function ensureQuotaInitialized() {
+  if (!quotaStateLoaded) {
+    await initQuotaState()
+  }
 }
 
 function chargeYouTubeCredits(credits: number, label: string) {
@@ -814,6 +842,7 @@ function parseNameArtist(title: string, channelTitle: string): { name: string; a
 }
 
 export async function searchYouTube(query: string, metadataHint?: string): Promise<YouTubeSearchResult> {
+  await ensureQuotaInitialized()
   rollQuotaIfNewDay()
   if (isYoutubeResolveTestServerEnabled()) {
     console.info('[youtube] searchYouTube: YOUTUBE_RESOLVE_TEST — skipping Data API, using fixture')
