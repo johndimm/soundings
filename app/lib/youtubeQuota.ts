@@ -1,9 +1,8 @@
 /** YouTube Data API v3 quota (credits). See Google Cloud quota table for each method. */
 export const YOUTUBE_CREDITS_PER_SEARCH = 100
 export const YOUTUBE_CREDITS_PER_VIDEOS_LIST = 1
-// Daily limit: 714 Search Queries/day × 100 credits/search = 71,400 credits
-// (Not the generic 110,000 Queries/day limit - that's for all API calls combined)
-export const YOUTUBE_DAILY_CREDITS = 71_400
+// Special grant: 110,000 credits/day (ignore low Search Queries limit in quota table - that's a Google misconfiguration)
+export const YOUTUBE_DAILY_CREDITS = 110_000
 
 /** @deprecated Use credits; kept for docs that speak in “searches”. */
 export const YOUTUBE_DAILY_SEARCH_QUOTA =

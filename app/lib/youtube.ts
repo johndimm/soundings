@@ -859,26 +859,29 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
 
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    if (res.status === 403 || res.status === 429) {
-      const reason = body?.error?.errors?.[0]?.reason ?? body?.error?.message
-      const message = body?.error?.message ?? ''
-      const isQuotaExceeded =
-        reason === 'quotaExceeded' ||
-        reason === 'dailyLimitExceeded' ||
-        (typeof reason === 'string' && reason.includes('Quota exceeded')) ||
-        (typeof message === 'string' && message.includes('Quota exceeded'))
-      if (isQuotaExceeded) {
-        console.warn('[youtube] quota exceeded — marking backoff', { reason, message: message.slice(0, 100) })
+    if (res.status === 403) {
+      const reason = body?.error?.errors?.[0]?.reason
+      if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+        console.warn('[youtube] 403 quota exceeded — marking 24h backoff')
         markQuotaExceeded()
         return { status: 'quota_exceeded' }
       }
-      if (res.status === 403) {
-        console.warn('[youtube] 403 forbidden', body)
-        return { status: 'error', message: `YouTube API forbidden: ${reason ?? res.status}` }
-      } else {
-        console.warn('[youtube] 429 rate limited (not quota)', body)
-        return { status: 'error', message: `YouTube API rate limited: ${reason ?? res.status}` }
+      console.warn('[youtube] 403 forbidden', body)
+      return { status: 'error', message: `YouTube API forbidden: ${reason ?? res.status}` }
+    }
+    if (res.status === 429) {
+      // 429 is rate limiting, not necessarily daily quota exhaustion.
+      // Only mark daily backoff if it explicitly mentions daily limits.
+      // Otherwise treat as temporary error - client will retry shortly.
+      const message = body?.error?.message ?? ''
+      const isDailyLimit = typeof message === 'string' && message.includes('daily')
+      if (isDailyLimit) {
+        console.warn('[youtube] 429 with daily limit — marking 24h backoff', message.slice(0, 100))
+        markQuotaExceeded()
+        return { status: 'quota_exceeded' }
       }
+      console.warn('[youtube] 429 rate limit (temporary, not daily quota)', message.slice(0, 100))
+      return { status: 'error', message: `YouTube API temporarily rate limited (retry in ~30s)` }
     }
     const errorMsg = typeof body === 'object' && body !== null ? JSON.stringify(body).slice(0, 200) : ''
     console.error(`[youtube] search failed: ${res.status}`, errorMsg)
