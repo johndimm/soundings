@@ -1,5 +1,3 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs'
-import { join } from 'path'
 import type { Track } from '@/app/lib/playback/types'
 import { isYoutubeResolveTestServerEnabled } from '@/app/lib/youtubeResolveTestEnv'
 import {
@@ -26,6 +24,11 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&#39;/g, "'")
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
 }
+
+// Quota management (server-only - uses filesystem)
+// Note: This import only works in server contexts (API routes, server functions)
+// Client-side code cannot import youtube.ts directly due to quota file I/O
+import { loadQuotaState, persistQuotaState, type QuotaDisk } from '@/app/lib/youtubeQuotaServer'
 
 // Each search.list costs 100 quota credits. Daily allowance = 110,000 credits → 1,100 searches/day.
 // Cache to Vercel KV (Redis) for persistence across deployments.
@@ -149,60 +152,30 @@ export function getCachedYouTubeVideoId(query: string): string | null {
   return entry?.track.videoId ?? null
 }
 
-const QUOTA_FILE = join(process.cwd(), '.youtube-quota.json')
 const DAILY_CREDITS = YOUTUBE_DAILY_CREDITS
-
-type QuotaDisk = {
-  ptDate: string
-  creditsUsed: number
-  quotaExceededUntil: number
-}
 
 function pacificDateKey(d = new Date()): string {
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
 }
 
-function loadQuotaState(): QuotaDisk {
-  const today = pacificDateKey()
-  try {
-    if (existsSync(QUOTA_FILE)) {
-      const raw = JSON.parse(readFileSync(QUOTA_FILE, 'utf-8')) as Partial<
-        QuotaDisk & { searchesUsed?: number }
-      >
-      if (raw.ptDate === today) {
-        let creditsUsed = 0
-        if (typeof raw.creditsUsed === 'number') {
-          creditsUsed = Math.max(0, raw.creditsUsed)
-        } else if (typeof raw.searchesUsed === 'number') {
-          creditsUsed = Math.max(0, raw.searchesUsed) * YOUTUBE_CREDITS_PER_SEARCH
-        }
-        return {
-          ptDate: today,
-          creditsUsed,
-          quotaExceededUntil: typeof raw.quotaExceededUntil === 'number' ? raw.quotaExceededUntil : 0,
-        }
-      }
-    }
-  } catch {}
-  return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
-}
-
-function persistQuotaState() {
-  try {
-    const payload: QuotaDisk = {
-      ptDate: pacificDateKey(),
-      creditsUsed,
-      quotaExceededUntil,
-    }
-    writeFileSync(QUOTA_FILE, JSON.stringify(payload))
-  } catch {}
+function persistQuotaStateLocal() {
+  const payload: QuotaDisk = {
+    ptDate: pacificDateKey(),
+    creditsUsed,
+    quotaExceededUntil,
+  }
+  persistQuotaState(payload)
 }
 
 let quotaPtDate = pacificDateKey()
 let { creditsUsed, quotaExceededUntil } = (() => {
-  const s = loadQuotaState()
-  quotaPtDate = s.ptDate
-  return { creditsUsed: s.creditsUsed, quotaExceededUntil: s.quotaExceededUntil }
+  try {
+    const s = loadQuotaState()
+    quotaPtDate = s.ptDate
+    return { creditsUsed: s.creditsUsed, quotaExceededUntil: s.quotaExceededUntil }
+  } catch {
+    return { creditsUsed: 0, quotaExceededUntil: 0 }
+  }
 })()
 
 function rollQuotaIfNewDay() {
@@ -211,7 +184,7 @@ function rollQuotaIfNewDay() {
   quotaPtDate = today
   creditsUsed = 0
   quotaExceededUntil = 0
-  persistQuotaState()
+  persistQuotaStateLocal()
   console.info('[youtube] new Pacific day — API credit counter reset')
 }
 
@@ -219,7 +192,7 @@ function chargeYouTubeCredits(credits: number, label: string) {
   if (credits <= 0) return
   rollQuotaIfNewDay()
   creditsUsed += credits
-  persistQuotaState()
+  persistQuotaStateLocal()
   console.info(
     `[youtube] +${credits} credits (${label}); ${getYouTubeCreditsRemaining().toLocaleString()} remaining today`
   )
@@ -292,7 +265,7 @@ function markQuotaExceeded() {
     resetUTC.setUTCDate(resetUTC.getUTCDate() + 1)
   }
   quotaExceededUntil = resetUTC.getTime()
-  persistQuotaState()
+  persistQuotaStateLocal()
   console.warn(`[youtube] quota exceeded — backing off until ${resetUTC.toISOString()}`)
 }
 
@@ -300,7 +273,7 @@ function markQuotaExceeded() {
 export function clearYouTubeQuotaBackoff(): void {
   if (quotaExceededUntil === 0) return
   quotaExceededUntil = 0
-  persistQuotaState()
+  persistQuotaStateLocal()
   console.info('[youtube] quota backoff cleared')
 }
 

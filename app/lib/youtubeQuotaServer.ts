@@ -1,0 +1,38 @@
+'use server'
+
+import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { join } from 'path'
+
+const QUOTA_FILE = join(process.cwd(), '.youtube-quota.json')
+
+export type QuotaDisk = {
+  ptDate: string
+  creditsUsed: number
+  quotaExceededUntil: number
+}
+
+function pacificDateKey(d = new Date()): string {
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Los_Angeles' })
+}
+
+export function loadQuotaState(): QuotaDisk {
+  const today = pacificDateKey()
+  try {
+    if (existsSync(QUOTA_FILE)) {
+      const raw = JSON.parse(readFileSync(QUOTA_FILE, 'utf-8')) as Partial<
+        QuotaDisk & { searchesUsed?: number }
+      >
+      if (raw.ptDate === today) {
+        return { ptDate: today, creditsUsed: raw.creditsUsed ?? 0, quotaExceededUntil: raw.quotaExceededUntil ?? 0 }
+      }
+      return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
+    }
+  } catch {}
+  return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
+}
+
+export function persistQuotaState(state: QuotaDisk) {
+  try {
+    writeFileSync(QUOTA_FILE, JSON.stringify(state))
+  } catch {}
+}
