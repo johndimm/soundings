@@ -1,6 +1,9 @@
 // Client-safe YouTube cache operations (no fs/server dependencies)
 // This module only handles the in-memory and KV cache, not quota tracking
 
+type CacheEntry = { track: { videoId: string } }
+type CacheData = { [key: string]: CacheEntry }
+
 let searchCache = new Map<string, { videoId: string }>()
 let cacheInitialized = false
 
@@ -24,7 +27,7 @@ async function initCache() {
   const kv = await getKvClient()
   if (kv) {
     try {
-      const data = await kv.get<Record<string, { track: { videoId: string } }>('youtube-cache')
+      const data = await kv.get<CacheData>('youtube-cache')
       if (data) {
         for (const [key, entry] of Object.entries(data)) {
           searchCache.set(key, { videoId: entry.track.videoId })
