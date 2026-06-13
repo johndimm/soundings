@@ -169,13 +169,9 @@ function persistQuotaStateLocal() {
 
 let quotaPtDate = pacificDateKey()
 let { creditsUsed, quotaExceededUntil } = (() => {
-  try {
-    const s = loadQuotaState()
-    quotaPtDate = s.ptDate
-    return { creditsUsed: s.creditsUsed, quotaExceededUntil: s.quotaExceededUntil }
-  } catch {
-    return { creditsUsed: 0, quotaExceededUntil: 0 }
-  }
+  const s = loadQuotaState()
+  quotaPtDate = s.ptDate
+  return { creditsUsed: s.creditsUsed, quotaExceededUntil: s.quotaExceededUntil }
 })()
 
 function rollQuotaIfNewDay() {

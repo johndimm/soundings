@@ -1,5 +1,3 @@
-'use server'
-
 import { readFileSync, writeFileSync, existsSync } from 'fs'
 import { join } from 'path'
 
@@ -31,7 +29,7 @@ export function loadQuotaState(): QuotaDisk {
   return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
 }
 
-export function persistQuotaState(state: QuotaDisk) {
+export function persistQuotaState(state: QuotaDisk): void {
   try {
     writeFileSync(QUOTA_FILE, JSON.stringify(state))
   } catch {}
