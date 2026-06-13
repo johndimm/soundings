@@ -858,18 +858,27 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
   }
 
   if (!res.ok) {
-    if (res.status === 403) {
-      const body = await res.json().catch(() => null)
-      const reason = body?.error?.errors?.[0]?.reason
-      if (reason === 'quotaExceeded' || reason === 'dailyLimitExceeded') {
+    const body = await res.json().catch(() => null)
+    if (res.status === 403 || res.status === 429) {
+      const reason = body?.error?.errors?.[0]?.reason ?? body?.error?.message
+      if (
+        reason === 'quotaExceeded' ||
+        reason === 'dailyLimitExceeded' ||
+        (typeof reason === 'string' && reason.includes('Quota exceeded'))
+      ) {
         markQuotaExceeded()
         return { status: 'quota_exceeded' }
       }
-      console.warn('[youtube] 403 forbidden', body)
-      return { status: 'error', message: `YouTube API forbidden: ${reason ?? res.status}` }
+      if (res.status === 403) {
+        console.warn('[youtube] 403 forbidden', body)
+        return { status: 'error', message: `YouTube API forbidden: ${reason ?? res.status}` }
+      } else {
+        console.warn('[youtube] 429 rate limited', body)
+        return { status: 'error', message: `YouTube API rate limited: ${reason ?? res.status}` }
+      }
     }
-    const text = await res.text().catch(() => '')
-    console.error(`[youtube] search failed: ${res.status}`, text.slice(0, 200))
+    const errorMsg = typeof body === 'object' && body !== null ? JSON.stringify(body).slice(0, 200) : ''
+    console.error(`[youtube] search failed: ${res.status}`, errorMsg)
     return { status: 'error', message: `YouTube search failed: ${res.status}` }
   }
 
