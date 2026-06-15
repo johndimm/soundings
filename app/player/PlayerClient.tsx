@@ -22,7 +22,7 @@ import { queueNewChannelFromTrack } from '@/app/lib/queueNewChannelFromTrack'
 import type { GraphNode } from '@johndimm/constellations/types'
 import AppHeader from '@/app/components/AppHeader'
 import { recordFetch, readStats } from '@/app/lib/callTracker'
-import { YOUTUBE_LOW_CREDITS_THRESHOLD } from '@/app/lib/youtubeQuota'
+import { YOUTUBE_LOW_CREDITS_THRESHOLD, YOUTUBE_LOW_SEARCHES_THRESHOLD } from '@/app/lib/youtubeQuota'
 import { getGuideDemoState } from '@/app/lib/guideDemo'
 import { normalizeSpotifyTrackId } from '@/app/lib/spotifyTrackId'
 import { extractYoutubeVideoIdLoose } from '@/app/lib/youtubeVideoId'
@@ -1049,7 +1049,7 @@ export default function PlayerClient({
   const [discovery, setDiscovery] = useState(50)
   const [provider, setProvider] = useState<LLMProvider>('deepseek')
   const [source, setSource] = useState<PlaybackSource>(youtubeOnly ? 'youtube' : DEFAULT_PLAYBACK_SOURCE)
-  const [ytCreditsRemaining, setYtCreditsRemaining] = useState<number | null>(null)
+  const [ytSearchesRemaining, setYtSearchesRemaining] = useState<number | null>(null)
   const [playbackState, setPlaybackState] = useState<SpotifyPlaybackState | null>(null)
   const [sliderPosition, setSliderPosition] = useState(0)
   const [youtubeDuration, setYoutubeDuration] = useState(0)
@@ -2489,12 +2489,12 @@ export default function PlayerClient({
         const res = await fetch('/api/youtube/status')
         if (!res.ok) return
         const d = (await res.json()) as {
-          creditsRemaining?: number
+          searchesRemaining?: number
           quotaExceeded?: boolean
           retryAfterMs?: number
         }
-        if (typeof d.creditsRemaining === 'number') {
-          setYtCreditsRemaining(d.creditsRemaining)
+        if (typeof d.searchesRemaining === 'number') {
+          setYtSearchesRemaining(d.searchesRemaining)
         }
         if (d.quotaExceeded && typeof d.retryAfterMs === 'number' && d.retryAfterMs > 0) {
           setBackoffFor('youtube', Date.now() + d.retryAfterMs)
@@ -3914,8 +3914,8 @@ export default function PlayerClient({
       }
 
       const data = await res.json()
-      if (typeof data.ytCreditsRemaining === 'number') {
-        setYtCreditsRemaining(data.ytCreditsRemaining)
+      if (typeof data.ytSearchesRemaining === 'number') {
+        setYtSearchesRemaining(data.ytSearchesRemaining)
       }
       const songs = data.songs as
         | { track: SpotifyTrack; reason: string; category?: string; categoryPaths?: SongSuggestion['categoryPaths']; coords?: { x: number; y: number }; composed?: number; performer?: string }[]
@@ -4760,8 +4760,8 @@ export default function PlayerClient({
     }
 
     const data = await res.json()
-    if (typeof data.ytCreditsRemaining === 'number') {
-      setYtCreditsRemaining(data.ytCreditsRemaining)
+    if (typeof data.ytSearchesRemaining === 'number') {
+      setYtSearchesRemaining(data.ytSearchesRemaining)
     }
     const songs = data.songs as
       | {
@@ -5663,8 +5663,8 @@ export default function PlayerClient({
   const spotifyStatusMessage =
     activeBackoffUntilForBanner && activeBackoffUntilForBanner > Date.now()
       ? `${rateLimitBannerIsYoutube ? 'YouTube' : 'Spotify'} rate-limited until ${new Date(activeBackoffUntilForBanner).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`
-      : rateLimitBannerIsYoutube && ytCreditsRemaining !== null && ytCreditsRemaining <= YOUTUBE_LOW_CREDITS_THRESHOLD
-        ? `YouTube API credits: ${ytCreditsRemaining.toLocaleString()} left today (resets midnight Pacific)`
+      : rateLimitBannerIsYoutube && ytSearchesRemaining !== null && ytSearchesRemaining <= YOUTUBE_LOW_SEARCHES_THRESHOLD
+        ? `YouTube API searches: ${ytSearchesRemaining.toLocaleString()} left today (714/day limit, resets midnight Pacific)`
         : null
 
   const showLoadStarterChannelsPill =

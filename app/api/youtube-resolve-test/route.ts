@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import {
   extractYoutubeVideoId,
-  getYouTubeCreditsRemaining,
+  getYouTubeSearchesRemaining,
   youtubeTrackFromVideoId,
 } from '@/app/lib/youtube'
 import {
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
         coords: { x: 50, y: 50, z: 50 },
       },
     ],
-    ytCreditsRemaining: getYouTubeCreditsRemaining(),
+    ytSearchesRemaining: getYouTubeSearchesRemaining(),
     _fixture: true,
   })
 }

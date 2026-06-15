@@ -21,7 +21,7 @@ import {
   type YouTubeResolveHintOpts,
   isYouTubeQuotaExceeded,
   getYouTubeQuotaWaitMs,
-  getYouTubeCreditsRemaining,
+  getYouTubeSearchesRemaining,
   youtubeTrackFromVideoId,
 } from '@/app/lib/youtube'
 import { isYoutubeResolveTestServerEnabled } from '@/app/lib/youtubeResolveTestEnv'
@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
       return Response.json({
         songs: ytSongs,
         resolvedIndices,
-        ytCreditsRemaining: getYouTubeCreditsRemaining(),
+        ytSearchesRemaining: getYouTubeSearchesRemaining(),
       })
     }
 
@@ -350,7 +350,7 @@ export async function POST(req: NextRequest) {
       resolvedIndices,
       profile,
       suggestedArtists,
-      ytCreditsRemaining: getYouTubeCreditsRemaining(),
+      ytSearchesRemaining: getYouTubeSearchesRemaining(),
       ...treePayload,
     })
   }

@@ -181,6 +181,16 @@ export default function SettingsPage() {
   }
   const handleClearHistory = () => {
     try {
+      const channelsJson = localStorage.getItem(CHANNELS_STORAGE_KEY)
+      if (channelsJson) {
+        const channels: Channel[] = JSON.parse(channelsJson)
+        channels.forEach((ch) => {
+          ch.sessionHistory = []
+          ch.cardHistory = []
+          ch.profile = ''
+        })
+        localStorage.setItem(CHANNELS_STORAGE_KEY, JSON.stringify(channels))
+      }
       localStorage.removeItem(HISTORY_STORAGE_KEY)
       sessionStorage.clear()
     } catch {}

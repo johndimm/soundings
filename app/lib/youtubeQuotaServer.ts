@@ -5,7 +5,7 @@ const QUOTA_FILE = join(process.cwd(), '.youtube-quota.json')
 
 export type QuotaDisk = {
   ptDate: string
-  creditsUsed: number
+  searchesUsed: number
   quotaExceededUntil: number
 }
 
@@ -18,15 +18,15 @@ export function loadQuotaState(): QuotaDisk {
   try {
     if (existsSync(QUOTA_FILE)) {
       const raw = JSON.parse(readFileSync(QUOTA_FILE, 'utf-8')) as Partial<
-        QuotaDisk & { searchesUsed?: number }
+        QuotaDisk & { creditsUsed?: number }
       >
       if (raw.ptDate === today) {
-        return { ptDate: today, creditsUsed: raw.creditsUsed ?? 0, quotaExceededUntil: raw.quotaExceededUntil ?? 0 }
+        return { ptDate: today, searchesUsed: raw.searchesUsed ?? (raw.creditsUsed ? Math.round(raw.creditsUsed / 100) : 0), quotaExceededUntil: raw.quotaExceededUntil ?? 0 }
       }
-      return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
+      return { ptDate: today, searchesUsed: 0, quotaExceededUntil: 0 }
     }
   } catch {}
-  return { ptDate: today, creditsUsed: 0, quotaExceededUntil: 0 }
+  return { ptDate: today, searchesUsed: 0, quotaExceededUntil: 0 }
 }
 
 export function persistQuotaState(state: QuotaDisk): void {

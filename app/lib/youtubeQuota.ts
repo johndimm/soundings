@@ -10,3 +10,6 @@ export const YOUTUBE_DAILY_SEARCH_QUOTA =
 
 /** Warn in UI when fewer than ~5% of daily credits remain (5% of 110,000 ≈ 5,500). */
 export const YOUTUBE_LOW_CREDITS_THRESHOLD = 5_000
+
+/** Warn in UI when fewer than 100 searches remain (Google's hard limit is 714 searches/day). */
+export const YOUTUBE_LOW_SEARCHES_THRESHOLD = 100
