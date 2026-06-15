@@ -12,7 +12,11 @@ const NAV_LINKS = [
   { href: '/guide', label: 'Help' },
 ]
 
-export default function AppHeader() {
+interface AppHeaderProps {
+  ytSearchesRemaining?: number | null
+}
+
+export default function AppHeader({ ytSearchesRemaining }: AppHeaderProps) {
   const pathname = usePathname()
   const isPlayer = pathname.startsWith('/player')
 
@@ -72,12 +76,20 @@ export default function AppHeader() {
         </div>
 
         <div
-          className={`sticky right-0 z-20 flex shrink-0 items-center self-center border-l py-1 pl-2 sm:pl-3 ${
+          className={`sticky right-0 z-20 flex shrink-0 items-center self-center gap-2 border-l py-1 pl-2 sm:pl-3 sm:gap-3 ${
             isPlayer
               ? 'border-zinc-800 bg-black/95 shadow-[-6px_0_12px_rgba(0,0,0,0.45)]'
               : 'border-zinc-200 bg-white/95 shadow-[-6px_0_12px_rgba(0,0,0,0.06)]'
           }`}
         >
+          {isPlayer && typeof ytSearchesRemaining === 'number' && (
+            <div className="flex items-center gap-1 text-xs sm:text-sm">
+              <span className={ytSearchesRemaining <= 100 ? 'text-amber-400 font-semibold' : 'text-zinc-400'}>
+                {Math.max(0, 714 - ytSearchesRemaining).toLocaleString()}
+              </span>
+              <span className="text-zinc-500">/714</span>
+            </div>
+          )}
           <a
             href="/api/auth/logout"
             className={`shrink-0 whitespace-nowrap rounded-lg px-2 py-1 text-xs font-medium transition-colors sm:px-2.5 sm:text-sm ${
