@@ -158,7 +158,7 @@ async function initQuotaState() {
   if (quotaStateLoaded) return
   try {
     const { loadQuotaState } = await getQuotaServer()
-    const s = loadQuotaState()
+    const s = await loadQuotaState()
     quotaPtDate = s.ptDate
     searchesUsed = s.searchesUsed
     quotaExceededUntil = s.quotaExceededUntil
@@ -174,7 +174,7 @@ function persistQuotaStateLocal() {
   }
   // Fire and forget - we don't need to await
   getQuotaServer().then(({ persistQuotaState }) => {
-    persistQuotaState(payload)
+    persistQuotaState(payload).catch(err => console.warn('[youtube] quota persist error:', err))
   }).catch(err => console.warn('[youtube] quota persist error:', err))
 }
 
