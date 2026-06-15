@@ -5854,6 +5854,11 @@ export default function PlayerClient({
     <div data-guide="full-player" className="min-h-screen min-w-[min(100%,900px)] bg-black text-white flex flex-col overflow-x-hidden">
       {/* Global nav header */}
       <AppHeader />
+      {source === 'youtube' && ytSearchesRemaining !== null && (
+        <div className="bg-zinc-900/50 px-3 py-1.5 sm:px-4 text-xs text-zinc-400 border-b border-zinc-800/50">
+          YouTube searches: <span className={ytSearchesRemaining <= 100 ? 'text-amber-400 font-semibold' : ''}>{ytSearchesRemaining.toLocaleString()}</span>/714 today
+        </div>
+      )}
       <div className="flex flex-1 flex-col min-h-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-6">
         <div
           className={`mx-auto flex w-full flex-1 flex-col gap-4 min-h-0 ${
