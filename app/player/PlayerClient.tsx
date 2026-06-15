@@ -5856,7 +5856,7 @@ export default function PlayerClient({
       <AppHeader />
       {source === 'youtube' && ytSearchesRemaining !== null && (
         <div className="bg-zinc-900/50 px-3 py-1.5 sm:px-4 text-xs text-zinc-400 border-b border-zinc-800/50">
-          YouTube searches: <span className={ytSearchesRemaining <= 100 ? 'text-amber-400 font-semibold' : ''}>{(714 - ytSearchesRemaining).toLocaleString()}</span>/714 used today
+          YouTube searches: <span className={ytSearchesRemaining <= 100 ? 'text-amber-400 font-semibold' : ''}>{Math.max(0, 714 - ytSearchesRemaining).toLocaleString()}</span>/714 used today
         </div>
       )}
       <div className="flex flex-1 flex-col min-h-0 px-3 py-3 sm:px-4 sm:py-4 lg:px-8 lg:py-6">
