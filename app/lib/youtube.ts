@@ -11,6 +11,7 @@ import {
   YOUTUBE_CREDITS_PER_VIDEOS_LIST,
   YOUTUBE_DAILY_CREDITS,
 } from '@/app/lib/youtubeQuota'
+import { trackLlmYouTubeIdOutcome } from '@/app/lib/llmYouTubeIdLog'
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3'
 
@@ -178,6 +179,20 @@ function persistQuotaStateLocal() {
   }).catch(err => console.warn('[youtube] quota persist error:', err))
 }
 
+async function persistQuotaStateAsync() {
+  const payload = {
+    ptDate: pacificDateKey(),
+    searchesUsed,
+    quotaExceededUntil,
+  }
+  try {
+    const { persistQuotaState } = await getQuotaServer()
+    await persistQuotaState(payload)
+  } catch (err) {
+    console.warn('[youtube] quota persist error:', err)
+  }
+}
+
 function rollQuotaIfNewDay() {
   const today = pacificDateKey()
   if (quotaPtDate === today) return
@@ -197,10 +212,10 @@ export async function ensureQuotaInitialized() {
 
 const YOUTUBE_SEARCH_QUOTA_LIMIT = 714
 
-function chargeYouTubeSearch() {
+async function chargeYouTubeSearch() {
   rollQuotaIfNewDay()
   searchesUsed += 1
-  persistQuotaStateLocal()
+  await persistQuotaStateAsync()
   console.info(`[youtube] +1 search; ${YOUTUBE_SEARCH_QUOTA_LIMIT - searchesUsed} remaining today`)
 }
 
@@ -456,8 +471,12 @@ export async function resolveYouTubeSuggestion(
   const vid = youtubeVideoIdFromSuggestion(song)
   if (vid) {
     const track = await validateAndResolveVideoId(vid, searchHint, 'LLM video id')
-    if (track) return { status: 'ok', track }
+    if (track) {
+      await trackLlmYouTubeIdOutcome('llm', 'youtube_id', true)
+      return { status: 'ok', track }
+    }
     console.info(`[youtube] LLM video id ${vid} failed validation — falling back to search`)
+    await trackLlmYouTubeIdOutcome('llm', 'youtube_id', false)
   }
 
   const queries: string[] = []
@@ -888,7 +907,7 @@ export async function searchYouTube(query: string, metadataHint?: string): Promi
     key: apiKey,
   })
 
-  chargeYouTubeSearch()
+  await chargeYouTubeSearch()
 
   let res: Response
   try {

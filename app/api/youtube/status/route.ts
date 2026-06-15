@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getYouTubeQuotaStatus, probeYouTubeQuotaWhenBackoffActive } from '@/app/lib/youtube'
+import { getLlmYouTubeIdStats } from '@/app/lib/llmYouTubeIdLog'
 
 /** Quota counters; probes Google (1 credit) when server backoff is active to clear stale state. */
 export async function GET() {
@@ -9,5 +10,6 @@ export async function GET() {
     probe = await probeYouTubeQuotaWhenBackoffActive()
   }
   const status = getYouTubeQuotaStatus()
-  return NextResponse.json(probe ? { ...status, probe } : status)
+  const llmIdStats = await getLlmYouTubeIdStats()
+  return NextResponse.json(probe ? { ...status, probe, llmIdStats } : { ...status, llmIdStats })
 }
