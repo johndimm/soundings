@@ -46,12 +46,12 @@ function readSettings(): { provider: LLMProvider; source: PlaybackSource; global
       const parsed = JSON.parse(raw)
       return {
         provider: (['anthropic', 'openai', 'deepseek', 'gemini'].includes(parsed.provider) ? parsed.provider : 'deepseek') as LLMProvider,
-        source: (['spotify', 'youtube'].includes(parsed.source) ? parsed.source : 'spotify') as PlaybackSource,
+        source: (['spotify', 'youtube'].includes(parsed.source) ? parsed.source : 'youtube') as PlaybackSource,
         globalNotes: typeof parsed.globalNotes === 'string' ? parsed.globalNotes : '',
       }
     }
   } catch {}
-  return { provider: 'deepseek', source: 'spotify', globalNotes: '' }
+  return { provider: 'deepseek', source: 'youtube', globalNotes: '' }
 }
 
 function writeSettings(patch: Partial<{ provider: LLMProvider; source: PlaybackSource; globalNotes: string }>) {
@@ -65,7 +65,7 @@ function writeSettings(patch: Partial<{ provider: LLMProvider; source: PlaybackS
 export default function SettingsPage() {
   const router = useRouter()
   const [provider, setProvider] = useState<LLMProvider>('deepseek')
-  const [source, setSource] = useState<PlaybackSource>('spotify')
+  const [source, setSource] = useState<PlaybackSource>('youtube')
   const [globalNotes, setGlobalNotes] = useState('')
   const [mounted, setMounted] = useState(false)
   const [confirm, setConfirm] = useState<
@@ -144,6 +144,14 @@ export default function SettingsPage() {
   const handleProviderChange = (p: LLMProvider) => {
     setProvider(p)
     writeSettings({ provider: p })
+  }
+
+  const handleSourceChange = (s: PlaybackSource) => {
+    setSource(s)
+    writeSettings({ source: s })
+    document.cookie = s === 'youtube'
+      ? 'earprint_youtube_mode=1; path=/; max-age=31536000; samesite=lax'
+      : 'earprint_youtube_mode=; path=/; max-age=0'
   }
 
   const handleGlobalNotesChange = (value: string) => {
@@ -308,6 +316,33 @@ export default function SettingsPage() {
               >
                 {opt.label}
                 <span className="ml-1.5 text-xs opacity-60">{opt.sub}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Playback source */}
+        <section className="flex flex-col gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Playback Source</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              YouTube requires no login. Spotify requires a Premium account with Soundings beta access.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {([['youtube', 'YouTube', 'No login required'], ['spotify', 'Spotify', 'Premium + beta']] as const).map(([value, label, sub]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => handleSourceChange(value)}
+                className={`px-4 py-2 rounded-lg border text-sm transition-colors ${
+                  source === value
+                    ? 'bg-black text-white border-black'
+                    : 'bg-white text-zinc-600 border-zinc-300 hover:border-zinc-500 hover:text-black'
+                }`}
+              >
+                {label}
+                <span className="ml-1.5 text-xs opacity-60">{sub}</span>
               </button>
             ))}
           </div>

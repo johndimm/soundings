@@ -2,7 +2,7 @@ import AudioSilencer from '@/app/components/AudioSilencer'
 
 export const metadata = { title: 'YouTube ToS Violation Response – Soundings' }
 
-const BASE = 'https://soundings-music.vercel.app'
+const BASE = 'https://soundings.johndimm.org'
 
 export default function YouTubeResponse() {
   return (
@@ -26,8 +26,8 @@ export default function YouTubeResponse() {
             <strong className="text-white">Note — application rename and URL change:</strong> Since
             this report was filed, the application has been renamed from <strong className="text-white">Earprint</strong> to{' '}
             <strong className="text-white">Soundings</strong> and its primary URL is{' '}
-            <a href="https://soundings-music.vercel.app" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
-              soundings-music.vercel.app
+            <a href="https://soundings.johndimm.org" target="_blank" rel="noopener noreferrer" className="text-red-400 hover:text-red-300 underline">
+              soundings.johndimm.org
             </a>. The deployment uses the same YouTube Data API key and the same
             Google Cloud project (<strong className="text-white">390748913178</strong>), which has been
             renamed to <strong className="text-white">Soundings</strong> in the API Console. All
